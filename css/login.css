@@ -673,6 +673,17 @@ body {
   color: var(--text);
 }
 
+/* ── FOOTER ── */
+.footer {
+  margin-top: auto;
+  padding-top: 40px;
+  padding-bottom: 24px;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  text-align: center;
+}
+
 /* ── VERSION TAG ── */
 .version-tag {
   position: fixed;
