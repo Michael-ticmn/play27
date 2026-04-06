@@ -337,6 +337,10 @@ begin
   insert into game_players (game_id, player_id, seat_position)
   values (v_game_id, v_player_id, 0);
 
+  -- Auto-create invite code so the game code doubles as signup code
+  insert into invite_codes (code, created_by)
+  values (v_code, v_player_id);
+
   return jsonb_build_object('game_id', v_game_id, 'code', v_code);
 end;
 $$;
