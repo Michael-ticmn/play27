@@ -1,28 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <!-- background -->
   <rect width="512" height="512" rx="80" fill="#1a1c1f"/>
-  <!-- amber top bar -->
-  <rect x="0" y="0" width="512" height="8" rx="4" fill="#d4a027"/>
+  <!-- amber top bar (curved) -->
+  <path d="M80 0 H432 Q512 0 512 80 V12 H0 V80 Q0 0 80 0Z" fill="#d4a027"/>
+  <rect x="60" y="0" width="392" height="10" rx="5" fill="#d4a027"/>
+  <!-- teal bottom bar -->
+  <rect x="0" y="420" width="512" height="92" rx="0" fill="#3ea8aa" opacity="0.2"/>
+  <path d="M0 432 Q0 420 12 420 H500 Q512 420 512 432 V432 Q512 512 432 512 H80 Q0 512 0 432Z" fill="#3ea8aa" opacity="0.15"/>
   <!-- corn stalk left -->
-  <line x1="130" y1="420" x2="130" y2="80" stroke="#2a2a1a" stroke-width="14" stroke-linecap="round"/>
+  <line x1="160" y1="400" x2="160" y2="80" stroke="#4a4a2a" stroke-width="14" stroke-linecap="round"/>
   <!-- corn stalk right -->
-  <line x1="195" y1="420" x2="195" y2="110" stroke="#2a2a1a" stroke-width="14" stroke-linecap="round"/>
+  <line x1="225" y1="400" x2="225" y2="110" stroke="#4a4a2a" stroke-width="14" stroke-linecap="round"/>
   <!-- corn ear on left stalk -->
-  <ellipse cx="130" cy="200" rx="18" ry="48" fill="#d4a027" opacity="0.85"/>
+  <ellipse cx="160" cy="200" rx="18" ry="48" fill="#d4a027" opacity="0.85"/>
   <!-- corn ear on right stalk -->
-  <ellipse cx="195" cy="230" rx="18" ry="48" fill="#d4a027" opacity="0.85"/>
+  <ellipse cx="225" cy="230" rx="18" ry="48" fill="#d4a027" opacity="0.85"/>
   <!-- teal tops -->
-  <line x1="130" y1="80" x2="130" y2="35" stroke="#3ea8aa" stroke-width="12" stroke-linecap="round"/>
-  <line x1="195" y1="110" x2="195" y2="65" stroke="#3ea8aa" stroke-width="12" stroke-linecap="round"/>
+  <line x1="160" y1="80" x2="160" y2="35" stroke="#3ea8aa" stroke-width="12" stroke-linecap="round"/>
+  <line x1="225" y1="110" x2="225" y2="65" stroke="#3ea8aa" stroke-width="12" stroke-linecap="round"/>
   <!-- teal leaves -->
-  <path d="M130 210 Q80 190 95 130" fill="none" stroke="#3ea8aa" stroke-width="8" stroke-linecap="round"/>
-  <path d="M130 280 Q180 260 165 200" fill="none" stroke="#3ea8aa" stroke-width="8" stroke-linecap="round"/>
-  <path d="M195 240 Q145 220 160 160" fill="none" stroke="#3ea8aa" stroke-width="8" stroke-linecap="round"/>
-  <path d="M195 320 Q245 300 230 240" fill="none" stroke="#3ea8aa" stroke-width="8" stroke-linecap="round"/>
+  <path d="M160 210 Q110 190 125 130" fill="none" stroke="#3ea8aa" stroke-width="8" stroke-linecap="round"/>
+  <path d="M160 280 Q210 260 195 200" fill="none" stroke="#3ea8aa" stroke-width="8" stroke-linecap="round"/>
+  <path d="M225 240 Q175 220 190 160" fill="none" stroke="#3ea8aa" stroke-width="8" stroke-linecap="round"/>
+  <path d="M225 320 Q275 300 260 240" fill="none" stroke="#3ea8aa" stroke-width="8" stroke-linecap="round"/>
   <!-- # symbol -->
-  <text x="260" y="220" font-family="'Courier New', Courier, monospace" font-weight="400" font-size="64" fill="#454c58">#</text>
+  <text x="280" y="220" font-family="'Courier New', Courier, monospace" font-weight="400" font-size="64" fill="#454c58">#</text>
   <!-- 27 -->
-  <text x="270" y="380" font-family="'Courier New', Courier, monospace" font-weight="700" font-size="180" fill="#d4a027" letter-spacing="-8">27</text>
-  <!-- play27 label -->
-  <text x="256" y="468" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-weight="400" font-size="36" fill="#666">play27</text>
+  <text x="280" y="380" font-family="'Courier New', Courier, monospace" font-weight="700" font-size="180" fill="#d4a027" letter-spacing="-8">27</text>
+  <!-- play27 label on teal bar -->
+  <text x="256" y="468" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-weight="400" font-size="36" fill="#3ea8aa" opacity="0.7">play27</text>
 </svg>
