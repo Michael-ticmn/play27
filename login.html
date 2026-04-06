@@ -45,6 +45,11 @@
       <div class="success-msg" id="signupSuccess"></div>
       <form id="signupForm">
         <div class="field">
+          <label for="signupInvite">Invite Code</label>
+          <input type="text" id="signupInvite" placeholder="Enter your invite code" required maxlength="20"
+            style="text-transform:uppercase" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+        </div>
+        <div class="field">
           <label for="signupName">Display Name</label>
           <input type="text" id="signupName" placeholder="What should we call you?" required maxlength="20">
         </div>
@@ -229,6 +234,7 @@
 
   async function handleSignup(e) {
     e.preventDefault();
+    const inviteCode = document.getElementById('signupInvite').value.trim();
     const name = document.getElementById('signupName').value.trim();
     const email = document.getElementById('signupEmail').value.trim();
     const password = document.getElementById('signupPassword').value;
@@ -241,19 +247,33 @@
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Creating account...';
 
+    // Create the account first
     const { data, error } = await sb.auth.signUp({
       email,
       password,
       options: { data: { display_name: name } }
     });
 
-    btn.disabled = false;
-    btn.textContent = 'Create Account';
-
     if (error) {
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
       errEl.textContent = error.message;
       errEl.classList.add('show');
       return;
+    }
+
+    // Redeem invite code (requires auth, so do after signup)
+    if (data.session) {
+      const { error: inviteErr } = await sb.rpc('redeem_invite_code', { p_code: inviteCode });
+      if (inviteErr) {
+        // Invite failed — delete the account we just created
+        await sb.auth.signOut();
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+        errEl.textContent = inviteErr.message;
+        errEl.classList.add('show');
+        return;
+      }
     }
 
     // Create profile row
@@ -263,6 +283,9 @@
         display_name: name
       });
     }
+
+    btn.disabled = false;
+    btn.textContent = 'Create Account';
 
     // If email confirmation is required
     if (data.user && !data.session) {

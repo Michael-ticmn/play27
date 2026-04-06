@@ -19,6 +19,8 @@ alter table round_cards enable row level security;
 alter table buy_requests enable row level security;
 alter table game_actions enable row level security;
 alter table contracts enable row level security;
+alter table invite_codes enable row level security;
+alter table invite_redemptions enable row level security;
 
 -- ── DROP OLD POLICIES (safe: no error if they don't exist) ──
 
@@ -26,6 +28,8 @@ drop policy if exists "Anyone can view profiles" on profiles;
 drop policy if exists "Users can update own profile" on profiles;
 drop policy if exists "Users can insert own profile" on profiles;
 drop policy if exists "Anyone can read contracts" on contracts;
+drop policy if exists "No direct access to invite codes" on invite_codes;
+drop policy if exists "No direct access to invite redemptions" on invite_redemptions;
 drop policy if exists "Players can view games they are in" on games;
 drop policy if exists "Authenticated users can create games" on games;
 drop policy if exists "Game creator can update game" on games;
@@ -60,6 +64,15 @@ create policy "Users can insert own profile"
 
 create policy "Anyone can read contracts"
   on contracts for select using (true);
+
+-- ── INVITE CODES ──
+-- No direct access — all operations go through SECURITY DEFINER functions
+
+create policy "No direct access to invite codes"
+  on invite_codes for select using (false);
+
+create policy "No direct access to invite redemptions"
+  on invite_redemptions for select using (false);
 
 -- ── GAMES ──
 

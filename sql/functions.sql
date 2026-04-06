@@ -247,6 +247,42 @@ $$;
 -- ════════════════════════════════════════════════════════════
 
 -- ────────────────────────────────────────────────────────────
+-- REDEEM INVITE CODE
+-- Called during signup to validate and claim an invite code.
+-- Returns true if valid, raises exception if not.
+-- ────────────────────────────────────────────────────────────
+create or replace function redeem_invite_code(p_code text)
+returns boolean
+language plpgsql security definer as $$
+declare
+  v_code invite_codes%rowtype;
+begin
+  select * into v_code from invite_codes where code = upper(trim(p_code));
+
+  if not found then
+    raise exception 'Invalid invite code';
+  end if;
+
+  if v_code.expires_at < now() then
+    raise exception 'Invite code has expired';
+  end if;
+
+  -- Check if this user already redeemed this code
+  if exists (
+    select 1 from invite_redemptions
+    where code = v_code.code and used_by = auth.uid()
+  ) then
+    return true; -- idempotent
+  end if;
+
+  insert into invite_redemptions (code, used_by)
+  values (v_code.code, auth.uid());
+
+  return true;
+end;
+$$;
+
+-- ────────────────────────────────────────────────────────────
 -- Generate a unique 6-character join code
 -- ────────────────────────────────────────────────────────────
 create or replace function generate_game_code()

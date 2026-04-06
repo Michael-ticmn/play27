@@ -1,9 +1,10 @@
 # Contract Rummy — CURRENT_STATE.md
 
-## As of 2026-04-02
+## As of 2026-04-05
 
 **What exists and works:**
 - contract-rummy.html — full landscape game UI
+- Invite-only signup — invite_codes table with 4-hour expiry, multi-use codes, redeemed via RPC
   - 6-column opponent strip with melds, card backs, scores
   - Buy countdown mechanic (animated ring, turn-order queue, toast)
   - Your hand with card selection (tap to select/deselect)
@@ -17,8 +18,7 @@
 **What's broken / incomplete:**
 - Phone landscape layout is broken — too tall/narrow, grid collapses badly
   (tested on Android phone ~740px landscape viewport)
-- No real backend yet — all data is static/demo
-- No Supabase connection
+- No real backend yet — game data is static/demo
 - T-SQL procedures not yet shared or ported
 
 **What's in progress:**

@@ -16,6 +16,8 @@ drop table if exists player_round_state cascade;
 drop table if exists rounds cascade;
 drop table if exists game_players cascade;
 drop table if exists games cascade;
+drop table if exists invite_redemptions cascade;
+drop table if exists invite_codes cascade;
 drop table if exists contracts cascade;
 drop table if exists profiles cascade;
 
@@ -197,6 +199,25 @@ create table game_actions (
 create index idx_actions_game on game_actions(game_id);
 create index idx_actions_round on game_actions(round_id);
 create index idx_actions_created on game_actions(created_at);
+
+-- ── INVITE CODES ──
+-- Gate signup behind invite codes you distribute manually
+
+create table invite_codes (
+  code        text primary key,
+  created_by  uuid references profiles(id),
+  expires_at  timestamptz not null default (now() + interval '4 hours'),
+  created_at  timestamptz not null default now()
+);
+
+-- Track who used each code (many-to-one)
+create table invite_redemptions (
+  id          uuid primary key default gen_random_uuid(),
+  code        text not null references invite_codes(code),
+  used_by     uuid not null references auth.users(id),
+  redeemed_at timestamptz not null default now(),
+  unique(code, used_by)
+);
 
 -- ── CONTRACT DEFINITIONS ──
 -- Reference table: what each round requires
