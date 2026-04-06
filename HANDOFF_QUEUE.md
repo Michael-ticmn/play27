@@ -2,13 +2,13 @@
 
 ## Pending
 
-- [ ] [FROM: Chat → Code] Design phone landscape layout for contract-rummy-v3.html
+- [ ] [FROM: Chat → Code] Design phone landscape layout for contract-rummy.html
   - Target viewport: ~740px wide × ~360–380px tall (phone landscape after browser chrome)
   - Use CSS media query — do NOT break desktop layout
   - Code has full creative control on how to handle opponent strip + melds on small screen
   - Must preserve: buy countdown, YOU panel identity, active player indicator, gold aesthetic
   - Rotate prompt (portrait blocker) already works — leave it alone
-  - Deliver as updated contract-rummy-v3.html
+  - Deliver as updated contract-rummy.html
 
 ## Completed
 - ✅ Initial landscape layout built (portrait → landscape) — 2026-04-02

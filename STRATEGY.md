@@ -22,7 +22,7 @@ SQL procedures exist in T-SQL and will need porting to PostgreSQL/PL/pgSQL.
 - Standard scoring (unmelded cards count against you)
 
 ## Phone Layout Problem (HANDOFF TO CODE)
-The current v3 layout (contract-rummy-v3.html) looks great on desktop/tablet landscape
+The current v3 layout (contract-rummy.html) looks great on desktop/tablet landscape
 but breaks badly on phone landscape (Samsung-style ~740px tall landscape viewport).
 The grid layout collapses — opponent melds disappear, hand is cut off, everything chunks.
 
@@ -45,4 +45,4 @@ Key constraints:
 - Gold/felt/wood aesthetic must carry through — no generic reskins
 - Buy countdown widget must work on phone too
 - "YOU" panel identity and active player green indicator must be clear on phone
-- File: contract-rummy-v3.html is the current working file
+- File: contract-rummy.html is the current working file

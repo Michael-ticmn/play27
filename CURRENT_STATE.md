@@ -3,7 +3,7 @@
 ## As of 2026-04-02
 
 **What exists and works:**
-- contract-rummy-v3.html — full landscape game UI
+- contract-rummy.html — full landscape game UI
   - 6-column opponent strip with melds, card backs, scores
   - Buy countdown mechanic (animated ring, turn-order queue, toast)
   - Your hand with card selection (tap to select/deselect)
