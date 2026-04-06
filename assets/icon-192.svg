@@ -1,16 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
   <!-- background -->
-  <rect width="192" height="192" rx="30" fill="#1a1c1f"/>
+  <rect width="192" height="192" rx="30" fill="#111214"/>
   <!-- amber top bar -->
   <rect x="0" y="0" width="192" height="3" rx="1.5" fill="#d4a027"/>
+  <!-- teal bottom bar -->
+  <path d="M0 162 Q0 158 4 158 H188 Q192 158 192 162 V162 Q192 192 162 192 H30 Q0 192 0 162Z" fill="#3ea8aa" opacity="0.15"/>
   <!-- corn stalk left -->
   <line x1="48" y1="158" x2="48" y2="30" stroke="#2a2a1a" stroke-width="5.5" stroke-linecap="round"/>
   <!-- corn stalk right -->
   <line x1="73" y1="158" x2="73" y2="42" stroke="#2a2a1a" stroke-width="5.5" stroke-linecap="round"/>
-  <!-- corn ear on left stalk -->
-  <ellipse cx="48" cy="75" rx="7" ry="18" fill="#d4a027" opacity="0.85"/>
-  <!-- corn ear on right stalk -->
-  <ellipse cx="73" cy="86" rx="7" ry="18" fill="#d4a027" opacity="0.85"/>
   <!-- teal tops -->
   <line x1="48" y1="30" x2="48" y2="14" stroke="#3ea8aa" stroke-width="4.5" stroke-linecap="round"/>
   <line x1="73" y1="42" x2="73" y2="26" stroke="#3ea8aa" stroke-width="4.5" stroke-linecap="round"/>
@@ -24,5 +22,5 @@
   <!-- 27 -->
   <text x="100" y="144" font-family="'Courier New', Courier, monospace" font-weight="700" font-size="68" fill="#d4a027" letter-spacing="-3">27</text>
   <!-- play27 label -->
-  <text x="96" y="176" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-weight="400" font-size="14" fill="#666">play27</text>
+  <text x="96" y="176" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-weight="400" font-size="14" fill="#3ea8aa" opacity="0.7">play27</text>
 </svg>
