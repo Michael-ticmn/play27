@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>play27 — Contract Rummy</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+
+  <!-- ── LOGO ── -->
+  <div class="logo">
+    <img src="assets/logo-horizontal.svg" alt="play27">
+    <h1>Contract <span>Rummy</span></h1>
+    <p>your table, your rules</p>
+  </div>
+
+  <!-- ── AUTH PANELS ── -->
+  <div id="authSection">
+    <div class="tabs">
+      <div class="tab active" id="tabLogin">Sign In</div>
+      <div class="tab" id="tabSignup">Sign Up</div>
+    </div>
+
+    <!-- LOGIN -->
+    <div class="panel active" id="loginPanel">
+      <div class="error-msg" id="loginError"></div>
+      <form id="loginForm">
+        <div class="field">
+          <label for="loginEmail">Email</label>
+          <input type="email" id="loginEmail" placeholder="you@example.com" required>
+        </div>
+        <div class="field">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" placeholder="Your password" required>
+        </div>
+        <button type="submit" class="btn-primary" id="loginBtn">Sign In</button>
+      </form>
+    </div>
+
+    <!-- SIGNUP -->
+    <div class="panel" id="signupPanel">
+      <div class="error-msg" id="signupError"></div>
+      <div class="success-msg" id="signupSuccess"></div>
+      <form id="signupForm">
+        <div class="field">
+          <label for="signupName">Display Name</label>
+          <input type="text" id="signupName" placeholder="What should we call you?" required maxlength="20">
+        </div>
+        <div class="field">
+          <label for="signupEmail">Email</label>
+          <input type="email" id="signupEmail" placeholder="you@example.com" required>
+        </div>
+        <div class="field">
+          <label for="signupPassword">Password</label>
+          <input type="password" id="signupPassword" placeholder="At least 6 characters" required minlength="6">
+        </div>
+        <button type="submit" class="btn-primary" id="signupBtn">Create Account</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── LOBBY (shown after login) ── -->
+  <div id="lobbyPanel">
+    <div class="lobby-header">
+      <h2>Game Lobby</h2>
+      <div class="user-badge">
+        <span class="user-name" id="userName"></span>
+        <button class="btn-logout" id="logoutBtn">Sign Out</button>
+        <div class="theme-toggle">
+          <button id="themeDark" class="active">Dark</button>
+          <button id="themeLight">Light</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="lobby-actions">
+      <div class="lobby-card" id="newGameCard">
+        <div class="icon">&#10010;</div>
+        <h3>New Game</h3>
+        <p>Create &amp; share the code</p>
+      </div>
+      <div class="lobby-card" id="joinGameCard">
+        <div class="icon">&#128279;</div>
+        <h3>Join Game</h3>
+        <p>Enter a 6-letter code</p>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card">
+        <div class="stat-val" id="statGames">0</div>
+        <div class="stat-label">Games Played</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="statWins">0</div>
+        <div class="stat-label">Wins</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="statAvg">&mdash;</div>
+        <div class="stat-label">Avg Score</div>
+      </div>
+    </div>
+
+    <!-- GAME HISTORY -->
+    <div class="history-section">
+      <h3>Game History</h3>
+      <div id="historyList">
+        <div class="history-empty">No games played yet. Start one!</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── JOIN MODAL ── -->
+  <div class="modal-overlay" id="joinModal">
+    <div class="modal">
+      <h3>Enter Game Code</h3>
+      <div class="error-msg" id="joinError"></div>
+      <input type="text" class="code-input" id="joinCode" maxlength="6" placeholder="ABC123"
+        oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+      <div class="modal-btns">
+        <button class="btn-cancel" id="joinCancelBtn">Cancel</button>
+        <button class="btn-primary" id="joinSubmitBtn" style="margin-top:0">Join</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── GAME SETUP MODAL ── -->
+  <div class="modal-overlay setup-modal" id="setupModal">
+    <div class="modal">
+      <h3>Game Setup</h3>
+      <div class="error-msg" id="setupError"></div>
+
+      <div class="setup-hint" style="margin-bottom:12px;">Decks are set automatically based on player count</div>
+
+      <div class="setup-group">
+        <span class="setup-label">Jokers per Deck</span>
+        <div class="setup-options" data-option="numJokers">
+          <button class="setup-opt active" data-val="0">None</button>
+          <button class="setup-opt" data-val="1">1</button>
+          <button class="setup-opt" data-val="2">2</button>
+        </div>
+        <div class="setup-hint">Wild cards that can substitute for any card in a meld</div>
+      </div>
+
+      <div class="setup-group">
+        <span class="setup-label">Buy Timer</span>
+        <div class="setup-options" data-option="buyCountdown">
+          <button class="setup-opt" data-val="5">5s</button>
+          <button class="setup-opt active" data-val="10">10s</button>
+          <button class="setup-opt" data-val="15">15s</button>
+          <button class="setup-opt" data-val="30">30s</button>
+        </div>
+        <div class="setup-hint">How long players have to request a buy before the turn continues</div>
+      </div>
+
+      <div class="setup-group">
+        <span class="setup-label">Buys per Player per Round</span>
+        <div class="setup-options" data-option="maxBuys">
+          <button class="setup-opt" data-val="1">1</button>
+          <button class="setup-opt" data-val="2">2</button>
+          <button class="setup-opt" data-val="3">3</button>
+          <button class="setup-opt active" data-val="">No Limit</button>
+        </div>
+        <div class="setup-hint">How many times each player can buy the discard pile in a single round</div>
+      </div>
+
+      <div class="modal-btns" style="margin-top:18px">
+        <button class="btn-cancel" id="setupCancelBtn">Cancel</button>
+        <button class="btn-primary" id="setupCreateBtn" style="margin-top:0">Create Game</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="version-tag">v0.7.0</div>
+
+<script type="module">
+  // ─────────────────────────────────────────────
+  // SUPABASE SETUP
+  // ─────────────────────────────────────────────
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+  const SUPABASE_URL = 'https://pxjkedzafalchtxmwvnl.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4amtlZHphZmFsY2h0eG13dm5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDI5MjMsImV4cCI6MjA5MDk3ODkyM30.3EWGJ1R-XzyjDoXHhUQEhldF2rE0Xz0Jui1SmoovPFU';
+
+  const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ─────────────────────────────────────────────
+  // AUTH STATE
+  // ─────────────────────────────────────────────
+  let currentUser = null;
+
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (session) {
+      currentUser = session.user;
+      await showLobby();
+    } else {
+      currentUser = null;
+      showAuth();
+    }
+  });
+
+  // ─────────────────────────────────────────────
+  // AUTH HANDLERS
+  // ─────────────────────────────────────────────
+  async function handleLogin(e) {
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const btn = document.getElementById('loginBtn');
+    const errEl = document.getElementById('loginError');
+
+    errEl.classList.remove('show');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Signing in...';
+
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+
+    if (error) {
+      errEl.textContent = error.message;
+      errEl.classList.add('show');
+    }
+  };
+
+  async function handleSignup(e) {
+    e.preventDefault();
+    const name = document.getElementById('signupName').value.trim();
+    const email = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+    const btn = document.getElementById('signupBtn');
+    const errEl = document.getElementById('signupError');
+    const successEl = document.getElementById('signupSuccess');
+
+    errEl.classList.remove('show');
+    successEl.classList.remove('show');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Creating account...';
+
+    const { data, error } = await sb.auth.signUp({
+      email,
+      password,
+      options: { data: { display_name: name } }
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'Create Account';
+
+    if (error) {
+      errEl.textContent = error.message;
+      errEl.classList.add('show');
+      return;
+    }
+
+    // Create profile row
+    if (data.user) {
+      await sb.from('profiles').upsert({
+        id: data.user.id,
+        display_name: name
+      });
+    }
+
+    // If email confirmation is required
+    if (data.user && !data.session) {
+      successEl.textContent = 'Check your email to confirm your account!';
+      successEl.classList.add('show');
+    }
+  };
+
+  // ─────────────────────────────────────────────
+  // UI SWITCHING
+  // ─────────────────────────────────────────────
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+
+    if (tab === 'login') {
+      document.querySelectorAll('.tab')[0].classList.add('active');
+      document.getElementById('loginPanel').classList.add('active');
+    } else {
+      document.querySelectorAll('.tab')[1].classList.add('active');
+      document.getElementById('signupPanel').classList.add('active');
+    }
+  };
+
+  function showAuth() {
+    document.getElementById('authSection').style.display = '';
+    document.getElementById('lobbyPanel').classList.remove('active');
+  }
+
+  async function showLobby() {
+    document.getElementById('authSection').style.display = 'none';
+    document.getElementById('lobbyPanel').classList.add('active');
+
+    // Get display name
+    const { data: profile } = await sb
+      .from('profiles')
+      .select('display_name')
+      .eq('id', currentUser.id)
+      .single();
+
+    document.getElementById('userName').textContent =
+      profile?.display_name
+      || currentUser.user_metadata?.display_name
+      || currentUser.email
+      || 'Player';
+
+    await loadHistory();
+  }
+
+  // ─────────────────────────────────────────────
+  // GAME ACTIONS
+  // ─────────────────────────────────────────────
+
+  // ── SETUP MODAL ──
+  const setupOptions = {
+    numJokers: 0,
+    buyCountdown: 10,
+    maxBuys: null  // null = unlimited
+  };
+
+  function showSetupModal() {
+    document.getElementById('setupModal').classList.add('show');
+    document.getElementById('setupError').classList.remove('show');
+  }
+
+  function hideSetupModal() {
+    document.getElementById('setupModal').classList.remove('show');
+  }
+
+  // Toggle buttons in setup modal
+  document.querySelectorAll('.setup-options').forEach(group => {
+    const option = group.dataset.option;
+    group.querySelectorAll('.setup-opt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        group.querySelectorAll('.setup-opt').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const raw = btn.dataset.val;
+        setupOptions[option] = raw === '' ? null : parseInt(raw, 10);
+      });
+    });
+  });
+
+  async function handleCreateGame() {
+    const btn = document.getElementById('setupCreateBtn');
+    const errEl = document.getElementById('setupError');
+    errEl.classList.remove('show');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Creating...';
+
+    const params = {
+      p_buy_countdown: setupOptions.buyCountdown,
+      p_num_decks: 2,
+      p_num_jokers: setupOptions.numJokers
+    };
+    if (setupOptions.maxBuys !== null) {
+      params.p_max_buys = setupOptions.maxBuys;
+    }
+    const { data, error } = await sb.rpc('create_game', params);
+
+    btn.disabled = false;
+    btn.textContent = 'Create Game';
+
+    if (error) {
+      errEl.textContent = error.message;
+      errEl.classList.add('show');
+      return;
+    }
+
+    if (data && data.code) {
+      window.location.href = `contract-rummy-v3.html?game=${data.code}`;
+    }
+  };
+
+  function showJoinModal() {
+    document.getElementById('joinModal').classList.add('show');
+    document.getElementById('joinCode').value = '';
+    document.getElementById('joinCode').focus();
+    document.getElementById('joinError').classList.remove('show');
+  };
+
+  function hideJoinModal() {
+    document.getElementById('joinModal').classList.remove('show');
+  };
+
+  async function handleJoinGame() {
+    const code = document.getElementById('joinCode').value.trim();
+    const errEl = document.getElementById('joinError');
+
+    if (code.length !== 6) {
+      errEl.textContent = 'Code must be 6 characters';
+      errEl.classList.add('show');
+      return;
+    }
+
+    errEl.classList.remove('show');
+
+    const { data, error } = await sb.rpc('join_game', { p_code: code });
+    if (error) {
+      errEl.textContent = error.message;
+      errEl.classList.add('show');
+      return;
+    }
+
+    window.location.href = `contract-rummy-v3.html?game=${code}`;
+  };
+
+  // ─────────────────────────────────────────────
+  // GAME HISTORY
+  // ─────────────────────────────────────────────
+  async function loadHistory() {
+    const { data, error } = await sb.rpc('get_game_history');
+
+    const container = document.getElementById('historyList');
+
+    if (error || !data || data.length === 0) {
+      container.innerHTML = '<div class="history-empty">No games played yet. Start one!</div>';
+      return;
+    }
+
+    // Compute stats
+    const games = data;
+    const wins = games.filter(g => g.your_rank === 1).length;
+    const totalScore = games.reduce((s, g) => s + g.your_total_score, 0);
+    const avgScore = Math.round(totalScore / games.length);
+
+    document.getElementById('statGames').textContent = games.length;
+    document.getElementById('statWins').textContent = wins;
+    document.getElementById('statAvg').textContent = avgScore;
+
+    // Render history
+    container.innerHTML = '';
+    const list = document.createElement('div');
+    list.className = 'history-list';
+
+    games.forEach(game => {
+      const isWin = game.your_rank === 1;
+      const date = new Date(game.finished_at);
+      const dateStr = date.toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric'
+      });
+
+      const players = game.players.map(p => p.name).join(', ');
+
+      const ordinal = n => {
+        const s = ['th','st','nd','rd'];
+        const v = n % 100;
+        return n + (s[(v - 20) % 10] || s[v] || s[0]);
+      };
+
+      const item = document.createElement('div');
+      item.className = 'history-item' + (isWin ? ' win' : '');
+      item.innerHTML = `
+        <div class="hi-info">
+          <h4>${isWin ? '&#127942; ' : ''}${game.winner} won${isWin ? ' (You!)' : ''}</h4>
+          <p>${dateStr} &middot; ${game.player_count} players &middot; ${players}</p>
+        </div>
+        <div class="hi-rank">
+          ${ordinal(game.your_rank)}
+          <small>place</small>
+        </div>
+        <div class="hi-score">
+          <span class="pts">${game.your_total_score}</span>
+          <small>total pts</small>
+        </div>
+      `;
+      list.appendChild(item);
+    });
+
+    container.appendChild(list);
+  }
+
+  // ─────────────────────────────────────────────
+  // WIRE UP EVENT LISTENERS
+  // ─────────────────────────────────────────────
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await sb.auth.signOut();
+  });
+
+  document.getElementById('loginForm').addEventListener('submit', handleLogin);
+  document.getElementById('signupForm').addEventListener('submit', handleSignup);
+
+  document.getElementById('tabLogin').addEventListener('click', () => switchTab('login'));
+  document.getElementById('tabSignup').addEventListener('click', () => switchTab('signup'));
+
+  const newGameEl = document.getElementById('newGameCard');
+  const joinGameEl = document.getElementById('joinGameCard');
+  newGameEl.addEventListener('click', () => showSetupModal());
+  joinGameEl.addEventListener('click', () => showJoinModal());
+
+  // Setup modal
+  document.getElementById('setupCancelBtn').addEventListener('click', hideSetupModal);
+  document.getElementById('setupCreateBtn').addEventListener('click', handleCreateGame);
+  document.getElementById('setupModal').addEventListener('click', function(e) {
+    if (e.target === this) hideSetupModal();
+  });
+
+  // Join modal
+  document.getElementById('joinCancelBtn').addEventListener('click', hideJoinModal);
+  document.getElementById('joinSubmitBtn').addEventListener('click', handleJoinGame);
+  document.getElementById('joinModal').addEventListener('click', function(e) {
+    if (e.target === this) hideJoinModal();
+  });
+  document.getElementById('joinCode').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') handleJoinGame();
+  });
+
+  // ─────────────────────────────────────────────
+  // THEME
+  // ─────────────────────────────────────────────
+  function setTheme(theme) {
+    if (theme === 'light') {
+      document.body.classList.add('light');
+    } else {
+      document.body.classList.remove('light');
+    }
+    document.getElementById('themeDark').classList.toggle('active', theme !== 'light');
+    document.getElementById('themeLight').classList.toggle('active', theme === 'light');
+    localStorage.setItem('play27-theme', theme);
+  }
+
+  document.getElementById('themeDark').addEventListener('click', () => setTheme('dark'));
+  document.getElementById('themeLight').addEventListener('click', () => setTheme('light'));
+
+  // Apply saved theme
+  const savedTheme = localStorage.getItem('play27-theme');
+  if (savedTheme) setTheme(savedTheme);
+</script>
+</body>
+</html>
