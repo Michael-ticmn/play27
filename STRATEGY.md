@@ -6,7 +6,7 @@ backend will be Supabase (PostgreSQL + Realtime). Deployed via GitHub Pages (fre
 SQL procedures exist in T-SQL and will need porting to PostgreSQL/PL/pgSQL.
 
 ## Confirmed Decisions
-- **Signup**: Invite-only. Codes are multi-use, expire after 4 hours. Created via SQL insert.
+- **Signup**: Invite-only. Codes are multi-use, expire after 4 hours. Game codes double as invite codes (auto-created on game creation). Share one link to sign up and join.
 - **Stack**: Supabase (DB + Realtime + Auth) + GitHub Pages (static frontend)
 - **Layout**: Landscape-forced. Portrait shows a "rotate your phone" prompt.
 - **Players**: 2–6 players, real-time (same session)

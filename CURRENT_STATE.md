@@ -3,8 +3,12 @@
 ## As of 2026-04-05
 
 **What exists and works:**
+- index.html — landing page with game directory, copyright footer
+- login.html — auth with invite-only signup, lobby, game history
 - contract-rummy.html — full landscape game UI
-- Invite-only signup — invite_codes table with 4-hour expiry, multi-use codes, redeemed via RPC
+- Invite-only signup — multi-use codes, 4-hour expiry, redeemed via RPC
+- Game code = invite code — creating a game auto-generates an invite code; share one link to sign up + join
+  - URL format: login.html?game=CODE (pre-fills invite, auto-joins after signup/login)
   - 6-column opponent strip with melds, card backs, scores
   - Buy countdown mechanic (animated ring, turn-order queue, toast)
   - Your hand with card selection (tap to select/deselect)
