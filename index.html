@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>play27 — Card Games</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<style>
+  :root {
+    --bg: #111214;
+    --bg2: #1a1c1f;
+    --bg3: #222427;
+    --border: #2e3035;
+    --text: #f4f4f2;
+    --muted: #c0c0bc;
+    --amber: #d4a027;
+    --amber-dk: #a87d1c;
+    --amber-dim: rgba(212,160,39,0.25);
+  }
+
+  .light {
+    --bg: #f0ede8;
+    --bg2: #e6e2db;
+    --bg3: #dbd7cf;
+    --border: #c5c0b6;
+    --text: #1a1a1a;
+    --muted: #5a5750;
+    --amber: #b8891a;
+    --amber-dk: #9a7015;
+    --amber-dim: rgba(184,137,26,0.2);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  html, body {
+    width:100%; min-height:100vh;
+    background: var(--bg);
+    font-family: -apple-system, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+  }
+
+  body {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding: 60px 20px;
+  }
+
+  .logo {
+    text-align:center;
+    margin-bottom: 40px;
+  }
+
+  .logo img { height: 56px; margin-bottom: 12px; }
+
+  .logo p {
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  .games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    width: min(600px, 100%);
+  }
+
+  .game-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 24px;
+    text-decoration: none;
+    color: var(--text);
+    transition: border-color 0.2s, transform 0.15s;
+    cursor: pointer;
+    display: block;
+  }
+
+  .game-card:hover {
+    border-color: var(--amber);
+    transform: translateY(-2px);
+  }
+
+  .game-card h2 {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .game-card h2 span { color: var(--amber); }
+
+  .game-card p {
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .game-card .players {
+    display: inline-block;
+    margin-top: 12px;
+    font-size: 0.7rem;
+    font-family: 'Courier New', Courier, monospace;
+    color: var(--amber-dk);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .coming-soon {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .coming-soon .badge {
+    display: inline-block;
+    margin-top: 12px;
+    font-size: 0.65rem;
+    font-family: 'Courier New', Courier, monospace;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+
+  <div class="logo">
+    <img src="assets/logo-horizontal.svg" alt="play27">
+    <p>your table, your rules</p>
+  </div>
+
+  <div class="games-grid">
+    <a class="game-card" href="login.html">
+      <h2>Contract <span>Rummy</span></h2>
+      <p>7 rounds, escalating contracts. Meld sets and runs, buy from the discard pile, and go out first.</p>
+      <div class="players">2 – 6 players</div>
+    </a>
+
+    <div class="game-card coming-soon">
+      <h2>More <span>Coming</span></h2>
+      <p>New games are in the works. Stay tuned.</p>
+      <div class="badge">Coming Soon</div>
+    </div>
+  </div>
+
+<script>
+  const theme = localStorage.getItem('play27-theme');
+  if (theme === 'light') document.body.classList.add('light');
+</script>
+</body>
+</html>
