@@ -238,8 +238,13 @@ async function handleCreateGame() {
       return;
     }
 
-    if (data && data.code) {
-      window.location.href = `contract-rummy.html?game=${data.code}`;
+    console.log('[create_game] response:', data);
+    const code = data?.code || (typeof data === 'string' ? data : null);
+    if (code) {
+      window.location.href = `contract-rummy.html?game=${code}`;
+    } else {
+      errEl.textContent = 'Unexpected response: ' + JSON.stringify(data);
+      errEl.classList.add('show');
     }
   } catch (err) {
     errEl.textContent = err.message || 'Failed to create game';
