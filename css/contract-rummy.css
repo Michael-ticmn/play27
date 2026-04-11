@@ -64,6 +64,8 @@
 
   html, body {
     height:100%;
+  }
+  body.game-active {
     overflow:hidden;
   }
 

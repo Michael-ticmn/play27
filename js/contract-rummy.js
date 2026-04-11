@@ -179,6 +179,7 @@ async function enterGame() {
   $loading.style.display = 'none';
   $waiting.style.display = 'none';
   $board.style.display = 'grid';
+  document.body.classList.add('game-active');
 
   await fetchAndRender();
   setupGameSubscriptions();
