@@ -1334,3 +1334,96 @@
     font-size:1rem;
     letter-spacing:0.1em;
   }
+
+/* ── SPECTATOR MODE ── */
+.spectator-banner {
+  background: var(--amber);
+  color: #000;
+  text-align: center;
+  padding: 6px 12px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  grid-column: 1 / -1;
+  z-index: 100;
+}
+.spectator-hidden { display: none !important; }
+
+/* ── LATE JOIN MODAL ── */
+.lj-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.btn-lj-approve {
+  padding: 10px;
+  border-radius: 6px;
+  border: none;
+  background: var(--amber);
+  color: #000;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-lj-approve:hover { filter: brightness(1.1); }
+.lj-scoring-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+.lj-scoring-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+.btn-score-opt {
+  padding: 9px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-score-opt:hover {
+  background: var(--amber);
+  color: #000;
+  border-color: var(--amber);
+}
+.btn-lj-spectate {
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-lj-spectate:hover { border-color: var(--muted); color: var(--text); }
+.btn-lj-kick {
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #c33;
+  background: transparent;
+  color: #c33;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-lj-kick:hover { background: #c33; color: #fff; }

@@ -23,6 +23,39 @@
 --   '0901' = deck 0, joker #1
 -- ============================================================
 
+-- ── LATE JOIN REQUESTS TABLE ──
+-- Stores requests from players wanting to join an active game.
+-- Created here (not schema.sql) so it can be deployed incrementally.
+create table if not exists late_join_requests (
+  id              uuid primary key default gen_random_uuid(),
+  game_id         uuid not null references games(id) on delete cascade,
+  player_id       uuid not null references profiles(id),
+  status          text not null default 'pending'
+                  check (status in ('pending','approved','spectating','kicked')),
+  scoring_method  text check (scoring_method in ('average','max','max_plus_avg')),
+  resolved_by     uuid references profiles(id),
+  resolved_at     timestamptz,
+  created_at      timestamptz not null default now(),
+  unique(game_id, player_id)
+);
+
+create index if not exists idx_ljr_game on late_join_requests(game_id);
+
+-- RLS: read access for involved players; mutations go through security definer functions
+alter table late_join_requests enable row level security;
+drop policy if exists "View late join requests" on late_join_requests;
+create policy "View late join requests"
+  on late_join_requests for select using (
+    player_id = auth.uid()
+    or game_id in (select game_id from game_players where player_id = auth.uid())
+  );
+
+-- Add to realtime publication (ignore error if already added)
+do $$ begin
+  alter publication supabase_realtime add table late_join_requests;
+exception when duplicate_object then null;
+end $$;
+
 -- ── DROP REMOVED FUNCTIONS (from old array-based model) ──
 drop function if exists build_deck(int, int);
 drop function if exists remove_cards(text[], text[]);
@@ -386,16 +419,27 @@ begin
     raise exception 'Game not found';
   end if;
 
-  if v_game.status != 'waiting' then
-    raise exception 'Game already started';
-  end if;
-
+  -- Existing player? Always allow rejoin regardless of game status
   select id into v_existing from game_players
     where game_id = v_game.id and player_id = v_player_id;
   if found then
     return v_game.id;
   end if;
 
+  -- Game finished? Block new players
+  if v_game.status = 'finished' then
+    raise exception 'Game has ended';
+  end if;
+
+  -- Game active? Create a late-join request (spectator until host approves)
+  if v_game.status = 'active' then
+    insert into late_join_requests (game_id, player_id, status)
+    values (v_game.id, v_player_id, 'pending')
+    on conflict (game_id, player_id) do nothing;
+    return v_game.id;
+  end if;
+
+  -- Game waiting: normal join
   select coalesce(max(seat_position), -1) + 1 into v_seat
     from game_players where game_id = v_game.id;
 
@@ -1344,6 +1388,13 @@ declare
   v_next_round int;
   v_dealer_seat int;
   v_player_id uuid := auth.uid();
+  v_req record;
+  v_next_seat int;
+  v_new_num_decks int;
+  v_completed_round record;
+  v_avg_score numeric;
+  v_max_score int;
+  v_penalty int;
 begin
   select * into v_game from games where id = p_game_id;
   if v_game.status != 'active' then raise exception 'Game not active'; end if;
@@ -1355,15 +1406,67 @@ begin
   v_next_round := v_last_round.round_number + 1;
   if v_next_round > 7 then raise exception 'All rounds completed'; end if;
 
+  -- Dealer check uses CURRENT player count (before late joiners)
   select count(*) into v_player_count from game_players where game_id = p_game_id;
   v_dealer_seat := (v_next_round - 1) % v_player_count;
 
-  -- Only the dealer can deal
   if not exists (
     select 1 from game_players
     where game_id = p_game_id and player_id = v_player_id and seat_position = v_dealer_seat
   ) then
     raise exception 'Only the dealer can deal the next round';
+  end if;
+
+  -- ── Process approved late joiners ──
+  select coalesce(max(seat_position), -1) into v_next_seat
+    from game_players where game_id = p_game_id;
+
+  for v_req in
+    select * from late_join_requests
+    where game_id = p_game_id and status = 'approved'
+    order by created_at
+  loop
+    v_next_seat := v_next_seat + 1;
+
+    -- Seat the player
+    insert into game_players (game_id, player_id, seat_position)
+    values (p_game_id, v_req.player_id, v_next_seat);
+
+    -- Create penalty scores for all completed rounds
+    for v_completed_round in
+      select r.id as round_id, r.round_number
+      from rounds r where r.game_id = p_game_id and r.status = 'finished'
+      order by r.round_number
+    loop
+      select avg(prs.score)::numeric, max(prs.score)
+        into v_avg_score, v_max_score
+        from player_round_state prs
+        where prs.round_id = v_completed_round.round_id
+          and prs.score is not null;
+
+      if v_req.scoring_method = 'average' then
+        v_penalty := round(v_avg_score)::int;
+      elsif v_req.scoring_method = 'max' then
+        v_penalty := v_max_score;
+      elsif v_req.scoring_method = 'max_plus_avg' then
+        v_penalty := round((v_max_score + v_avg_score) / 2.0)::int;
+      else
+        v_penalty := round(v_avg_score)::int;
+      end if;
+
+      insert into player_round_state (round_id, player_id, has_met_contract, score)
+      values (v_completed_round.round_id, v_req.player_id, true, v_penalty);
+    end loop;
+
+    -- Remove the fulfilled request
+    delete from late_join_requests where id = v_req.id;
+  end loop;
+
+  -- ── Recalculate deck count with new player total ──
+  select count(*) into v_player_count from game_players where game_id = p_game_id;
+  v_new_num_decks := case when v_player_count <= 4 then 2 else 3 end;
+  if v_new_num_decks != v_game.num_decks then
+    update games set num_decks = v_new_num_decks where id = p_game_id;
   end if;
 
   perform deal_round(p_game_id, v_next_round);
@@ -1402,6 +1505,56 @@ begin
 
   -- End the game
   perform end_game(p_game_id);
+end;
+$$;
+
+-- ────────────────────────────────────────────────────────────
+-- RESOLVE LATE JOIN REQUEST (host only)
+-- ────────────────────────────────────────────────────────────
+create or replace function resolve_late_join_request(
+  p_request_id uuid,
+  p_decision text,
+  p_scoring_method text default null
+)
+returns void
+language plpgsql security definer as $$
+declare
+  v_req record;
+  v_game record;
+  v_host uuid := auth.uid();
+  v_current_players int;
+  v_pending_approved int;
+begin
+  select * into v_req from late_join_requests where id = p_request_id;
+  if not found then raise exception 'Request not found'; end if;
+  if v_req.status != 'pending' then raise exception 'Request already resolved'; end if;
+
+  select * into v_game from games where id = v_req.game_id;
+  if v_game.created_by != v_host then raise exception 'Only the host can resolve join requests'; end if;
+
+  if p_decision not in ('approved', 'spectating', 'kicked') then
+    raise exception 'Invalid decision';
+  end if;
+
+  if p_decision = 'approved' then
+    if p_scoring_method is null or p_scoring_method not in ('average', 'max', 'max_plus_avg') then
+      raise exception 'Must specify scoring method when approving';
+    end if;
+    -- Check player cap (current + already-approved + this one <= 7)
+    select count(*) into v_current_players from game_players where game_id = v_req.game_id;
+    select count(*) into v_pending_approved from late_join_requests
+      where game_id = v_req.game_id and status = 'approved';
+    if v_current_players + v_pending_approved + 1 > 7 then
+      raise exception 'Game would exceed 7 players';
+    end if;
+  end if;
+
+  update late_join_requests set
+    status = p_decision,
+    scoring_method = p_scoring_method,
+    resolved_by = v_host,
+    resolved_at = now()
+  where id = p_request_id;
 end;
 $$;
 
@@ -1598,6 +1751,54 @@ begin
       );
     end;
   end if;
+
+  -- ── Late-join / spectator info ──
+  declare
+    v_ljr record;
+    v_is_spectator boolean := false;
+    v_pending_requests jsonb := '[]'::jsonb;
+    v_approved_count int := 0;
+  begin
+    -- Am I a spectator (not in game_players)?
+    if not exists (select 1 from game_players where game_id = p_game_id and player_id = v_player_id) then
+      select * into v_ljr from late_join_requests
+        where game_id = p_game_id and player_id = v_player_id;
+      if found then
+        v_is_spectator := true;
+        v_result := v_result || jsonb_build_object(
+          'is_spectator', true,
+          'my_late_join_status', v_ljr.status,
+          'my_late_join_scoring', v_ljr.scoring_method
+        );
+      else
+        v_result := v_result || jsonb_build_object('is_spectator', true);
+      end if;
+    else
+      v_result := v_result || jsonb_build_object('is_spectator', false);
+    end if;
+
+    -- If host, include pending requests with display names
+    if v_game.created_by = v_player_id then
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'id', ljr.id,
+        'player_id', ljr.player_id,
+        'display_name', p.display_name,
+        'status', ljr.status,
+        'created_at', ljr.created_at
+      ) order by ljr.created_at), '[]'::jsonb)
+      into v_pending_requests
+      from late_join_requests ljr
+      join profiles p on p.id = ljr.player_id
+      where ljr.game_id = p_game_id and ljr.status = 'pending';
+
+      v_result := v_result || jsonb_build_object('pending_join_requests', v_pending_requests);
+    end if;
+
+    -- Count approved joiners waiting (visible to all players)
+    select count(*) into v_approved_count
+      from late_join_requests where game_id = p_game_id and status = 'approved';
+    v_result := v_result || jsonb_build_object('approved_join_count', v_approved_count);
+  end;
 
   return v_result;
 end;

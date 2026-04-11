@@ -1,5 +1,5 @@
-import { sb, rpc } from './supabase.js?v=0.10.3';
-import { initTheme } from './theme.js?v=0.10.3';
+import { sb, rpc } from './supabase.js?v=0.11.0';
+import { initTheme } from './theme.js?v=0.11.0';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -52,6 +52,9 @@ let stagingOpen = false;
 let logOpen = false;
 let animatingDraw = false;
 let recentMeldCards = new Set(); // cards added to melds this turn, gold highlight
+let isSpectator = false;
+let lateJoinStatus = null;      // 'pending' | 'approved' | 'spectating' | 'kicked'
+let activeJoinRequestId = null;  // for host modal dedup
 
 // ── DOM refs ──
 const $loading = document.getElementById('loadingScreen');
@@ -90,6 +93,12 @@ async function init() {
   if (game.status === 'waiting') {
     showWaitingRoom(game);
   } else if (game.status === 'active') {
+    // join_game handles both rejoin (existing player) and late-join request (new player)
+    const { error: joinErr } = await rpc('join_game', { p_code: gameCode });
+    if (joinErr) {
+      showToast('Error', joinErr.message);
+      return;
+    }
     await enterGame();
   } else {
     alert('This game has finished.');
@@ -175,7 +184,27 @@ async function fetchAndRender() {
   }
   gameState = data;
   countdownDuration = gameState.buy_countdown_seconds || 5;
+  isSpectator = gameState.is_spectator || false;
+  lateJoinStatus = gameState.my_late_join_status || null;
   myPlayerInfo = gameState.players?.find(p => p.is_you);
+
+  if (isSpectator) {
+    updateSpectatorUI();
+  } else {
+    // If we were a spectator and now we're not, clean up spectator UI
+    const banner = document.getElementById('spectatorBanner');
+    if (banner) banner.style.display = 'none';
+    const yourSection = document.querySelector('.your-section');
+    const actionsPanel = document.querySelector('.actions-panel');
+    if (yourSection) yourSection.classList.remove('spectator-hidden');
+    if (actionsPanel) actionsPanel.classList.remove('spectator-hidden');
+  }
+
+  // Host: show late-join request modal if any pending
+  if (gameState.pending_join_requests?.length > 0) {
+    showLateJoinRequestModal(gameState.pending_join_requests[0]);
+  }
+
   render();
 }
 
@@ -197,6 +226,10 @@ function setupGameSubscriptions() {
     .on('postgres_changes', {
       event: '*', schema: 'public', table: 'buy_requests'
     }, () => { if (!animatingDraw) fetchAndRender(); })
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'late_join_requests',
+      filter: `game_id=eq.${gameId}`
+    }, () => { fetchAndRender(); })
     .on('postgres_changes', {
       event: 'INSERT', schema: 'public', table: 'game_actions',
       filter: `game_id=eq.${gameId}`
@@ -292,6 +325,19 @@ function render() {
 
   hideRoundEnd();
   renderTopBar(round);
+
+  // Spectator: show board in read-only mode
+  if (isSpectator) {
+    renderSeats(round);
+    renderDeckDiscard(round);
+    // Hide interactive elements
+    const yourSection = document.querySelector('.your-section');
+    const actionsPanel = document.querySelector('.actions-panel');
+    if (yourSection) yourSection.classList.add('spectator-hidden');
+    if (actionsPanel) actionsPanel.classList.add('spectator-hidden');
+    return;
+  }
+
   renderStandings();
   renderSeats(round);
   renderDeckDiscard(round);
@@ -1038,6 +1084,22 @@ function updateDealButton() {
     dealBtn.style.display = 'none';
     waitMsg.style.display = 'block';
     waitMsg.textContent = `Waiting for ${dealerName} to deal...`;
+  }
+
+  // Show note about approved late joiners
+  const joinCount = gameState.approved_join_count || 0;
+  let joinNote = document.getElementById('reJoinNote');
+  if (joinCount > 0) {
+    if (!joinNote) {
+      joinNote = document.createElement('div');
+      joinNote.id = 'reJoinNote';
+      joinNote.style.cssText = 'color:var(--amber);font-size:0.75rem;text-align:center;margin-top:6px;letter-spacing:0.04em;';
+      waitMsg.parentElement.appendChild(joinNote);
+    }
+    joinNote.textContent = `${joinCount} player${joinCount > 1 ? 's' : ''} joining next round`;
+    joinNote.style.display = '';
+  } else if (joinNote) {
+    joinNote.style.display = 'none';
   }
 }
 
@@ -1812,6 +1874,53 @@ function showToast(title, sub) {
   setTimeout(() => toast.classList.remove('show'), 2800);
 }
 
+// ── Spectator Mode ──
+function updateSpectatorUI() {
+  const banner = document.getElementById('spectatorBanner');
+  if (!banner) return;
+
+  if (lateJoinStatus === 'kicked') {
+    showToast('Removed', 'The host has removed you from this game.');
+    setTimeout(() => { window.location.href = 'login.html'; }, 2000);
+    return;
+  }
+
+  if (lateJoinStatus === 'pending') {
+    banner.textContent = 'Waiting for host to approve your request to join\u2026';
+  } else if (lateJoinStatus === 'approved') {
+    banner.textContent = 'Approved! You will be dealt in at the start of the next round.';
+  } else if (lateJoinStatus === 'spectating') {
+    banner.textContent = 'You are watching this game as a spectator.';
+  } else {
+    banner.textContent = 'Spectating';
+  }
+  banner.style.display = '';
+}
+
+// ── Late Join Request Modal (host) ──
+function showLateJoinRequestModal(request) {
+  if (activeJoinRequestId === request.id) return;
+  activeJoinRequestId = request.id;
+
+  document.getElementById('ljPlayerName').textContent = request.display_name;
+  document.getElementById('ljScoringOptions').style.display = 'none';
+  document.getElementById('lateJoinModal').classList.add('show');
+}
+
+async function resolveLateJoin(decision, scoringMethod) {
+  const { error } = await rpc('resolve_late_join_request', {
+    p_request_id: activeJoinRequestId,
+    p_decision: decision,
+    p_scoring_method: scoringMethod || null
+  });
+  if (error) {
+    showToast('Error', error.message || 'Could not resolve request');
+    return;
+  }
+  document.getElementById('lateJoinModal').classList.remove('show');
+  activeJoinRequestId = null;
+}
+
 // ── Wire up event listeners ──
 document.getElementById('btnDrawDeck').addEventListener('click', handleDrawDeck);
 document.getElementById('btnDrawDiscard').addEventListener('click', handleDrawDiscard);
@@ -1847,6 +1956,22 @@ document.getElementById('endGameConfirm').addEventListener('click', async () => 
     document.getElementById('endGameModal').classList.remove('show');
   } else {
     window.location.href = 'login.html';
+  }
+});
+
+// Late join modal
+document.getElementById('ljApproveBtn').addEventListener('click', () => {
+  document.getElementById('ljScoringOptions').style.display = '';
+});
+document.getElementById('ljScoreAvg').addEventListener('click', () => resolveLateJoin('approved', 'average'));
+document.getElementById('ljScoreMax').addEventListener('click', () => resolveLateJoin('approved', 'max'));
+document.getElementById('ljScoreMaxAvg').addEventListener('click', () => resolveLateJoin('approved', 'max_plus_avg'));
+document.getElementById('ljSpectateBtn').addEventListener('click', () => resolveLateJoin('spectating', null));
+document.getElementById('ljKickBtn').addEventListener('click', () => resolveLateJoin('kicked', null));
+document.getElementById('lateJoinModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    this.classList.remove('show');
+    activeJoinRequestId = null;
   }
 });
 
