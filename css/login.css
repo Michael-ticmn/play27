@@ -583,4 +583,27 @@ body {
   margin-top: 4px;
 }
 
+/* ── MOBILE ── */
+@media (max-width: 480px) {
+  body { padding: 24px 12px; }
+  .logo img { height: 36px; }
+  .logo h1 { font-size: 1.1rem; }
+
+  .lobby-header {
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .user-badge {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .history-item {
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+  }
+  .hi-score { display: none; }
+}
+
 /* spinner, theme-toggle, footer, version-tag are in shared.css */

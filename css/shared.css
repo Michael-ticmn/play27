@@ -110,9 +110,10 @@ html, body {
   position: fixed;
   bottom: 8px;
   right: 12px;
-  font-size: 0.55rem;
+  font-size: 0.65rem;
   letter-spacing: 0.08em;
   color: var(--muted);
-  opacity: 0.6;
+  opacity: 0.7;
   font-family: 'Courier New', Courier, monospace;
+  z-index: 10;
 }

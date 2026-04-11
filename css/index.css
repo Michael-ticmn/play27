@@ -81,6 +81,14 @@
     text-align: center;
   }
 
+  /* ── MOBILE ── */
+  @media (max-width: 480px) {
+    body { padding: 40px 12px; }
+    .logo img { height: 80px; }
+    .games-grid { gap: 12px; }
+    .game-card { padding: 20px 18px; }
+  }
+
   .coming-soon .badge {
     display: inline-block;
     margin-top: 12px;
