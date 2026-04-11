@@ -1,0 +1,95 @@
+  body {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding: 60px 20px;
+  }
+
+  .logo {
+    text-align:center;
+    margin-bottom: 40px;
+  }
+
+  .logo img { height: 120px; margin-bottom: 16px; border-radius: 20px; }
+
+  .logo p {
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  .games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    width: min(600px, 100%);
+  }
+
+  .game-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 24px;
+    text-decoration: none;
+    color: var(--text);
+    transition: border-color 0.2s, transform 0.15s;
+    cursor: pointer;
+    display: block;
+  }
+
+  .game-card:hover {
+    border-color: var(--amber);
+    transform: translateY(-2px);
+  }
+
+  .game-card h2 {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .game-card h2 span { color: var(--amber); }
+
+  .game-card p {
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .game-card .players {
+    display: inline-block;
+    margin-top: 12px;
+    font-size: 0.7rem;
+    font-family: 'Courier New', Courier, monospace;
+    color: var(--amber-dk);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .coming-soon {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .footer {
+    margin-top: auto;
+    padding-top: 40px;
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.03em;
+    text-align: center;
+  }
+
+  .coming-soon .badge {
+    display: inline-block;
+    margin-top: 12px;
+    font-size: 0.65rem;
+    font-family: 'Courier New', Courier, monospace;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
