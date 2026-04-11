@@ -105,6 +105,26 @@ html, body {
   text-align: center;
 }
 
+/* ── SETTINGS HOME LINK ── */
+.settings-home {
+  display: block;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.settings-home:hover { color: var(--amber); }
+
+/* ── LOGO LINK ── */
+.logo-link { display: inline-block; }
+
 /* ── VERSION TAG ── */
 .version-tag {
   position: fixed;
