@@ -7,48 +7,21 @@
 <meta http-equiv="Pragma" content="no-cache">
 <title>play27 — Blackjack</title>
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=0.8.6">
+<link rel="stylesheet" href="css/shared.css?v=0.8.6">
 <style>
   :root {
-    --bg: #111214;
-    --bg2: #1a1c1f;
-    --bg3: #222427;
-    --border: #2e3035;
-    --text: #f4f4f2;
-    --muted: #c0c0bc;
-    --amber: #d4a027;
-    --amber-dk: #a87d1c;
-    --amber-dim: rgba(212,160,39,0.25);
-    --green: #3cb96a;
-    --red: #d45f5f;
-    --teal: #3ea8aa;
     --panel: rgba(0,0,0,0.4);
     --card-shadow: rgba(0,0,0,0.4);
     --card-border: #ccc;
   }
 
   .light {
-    --bg: #f0ede8;
-    --bg2: #e6e2db;
-    --bg3: #dbd7cf;
-    --border: #c5c0b6;
-    --text: #1a1a1a;
-    --muted: #5a5750;
-    --amber: #b8891a;
-    --amber-dk: #9a7015;
-    --amber-dim: rgba(184,137,26,0.2);
     --panel: rgba(255,255,255,0.6);
     --card-shadow: rgba(0,0,0,0.15);
     --card-border: #bbb;
   }
 
-  * { margin:0; padding:0; box-sizing:border-box; }
-  html, body { width:100%; height:100%; overflow:hidden; }
-  body {
-    background: var(--bg);
-    font-family: -apple-system, 'Segoe UI', sans-serif;
-    font-size:14px;
-    color: var(--text);
-  }
+  html, body { height:100%; overflow:hidden; }
 
   /* ── Top Bar ── */
   .top-bar {
@@ -395,8 +368,8 @@
         <div class="settings-row">
           <span>Theme</span>
           <div class="theme-toggle">
-            <button id="themeDark" class="active">Dark</button>
-            <button id="themeLight">Light</button>
+            <button id="themeDark" data-theme="dark" class="active">Dark</button>
+            <button id="themeLight" data-theme="light">Light</button>
           </div>
         </div>
       </div>
@@ -467,7 +440,9 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<script>
+<script type="module">
+import { initTheme } from './js/theme.js';
+
 // ── Constants ──
 const SUIT_INFO = [
   { symbol: '\u2660', name: 'S', red: false },
@@ -1094,26 +1069,8 @@ document.getElementById('logoWrap').addEventListener('click', (e) => {
 document.addEventListener('click', () => {
   document.getElementById('settingsDropdown').classList.remove('open');
 });
-document.getElementById('themeDark').addEventListener('click', () => {
-  document.body.classList.remove('light');
-  localStorage.setItem('play27-theme', 'dark');
-  document.getElementById('themeDark').classList.add('active');
-  document.getElementById('themeLight').classList.remove('active');
-});
-document.getElementById('themeLight').addEventListener('click', () => {
-  document.body.classList.add('light');
-  localStorage.setItem('play27-theme', 'light');
-  document.getElementById('themeLight').classList.add('active');
-  document.getElementById('themeDark').classList.remove('active');
-});
-
-// Apply saved theme
-const savedTheme = localStorage.getItem('play27-theme');
-if (savedTheme === 'light') {
-  document.body.classList.add('light');
-  document.getElementById('themeLight').classList.add('active');
-  document.getElementById('themeDark').classList.remove('active');
-}
+// Theme
+initTheme();
 
 // ── Bet & Chip Logic ──
 function placeBet() {

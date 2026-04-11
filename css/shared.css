@@ -1,0 +1,118 @@
+/* ============================================================
+   play27 — Shared Styles
+   Brand palette, reset, typography, common components
+   ============================================================ */
+
+:root {
+  --bg: #111214;
+  --bg2: #1a1c1f;
+  --bg3: #222427;
+  --border: #2e3035;
+  --text: #f4f4f2;
+  --muted: #c0c0bc;
+  --amber: #d4a027;
+  --amber-dk: #a87d1c;
+  --amber-dim: rgba(212,160,39,0.25);
+  --green: #3cb96a;
+  --red: #d45f5f;
+  --teal: #3ea8aa;
+}
+
+/* ── LIGHT THEME ── */
+.light {
+  --bg: #f0ede8;
+  --bg2: #e6e2db;
+  --bg3: #dbd7cf;
+  --border: #c5c0b6;
+  --text: #1a1a1a;
+  --muted: #5a5750;
+  --amber: #b8891a;
+  --amber-dk: #9a7015;
+  --amber-dim: rgba(184,137,26,0.2);
+  --green: #2a9050;
+  --red: #b84040;
+  --teal: #2e8a8c;
+}
+
+/* ── RESET ── */
+* { margin:0; padding:0; box-sizing:border-box; }
+
+html, body {
+  width:100%; min-height:100vh;
+  background: var(--bg);
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  color: var(--text);
+}
+
+/* ── THEME TOGGLE ── */
+.theme-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px;
+}
+
+.theme-toggle button {
+  padding: 3px 8px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.theme-toggle button.active {
+  background: var(--amber-dim);
+  color: var(--amber);
+}
+
+.theme-toggle button:hover:not(.active) {
+  color: var(--text);
+}
+
+/* ── SPINNER ── */
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── FOOTER ── */
+.footer {
+  margin-top: auto;
+  padding-top: 40px;
+  padding-bottom: 24px;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  text-align: center;
+}
+
+/* ── VERSION TAG ── */
+.version-tag {
+  position: fixed;
+  bottom: 8px;
+  right: 12px;
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  opacity: 0.6;
+  font-family: 'Courier New', Courier, monospace;
+}

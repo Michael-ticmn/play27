@@ -7,44 +7,20 @@
 <meta http-equiv="Pragma" content="no-cache">
 <title>play27 — Contract Rummy</title>
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=0.8.6">
+<link rel="stylesheet" href="css/shared.css?v=0.8.6">
 <style>
   :root {
-    --bg: #111214;
-    --bg2: #1a1c1f;
-    --bg3: #222427;
-    --border: #2e3035;
-    --text: #f4f4f2;
-    --muted: #c0c0bc;
-    --amber: #d4a027;
-    --amber-dk: #a87d1c;
-    --amber-dim: rgba(212,160,39,0.25);
-    --green: #3cb96a;
-    --red: #d45f5f;
-    --teal: #3ea8aa;
     --panel: rgba(0,0,0,0.4);
     --buy-color: #d4a027;
     --buy-hot: #d45f5f;
+    --card-shadow: rgba(0,0,0,0.4);
+    --card-border: #ccc;
   }
 
-  /* ── LIGHT THEME (default) ── */
   .light {
-    --bg: #f0ede8;
-    --bg2: #e6e2db;
-    --bg3: #dbd7cf;
-    --border: #c5c0b6;
-    --text: #1a1a1a;
-    --muted: #5a5750;
-    --amber: #b8891a;
-    --amber-dk: #9a7015;
-    --amber-dim: rgba(184,137,26,0.2);
     --panel: rgba(255,255,255,0.6);
     --card-shadow: rgba(0,0,0,0.15);
     --card-border: #bbb;
-  }
-
-  :root {
-    --card-shadow: rgba(0,0,0,0.4);
-    --card-border: #ccc;
   }
 
   /* ── SETTINGS DROPDOWN ── */
@@ -97,15 +73,9 @@
   .theme-btn:hover { border-color:var(--amber); }
   .theme-btn.active { border-color:var(--amber); color:var(--amber); background:var(--amber-dim); }
 
-  * { margin:0; padding:0; box-sizing:border-box; }
-
   html, body {
-    width:100%; height:100%;
+    height:100%;
     overflow:hidden;
-    background:var(--bg);
-    font-family:-apple-system, 'Segoe UI', sans-serif;
-    font-size:14px;
-    color:var(--text);
   }
 
   /* ── MAIN GAME LAYOUT ── */
@@ -1618,12 +1588,8 @@
 </div>
 
 <script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-
-// ── Supabase client ──
-const SUPABASE_URL = 'https://pxjkedzafalchtxmwvnl.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4amtlZHphZmFsY2h0eG13dm5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDI5MjMsImV4cCI6MjA5MDk3ODkyM30.3EWGJ1R-XzyjDoXHhUQEhldF2rE0Xz0Jui1SmoovPFU';
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+import { sb, rpc } from './js/supabase.js';
+import { initTheme } from './js/theme.js';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -3486,27 +3452,8 @@ document.getElementById('logoWrap').addEventListener('click', (e) => {
   document.getElementById('roundsDropdown')?.classList.remove('open');
 });
 
-// Theme switching
-function setTheme(theme) {
-  if (theme === 'light') {
-    document.documentElement.classList.add('light');
-  } else {
-    document.documentElement.classList.remove('light');
-  }
-  document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById(theme === 'light' ? 'themeLight' : 'themeDark').classList.add('active');
-  localStorage.setItem('play27-theme', theme);
-}
-
-document.querySelectorAll('.theme-btn[data-theme]').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    setTheme(btn.dataset.theme);
-  });
-});
-
-// Apply saved theme (default: light)
-setTheme(localStorage.getItem('play27-theme') || 'light');
+// Theme
+initTheme('light');
 
 // Card view settings (hand & meld compact modes, sort direction)
 function setCardView(setting, value) {

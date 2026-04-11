@@ -7,6 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <title>play27 — Contract Rummy</title>
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=0.8.6">
+<link rel="stylesheet" href="css/shared.css?v=0.8.6">
 <link rel="stylesheet" href="css/login.css?v=0.8.6">
 </head>
 <body>
@@ -76,8 +77,8 @@
         <span class="user-name" id="userName"></span>
         <button class="btn-logout" id="logoutBtn">Sign Out</button>
         <div class="theme-toggle">
-          <button id="themeDark" class="active">Dark</button>
-          <button id="themeLight">Light</button>
+          <button id="themeDark" data-theme="dark" class="active">Dark</button>
+          <button id="themeLight" data-theme="light">Light</button>
         </div>
       </div>
     </div>
@@ -185,15 +186,8 @@
   <footer class="footer">&copy; 2026 play27. All rights reserved.</footer>
 
 <script type="module">
-  // ─────────────────────────────────────────────
-  // SUPABASE SETUP
-  // ─────────────────────────────────────────────
-  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-
-  const SUPABASE_URL = 'https://pxjkedzafalchtxmwvnl.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4amtlZHphZmFsY2h0eG13dm5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDI5MjMsImV4cCI6MjA5MDk3ODkyM30.3EWGJ1R-XzyjDoXHhUQEhldF2rE0Xz0Jui1SmoovPFU';
-
-  const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  import { sb, rpc, SUPABASE_URL, SUPABASE_ANON_KEY } from './js/supabase.js';
+  import { initTheme } from './js/theme.js';
 
   // ─────────────────────────────────────────────
   // AUTH STATE
@@ -418,22 +412,10 @@
     }
 
     try {
-      const session = await sb.auth.getSession();
-      const token = session.data?.session?.access_token;
+      const { data, error } = await rpc('create_game', params);
 
-      const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/create_game`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(params)
-      });
-      const data = await resp.json();
-
-      if (!resp.ok) {
-        errEl.textContent = data.message || 'Failed to create game';
+      if (error) {
+        errEl.textContent = error.message;
         errEl.classList.add('show');
         return;
       }
@@ -585,24 +567,8 @@
 
   // ─────────────────────────────────────────────
   // THEME
-  // ─────────────────────────────────────────────
-  function setTheme(theme) {
-    if (theme === 'light') {
-      document.body.classList.add('light');
-    } else {
-      document.body.classList.remove('light');
-    }
-    document.getElementById('themeDark').classList.toggle('active', theme !== 'light');
-    document.getElementById('themeLight').classList.toggle('active', theme === 'light');
-    localStorage.setItem('play27-theme', theme);
-  }
-
-  document.getElementById('themeDark').addEventListener('click', () => setTheme('dark'));
-  document.getElementById('themeLight').addEventListener('click', () => setTheme('light'));
-
-  // Apply saved theme
-  const savedTheme = localStorage.getItem('play27-theme');
-  if (savedTheme) setTheme(savedTheme);
+  // Theme
+  initTheme();
 </script>
 </body>
 </html>
