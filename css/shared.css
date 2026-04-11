@@ -123,6 +123,26 @@ html, body {
 }
 .settings-home:hover { color: var(--amber); }
 
+/* ── SETTINGS FULLSCREEN ── */
+.settings-fullscreen {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 6px 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.settings-fullscreen:hover { border-color: var(--amber); color: var(--amber); }
+
 /* ── SETTINGS END GAME ── */
 .settings-end-game {
   display: block;

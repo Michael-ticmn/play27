@@ -1945,6 +1945,20 @@ document.getElementById('btnLeaveGame').addEventListener('click', async () => {
   window.location.href = 'login.html';
 });
 
+// Fullscreen
+document.getElementById('btnFullscreen').addEventListener('click', () => {
+  document.getElementById('settingsDropdown').classList.remove('open');
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen();
+  }
+});
+document.addEventListener('fullscreenchange', () => {
+  document.getElementById('btnFullscreen').textContent =
+    document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen';
+});
+
 // End game
 document.getElementById('btnEndGame').addEventListener('click', () => {
   document.getElementById('settingsDropdown').classList.remove('open');
