@@ -5,7 +5,7 @@
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-export const APP_VERSION = '0.9.9';
+export const APP_VERSION = '0.10.0';
 
 export const SUPABASE_URL = 'https://pxjkedzafalchtxmwvnl.supabase.co';
 export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4amtlZHphZmFsY2h0eG13dm5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDI5MjMsImV4cCI6MjA5MDk3ODkyM30.3EWGJ1R-XzyjDoXHhUQEhldF2rE0Xz0Jui1SmoovPFU';
@@ -70,11 +70,16 @@ export async function rpc(fnName, params = {}) {
     });
 
     clearTimeout(timeout);
-    const result = await resp.json();
+    const text = await resp.text();
+    let result = null;
+    if (text) {
+      try { result = JSON.parse(text); } catch (e) { result = text; }
+    }
     console.log(`[rpc] ${fnName}`, resp.status, result);
 
     if (!resp.ok) {
-      return { data: null, error: { message: result.message || result.msg || JSON.stringify(result), code: result.code } };
+      const msg = result?.message || result?.msg || (typeof result === 'string' ? result : JSON.stringify(result)) || 'RPC failed';
+      return { data: null, error: { message: msg, code: result?.code } };
     }
 
     return { data: result, error: null };
