@@ -692,6 +692,6 @@ body {
   font-size: 0.55rem;
   letter-spacing: 0.08em;
   color: var(--muted);
-  opacity: 0.3;
+  opacity: 0.6;
   font-family: 'Courier New', Courier, monospace;
 }
