@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- corn cob -->
+  <ellipse cx="32" cy="34" rx="9" ry="18" fill="#d4a027"/>
+  <!-- kernel rows -->
+  <ellipse cx="27" cy="26" rx="1.4" ry="1.6" fill="#a87d1c"/>
+  <ellipse cx="32" cy="25" rx="1.4" ry="1.6" fill="#a87d1c"/>
+  <ellipse cx="37" cy="26" rx="1.4" ry="1.6" fill="#a87d1c"/>
+  <ellipse cx="27" cy="32" rx="1.4" ry="1.6" fill="#a87d1c"/>
+  <ellipse cx="32" cy="31" rx="1.4" ry="1.6" fill="#a87d1c"/>
+  <ellipse cx="37" cy="32" rx="1.4" ry="1.6" fill="#a87d1c"/>
+  <ellipse cx="27" cy="38" rx="1.4" ry="1.6" fill="#a87d1c"/>
+  <ellipse cx="32" cy="37" rx="1.4" ry="1.6" fill="#a87d1c"/>
+  <ellipse cx="37" cy="38" rx="1.4" ry="1.6" fill="#a87d1c"/>
+  <ellipse cx="27" cy="44" rx="1.4" ry="1.6" fill="#a87d1c"/>
+  <ellipse cx="32" cy="43" rx="1.4" ry="1.6" fill="#a87d1c"/>
+  <ellipse cx="37" cy="44" rx="1.4" ry="1.6" fill="#a87d1c"/>
+  <!-- husk leaves -->
+  <path d="M23 46 Q12 36 16 24" fill="none" stroke="#3ea8aa" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M41 46 Q52 36 48 24" fill="none" stroke="#3ea8aa" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M26 50 Q18 42 20 32" fill="none" stroke="#3ea8aa" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M38 50 Q46 42 44 32" fill="none" stroke="#3ea8aa" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- silk -->
+  <path d="M29 16 Q27 9 24 5" fill="none" stroke="#3ea8aa" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M32 16 Q32 8 32 4" fill="none" stroke="#3ea8aa" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M35 16 Q37 9 40 5" fill="none" stroke="#3ea8aa" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

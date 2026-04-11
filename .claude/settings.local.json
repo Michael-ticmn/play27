@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git mv:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git fetch:*)",
+      "WebFetch(domain:michael-ticmn.github.io)",
+      "Read(//c/Users/MRJ/.claude/projects/c--Users-MRJ-source-repos-play27/memory/**)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(node -e ':*)",
+      "Bash(wc -l css/*.css)",
+      "Bash(wc -l js/*.js)",
+      "Bash(sed -i \"s|from './supabase.js'|from './supabase.js?v=0.10.2'|g\" js/login.js js/contract-rummy.js)",
+      "Bash(sed -i \"s|from './theme.js'|from './theme.js?v=0.10.2'|g\" js/login.js js/contract-rummy.js js/blackjack.js)",
+      "Bash(grep -n \"game_players\\\\|CREATE TABLE\" /c/Users/MRJ/source/repos/play27/sql/*.sql)",
+      "Bash(grep -n \"turn_phase\\\\|advance_round\" /c/Users/MRJ/source/repos/play27/sql/*.sql)",
+      "Bash(grep -n \"btnStartGame\\\\|create_game\\\\|start_game\" /c/Users/MRJ/source/repos/play27/js/*.js)"
+    ]
+  }
+}

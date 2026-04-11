@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- background -->
+  <rect width="32" height="32" rx="5" fill="#1a1c1f"/>
+  <!-- amber top bar -->
+  <rect x="0" y="0" width="32" height="1" fill="#d4a027"/>
+  <!-- 27 — at small size just show the number -->
+  <text x="16" y="24" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-weight="700" font-size="16" fill="#d4a027" letter-spacing="-1">27</text>
+</svg>
