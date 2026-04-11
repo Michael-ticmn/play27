@@ -179,7 +179,7 @@
     </div>
   </div>
 
-  <div class="version-tag">v0.8.1</div>
+  <div class="version-tag">v0.8.2</div>
   <footer class="footer">&copy; 2026 play27. All rights reserved.</footer>
 
 <script type="module">
@@ -375,6 +375,9 @@
   };
 
   function showSetupModal() {
+    const btn = document.getElementById('setupCreateBtn');
+    btn.disabled = false;
+    btn.textContent = 'Create Game';
     document.getElementById('setupModal').classList.add('show');
     document.getElementById('setupError').classList.remove('show');
   }
@@ -413,7 +416,9 @@
     }
 
     try {
+      console.log('create_game params:', params);
       const { data, error } = await sb.rpc('create_game', params);
+      console.log('create_game result:', { data, error });
 
       if (error) {
         errEl.textContent = error.message;
