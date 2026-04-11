@@ -38,11 +38,12 @@
 * { margin:0; padding:0; box-sizing:border-box; }
 
 html, body {
-  width:100%; min-height:100vh;
+  width:100%; min-height:100dvh;
   background: var(--bg);
   font-family: -apple-system, 'Segoe UI', sans-serif;
   font-size: 14px;
   color: var(--text);
+  overflow-x: hidden;
 }
 
 /* ── THEME TOGGLE ── */
