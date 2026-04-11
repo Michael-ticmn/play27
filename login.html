@@ -411,19 +411,25 @@
     if (setupOptions.maxBuys !== null) {
       params.p_max_buys = setupOptions.maxBuys;
     }
-    const { data, error } = await sb.rpc('create_game', params);
 
-    btn.disabled = false;
-    btn.textContent = 'Create Game';
+    try {
+      const { data, error } = await sb.rpc('create_game', params);
 
-    if (error) {
-      errEl.textContent = error.message;
+      if (error) {
+        errEl.textContent = error.message;
+        errEl.classList.add('show');
+        return;
+      }
+
+      if (data && data.code) {
+        window.location.href = `contract-rummy.html?game=${data.code}`;
+      }
+    } catch (err) {
+      errEl.textContent = err.message || 'Failed to create game';
       errEl.classList.add('show');
-      return;
-    }
-
-    if (data && data.code) {
-      window.location.href = `contract-rummy.html?game=${data.code}`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Create Game';
     }
   };
 
