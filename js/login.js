@@ -50,7 +50,7 @@ async function handleLogin(e) {
 
   // Auto-join game if code was in URL
   if (gameCodeFromUrl) {
-    const { error: joinErr } = await sb.rpc('join_game', { p_code: gameCodeFromUrl });
+    const { error: joinErr } = await rpc('join_game', { p_code: gameCodeFromUrl });
     if (!joinErr) {
       window.location.href = `contract-rummy.html?game=${gameCodeFromUrl}`;
       return;
@@ -90,7 +90,7 @@ async function handleSignup(e) {
 
   // Redeem invite code (requires auth, so do after signup)
   if (data.session) {
-    const { error: inviteErr } = await sb.rpc('redeem_invite_code', { p_code: inviteCode });
+    const { error: inviteErr } = await rpc('redeem_invite_code', { p_code: inviteCode });
     if (inviteErr) {
       // Invite failed — delete the account we just created
       await sb.auth.signOut();
@@ -122,7 +122,7 @@ async function handleSignup(e) {
 
   // Auto-join game if code was in URL
   if (gameCodeFromUrl && data.session) {
-    const { error: joinErr } = await sb.rpc('join_game', { p_code: gameCodeFromUrl });
+    const { error: joinErr } = await rpc('join_game', { p_code: gameCodeFromUrl });
     if (!joinErr) {
       window.location.href = `contract-rummy.html?game=${gameCodeFromUrl}`;
       return;
@@ -230,9 +230,6 @@ async function handleCreateGame() {
   }
 
   try {
-    errEl.textContent = 'Calling create_game...';
-    errEl.classList.add('show');
-
     const { data, error } = await rpc('create_game', params);
 
     if (error) {
@@ -280,7 +277,7 @@ async function handleJoinGame() {
 
   errEl.classList.remove('show');
 
-  const { data, error } = await sb.rpc('join_game', { p_code: code });
+  const { data, error } = await rpc('join_game', { p_code: code });
   if (error) {
     errEl.textContent = error.message;
     errEl.classList.add('show');
@@ -294,7 +291,7 @@ async function handleJoinGame() {
 // GAME HISTORY
 // ─────────────────────────────────────────────
 async function loadHistory() {
-  const { data, error } = await sb.rpc('get_game_history');
+  const { data, error } = await rpc('get_game_history');
 
   const container = document.getElementById('historyList');
 

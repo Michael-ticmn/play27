@@ -168,7 +168,7 @@ async function enterGame() {
 }
 
 async function fetchAndRender() {
-  const { data, error } = await sb.rpc('get_game_state', { p_game_id: gameId });
+  const { data, error } = await rpc('get_game_state', { p_game_id: gameId });
   if (error) {
     console.error('get_game_state error:', error);
     return;
@@ -505,7 +505,7 @@ function renderSeats(round) {
     // Card backs
     let cardBacks = '';
     for (let j = 0; j < Math.min(cardsInHand, 14); j++) {
-      cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.9.7"></div>';
+      cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.9.8"></div>';
     }
 
     // Melds HTML
@@ -1110,7 +1110,7 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
 
     // Start face-down for deck draws, face-up for discard draws
     if (isFaceDown) {
-      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.9.7" style="width:100%;height:100%;border-radius:6px;">';
+      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.9.8" style="width:100%;height:100%;border-radius:6px;">';
     } else if (cardCode) {
       const c = parseCard(cardCode);
       const color = c.red ? 'var(--red)' : '#111';
@@ -1232,7 +1232,7 @@ async function handleDrawDeck() {
   if (!gameState?.round) return;
   const deckEl = document.querySelector('#deckWrap .deck-card-vis:last-child');
   const sourceRect = deckEl ? deckEl.getBoundingClientRect() : null;
-  const { data, error } = await sb.rpc('draw_from_deck', { p_round_id: gameState.round.id });
+  const { data, error } = await rpc('draw_from_deck', { p_round_id: gameState.round.id });
   if (error) {
     showToast('Error', error.message || 'Could not draw from deck');
     return;
@@ -1251,7 +1251,7 @@ async function handleDrawDiscard() {
   if (!gameState?.round) return;
   const discardEl = document.getElementById('discardFace');
   const sourceRect = discardEl ? discardEl.getBoundingClientRect() : null;
-  const { data, error } = await sb.rpc('draw_from_discard', { p_round_id: gameState.round.id });
+  const { data, error } = await rpc('draw_from_discard', { p_round_id: gameState.round.id });
   if (error) {
     showToast('Error', error.message || 'Could not draw from discard');
     return;
@@ -1534,7 +1534,7 @@ async function handleSubmitContract() {
     meld_type: m.meld_type
   }));
 
-  const { error } = await sb.rpc('fulfill_contract', {
+  const { error } = await rpc('fulfill_contract', {
     p_round_id: gameState.round.id,
     p_melds: meldsPayload
   });
@@ -1593,7 +1593,7 @@ function wireMeldDropTargets(container) {
       const card = e.dataTransfer.getData('text/plain');
       if (!card || !gameState?.round) return;
 
-      const { error } = await sb.rpc('lay_off_card', {
+      const { error } = await rpc('lay_off_card', {
         p_round_id: gameState.round.id,
         p_meld_id: row.dataset.meldId,
         p_card: card
@@ -1634,7 +1634,7 @@ async function handleMeldClick(meldId) {
   const card = [...selectedCards][0];
   const meldEl = document.querySelector(`.meld-row[data-meld-id="${meldId}"]`);
 
-  const { error } = await sb.rpc('lay_off_card', {
+  const { error } = await rpc('lay_off_card', {
     p_round_id: gameState.round.id,
     p_meld_id: meldId,
     p_card: card
@@ -1663,7 +1663,7 @@ async function handleDiscard() {
     return;
   }
 
-  const { error } = await sb.rpc('discard_card', {
+  const { error } = await rpc('discard_card', {
     p_round_id: gameState.round.id,
     p_card: cards[0]
   });
@@ -1684,7 +1684,7 @@ async function handleBuy() {
 
   if (buyRequestSent) {
     // Cancel the buy request
-    const { error } = await sb.rpc('cancel_buy', { p_round_id: gameState.round.id });
+    const { error } = await rpc('cancel_buy', { p_round_id: gameState.round.id });
     if (error) {
       showToast('Error', error.message || 'Could not cancel buy');
       return;
@@ -1699,7 +1699,7 @@ async function handleBuy() {
   buyBtn.classList.add('already-in');
   buyBtn.textContent = 'Cancel Buy';
 
-  const { error } = await sb.rpc('request_buy', { p_round_id: gameState.round.id });
+  const { error } = await rpc('request_buy', { p_round_id: gameState.round.id });
   if (error) {
     buyRequestSent = false;
     buyBtn.classList.remove('already-in');
@@ -1709,7 +1709,7 @@ async function handleBuy() {
 }
 
 async function handleStartGame() {
-  const { error } = await sb.rpc('start_game', { p_game_id: gameId });
+  const { error } = await rpc('start_game', { p_game_id: gameId });
   if (error) {
     showToast('Error', error.message || 'Could not start game');
   }
@@ -1748,7 +1748,7 @@ function updateTimer() {
 
 async function resolveBuyCountdown() {
   try {
-    await sb.rpc('resolve_buy', { p_round_id: gameState.round.id });
+    await rpc('resolve_buy', { p_round_id: gameState.round.id });
   } catch (e) {
     console.error('resolve_buy error:', e);
   }
@@ -1845,7 +1845,7 @@ document.getElementById('reDealBtn').addEventListener('click', async () => {
   const btn = document.getElementById('reDealBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Dealing...';
-  const { error } = await sb.rpc('deal_next_round', { p_game_id: gameId });
+  const { error } = await rpc('deal_next_round', { p_game_id: gameId });
   btn.disabled = false;
   btn.textContent = 'Deal Next Round';
   if (error) {
@@ -1954,7 +1954,7 @@ discardDropTarget.addEventListener('drop', async (e) => {
   const card = e.dataTransfer.getData('text/plain');
   if (!card || !gameState?.round) return;
 
-  const { error } = await sb.rpc('discard_card', {
+  const { error } = await rpc('discard_card', {
     p_round_id: gameState.round.id,
     p_card: card
   });
