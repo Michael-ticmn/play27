@@ -1,5 +1,5 @@
-import { sb, rpc } from './supabase.js';
-import { initTheme } from './theme.js';
+import { sb, rpc } from './supabase.js?v=0.10.2';
+import { initTheme } from './theme.js?v=0.10.2';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
