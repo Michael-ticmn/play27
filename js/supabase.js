@@ -5,7 +5,7 @@
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-export const APP_VERSION = '0.9.6';
+export const APP_VERSION = '0.9.7';
 
 export const SUPABASE_URL = 'https://pxjkedzafalchtxmwvnl.supabase.co';
 export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4amtlZHphZmFsY2h0eG13dm5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDI5MjMsImV4cCI6MjA5MDk3ODkyM30.3EWGJ1R-XzyjDoXHhUQEhldF2rE0Xz0Jui1SmoovPFU';
@@ -17,20 +17,24 @@ export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
  * which can silently hang on stale auth tokens.
  * Returns { data, error } matching the Supabase convention.
  */
-export async function rpc(fnName, params = {}) {
-  let token;
+function getTokenFromStorage() {
+  // Read token directly from localStorage — bypasses sb.auth.getSession() which can hang
+  const storageKey = `sb-pxjkedzafalchtxmwvnl-auth-token`;
   try {
-    const session = await Promise.race([
-      sb.auth.getSession(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 5000))
-    ]);
-    token = session.data?.session?.access_token;
-  } catch (err) {
-    return { data: null, error: { message: err.message || 'Auth failed' } };
-  }
+    const raw = localStorage.getItem(storageKey);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return parsed?.access_token || null;
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+export async function rpc(fnName, params = {}) {
+  const token = getTokenFromStorage();
 
   if (!token) {
-    return { data: null, error: { message: 'Not authenticated' } };
+    return { data: null, error: { message: 'Not authenticated — please sign in again' } };
   }
 
   try {
