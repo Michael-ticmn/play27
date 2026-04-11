@@ -179,7 +179,7 @@
     </div>
   </div>
 
-  <div class="version-tag">v0.8.2</div>
+  <div class="version-tag">v0.8.3</div>
   <footer class="footer">&copy; 2026 play27. All rights reserved.</footer>
 
 <script type="module">
@@ -417,7 +417,11 @@
 
     try {
       console.log('create_game params:', params);
-      const { data, error } = await sb.rpc('create_game', params);
+      const session = await sb.auth.getSession();
+      console.log('auth session:', session.data?.session ? 'valid' : 'missing');
+      const resp = sb.rpc('create_game', params);
+      console.log('rpc returned:', resp);
+      const { data, error } = await resp;
       console.log('create_game result:', { data, error });
 
       if (error) {
