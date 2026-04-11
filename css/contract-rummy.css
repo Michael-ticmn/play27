@@ -62,10 +62,8 @@
   .theme-btn:hover { border-color:var(--amber); }
   .theme-btn.active { border-color:var(--amber); color:var(--amber); background:var(--amber-dim); }
 
-  html, body {
+  html.game-active, html.game-active body {
     height:100%;
-  }
-  body.game-active {
     overflow:hidden;
   }
 

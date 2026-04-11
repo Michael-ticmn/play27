@@ -1,5 +1,5 @@
-import { sb, rpc } from './supabase.js?v=0.11.2';
-import { initTheme } from './theme.js?v=0.11.2';
+import { sb, rpc } from './supabase.js?v=0.11.3';
+import { initTheme } from './theme.js?v=0.11.3';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -179,7 +179,7 @@ async function enterGame() {
   $loading.style.display = 'none';
   $waiting.style.display = 'none';
   $board.style.display = 'grid';
-  document.body.classList.add('game-active');
+  document.documentElement.classList.add('game-active');
 
   await fetchAndRender();
   setupGameSubscriptions();
