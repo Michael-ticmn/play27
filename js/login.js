@@ -1,5 +1,5 @@
-import { sb, rpc, ensureProfile } from './supabase.js?v=0.11.3';
-import { initTheme } from './theme.js?v=0.11.3';
+import { sb, rpc, ensureProfile } from './supabase.js?v=0.11.4';
+import { initTheme } from './theme.js?v=0.11.4';
 
 // ─────────────────────────────────────────────
 // AUTH STATE
