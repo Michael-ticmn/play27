@@ -1042,13 +1042,26 @@
 
   /* ── WAITING ROOM ── */
   .waiting-room {
-    width:100vw; height:100dvh;
+    width:100vw; min-height:100dvh;
     display:flex;
     flex-direction:column;
     align-items:center;
-    justify-content:center;
+    justify-content:safe center;
     gap:24px;
     padding:40px;
+    overflow-y:auto;
+  }
+  @media (max-height:500px) {
+    .waiting-room {
+      gap:12px;
+      padding:16px 24px;
+      justify-content:flex-start;
+    }
+    .waiting-room .game-code-display {
+      font-size:clamp(1.4rem,4vw,2rem);
+      padding:10px 24px;
+    }
+    .waiting-room .waiting-title img { height:28px !important; }
   }
 
   .waiting-room .game-code-display {
