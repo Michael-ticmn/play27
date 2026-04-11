@@ -505,7 +505,7 @@ function renderSeats(round) {
     // Card backs
     let cardBacks = '';
     for (let j = 0; j < Math.min(cardsInHand, 14); j++) {
-      cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.10.0"></div>';
+      cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.10.1"></div>';
     }
 
     // Melds HTML
@@ -1110,7 +1110,7 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
 
     // Start face-down for deck draws, face-up for discard draws
     if (isFaceDown) {
-      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.10.0" style="width:100%;height:100%;border-radius:6px;">';
+      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.10.1" style="width:100%;height:100%;border-radius:6px;">';
     } else if (cardCode) {
       const c = parseCard(cardCode);
       const color = c.red ? 'var(--red)' : '#111';
@@ -1822,6 +1822,32 @@ document.getElementById('buyBtn').addEventListener('click', handleBuy);
 document.getElementById('btnStartGame').addEventListener('click', handleStartGame);
 document.getElementById('btnLeaveGame').addEventListener('click', () => {
   window.location.href = 'login.html';
+});
+
+// End game
+document.getElementById('btnEndGame').addEventListener('click', () => {
+  document.getElementById('settingsDropdown').classList.remove('open');
+  document.getElementById('endGameModal').classList.add('show');
+});
+document.getElementById('endGameCancel').addEventListener('click', () => {
+  document.getElementById('endGameModal').classList.remove('show');
+});
+document.getElementById('endGameModal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('show');
+});
+document.getElementById('endGameConfirm').addEventListener('click', async () => {
+  const btn = document.getElementById('endGameConfirm');
+  btn.disabled = true;
+  btn.textContent = 'Ending...';
+  const { error } = await rpc('end_game_request', { p_game_id: gameId });
+  if (error) {
+    showToast('Error', error.message || 'Could not end game');
+    btn.disabled = false;
+    btn.textContent = 'End Game';
+    document.getElementById('endGameModal').classList.remove('show');
+  } else {
+    window.location.href = 'login.html';
+  }
 });
 
 // Hand sort

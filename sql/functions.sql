@@ -1371,7 +1371,7 @@ end;
 $$;
 
 -- ────────────────────────────────────────────────────────────
--- END GAME
+-- END GAME (internal)
 -- ────────────────────────────────────────────────────────────
 create or replace function end_game(p_game_id uuid)
 returns void
@@ -1382,6 +1382,26 @@ begin
 
   insert into game_actions (game_id, action_type, details)
   values (p_game_id, 'game_end', '{}'::jsonb);
+end;
+$$;
+
+-- END GAME REQUEST (callable RPC — any player in the game can end it)
+-- ────────────────────────────────────────────────────────────
+create or replace function end_game_request(p_game_id uuid)
+returns void
+language plpgsql security definer as $$
+declare
+  v_player_id uuid := auth.uid();
+begin
+  -- Verify caller is in this game
+  if not exists (
+    select 1 from game_players where game_id = p_game_id and player_id = v_player_id
+  ) then
+    raise exception 'You are not in this game';
+  end if;
+
+  -- End the game
+  perform end_game(p_game_id);
 end;
 $$;
 

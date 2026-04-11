@@ -123,6 +123,91 @@ html, body {
 }
 .settings-home:hover { color: var(--amber); }
 
+/* ── SETTINGS END GAME ── */
+.settings-end-game {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 6px 0;
+  border: 1px solid var(--red);
+  border-radius: 4px;
+  background: transparent;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--red);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.settings-end-game:hover { background: var(--red); color: var(--bg); }
+
+/* ── CONFIRM MODAL ── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 500;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal-confirm {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  width: min(340px, 90%);
+  text-align: center;
+}
+.modal-confirm h3 {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--amber);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.modal-confirm p {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+.modal-confirm-btns {
+  display: flex;
+  gap: 8px;
+}
+.modal-confirm-btns button { flex: 1; }
+.btn-cancel {
+  padding: 9px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-cancel:hover { border-color: var(--muted); color: var(--text); }
+.btn-end {
+  padding: 9px;
+  border-radius: 6px;
+  border: 1px solid var(--red);
+  background: var(--red);
+  color: var(--bg);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-end:hover { opacity: 0.85; }
+
 /* ── LOGO LINK ── */
 .logo-link { display: inline-block; }
 
