@@ -1509,6 +1509,25 @@ end;
 $$;
 
 -- ────────────────────────────────────────────────────────────
+-- CANCEL GAME (host only, waiting status only)
+-- ────────────────────────────────────────────────────────────
+create or replace function cancel_game(p_game_id uuid)
+returns void
+language plpgsql security definer as $$
+declare
+  v_game record;
+begin
+  select * into v_game from games where id = p_game_id;
+  if not found then raise exception 'Game not found'; end if;
+  if v_game.created_by != auth.uid() then raise exception 'Only the host can cancel'; end if;
+  if v_game.status != 'waiting' then raise exception 'Can only cancel a waiting game'; end if;
+
+  delete from game_players where game_id = p_game_id;
+  delete from games where id = p_game_id;
+end;
+$$;
+
+-- ────────────────────────────────────────────────────────────
 -- RESOLVE LATE JOIN REQUEST (host only)
 -- ────────────────────────────────────────────────────────────
 create or replace function resolve_late_join_request(

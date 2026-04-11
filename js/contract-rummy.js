@@ -53,6 +53,7 @@ let logOpen = false;
 let animatingDraw = false;
 let recentMeldCards = new Set(); // cards added to melds this turn, gold highlight
 let isSpectator = false;
+let isHost = false;
 let lateJoinStatus = null;      // 'pending' | 'approved' | 'spectating' | 'kicked'
 let activeJoinRequestId = null;  // for host modal dedup
 
@@ -115,7 +116,8 @@ async function showWaitingRoom(game) {
 
   const btnStart = document.getElementById('btnStartGame');
   const waitSub = document.getElementById('waitingSub');
-  if (game.created_by === myUserId) {
+  isHost = game.created_by === myUserId;
+  if (isHost) {
     btnStart.style.display = '';
     waitSub.style.display = 'none';
   }
@@ -154,11 +156,17 @@ function setupWaitingSubscriptions(game) {
       filter: `game_id=eq.${gameId}`
     }, () => refreshPlayerList())
     .on('postgres_changes', {
-      event: 'UPDATE',
+      event: '*',
       schema: 'public',
       table: 'games',
       filter: `id=eq.${gameId}`
     }, async (payload) => {
+      if (payload.eventType === 'DELETE') {
+        sub.unsubscribe();
+        showToast('Game Cancelled', 'The host cancelled this game.');
+        setTimeout(() => { window.location.href = 'login.html'; }, 1500);
+        return;
+      }
       if (payload.new.status === 'active') {
         sub.unsubscribe();
         await enterGame();
@@ -1929,7 +1937,11 @@ document.getElementById('btnLayOff').addEventListener('click', handleLayOff);
 document.getElementById('btnDiscard').addEventListener('click', handleDiscard);
 document.getElementById('buyBtn').addEventListener('click', handleBuy);
 document.getElementById('btnStartGame').addEventListener('click', handleStartGame);
-document.getElementById('btnLeaveGame').addEventListener('click', () => {
+document.getElementById('btnLeaveGame').addEventListener('click', async () => {
+  // Host cancels the waiting game; non-host just leaves
+  if (gameId && isHost) {
+    await rpc('cancel_game', { p_game_id: gameId });
+  }
   window.location.href = 'login.html';
 });
 
