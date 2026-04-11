@@ -179,7 +179,7 @@
     </div>
   </div>
 
-  <div class="version-tag">v0.8.4</div>
+  <div class="version-tag">v0.8.5</div>
   <footer class="footer">&copy; 2026 play27. All rights reserved.</footer>
 
 <script type="module">
@@ -417,11 +417,31 @@
 
     try {
       console.log('create_game calling rpc...');
-      const promise = sb.rpc('create_game', params);
-      console.log('rpc promise created:', typeof promise, promise);
-      promise.then(r => console.log('rpc resolved:', r)).catch(e => console.log('rpc rejected:', e));
-      const { data, error } = await promise;
-      console.log('create_game result:', { data, error });
+      const session = await sb.auth.getSession();
+      const token = session.data?.session?.access_token;
+      console.log('auth token:', token ? token.substring(0, 20) + '...' : 'MISSING');
+
+      const resp = await fetch('https://pxjkedzafalchtxmwvnl.supabase.co/rest/v1/rpc/create_game', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4amtlZHphZmFsY2h0eG13dm5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDI5MjMsImV4cCI6MjA5MDk3ODkyM30.3EWGJ1R-XzyjDoXHhUQEhldF2rE0Xz0Jui1SmoovPFU',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(params)
+      });
+      const result = await resp.json();
+      console.log('create_game response:', resp.status, result);
+
+      if (!resp.ok) {
+        const msg = result.message || result.error || 'Failed to create game';
+        errEl.textContent = msg;
+        errEl.classList.add('show');
+        return;
+      }
+
+      const data = result;
+      const error = null;
 
       if (error) {
         errEl.textContent = error.message;
