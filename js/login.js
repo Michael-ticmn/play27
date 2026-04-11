@@ -155,12 +155,18 @@ async function showLobby() {
   document.getElementById('authSection').style.display = 'none';
   document.getElementById('lobbyPanel').classList.add('active');
 
-  // Get display name
-  const { data: profile } = await sb
+  // Get display name — ensure profile exists (safety net for missing trigger)
+  let { data: profile } = await sb
     .from('profiles')
     .select('display_name')
     .eq('id', currentUser.id)
     .single();
+
+  if (!profile) {
+    const name = currentUser.user_metadata?.display_name || 'Player';
+    await sb.from('profiles').upsert({ id: currentUser.id, display_name: name });
+    profile = { display_name: name };
+  }
 
   document.getElementById('userName').textContent =
     profile?.display_name
