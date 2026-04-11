@@ -120,11 +120,12 @@ async function handleSignup(e) {
     return;
   }
 
-  // Auto-join game if code was in URL
-  if (gameCodeFromUrl && data.session) {
-    const { error: joinErr } = await rpc('join_game', { p_code: gameCodeFromUrl });
+  // Auto-join game using invite code (which is the game code)
+  const joinCode = gameCodeFromUrl || inviteCode;
+  if (joinCode && data.session) {
+    const { error: joinErr } = await rpc('join_game', { p_code: joinCode });
     if (!joinErr) {
-      window.location.href = `contract-rummy.html?game=${gameCodeFromUrl}`;
+      window.location.href = `contract-rummy.html?game=${joinCode}`;
       return;
     }
   }
