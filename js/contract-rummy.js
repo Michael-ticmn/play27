@@ -505,7 +505,7 @@ function renderSeats(round) {
     // Card backs
     let cardBacks = '';
     for (let j = 0; j < Math.min(cardsInHand, 14); j++) {
-      cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.9.5"></div>';
+      cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.9.6"></div>';
     }
 
     // Melds HTML
@@ -1110,7 +1110,7 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
 
     // Start face-down for deck draws, face-up for discard draws
     if (isFaceDown) {
-      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.9.5" style="width:100%;height:100%;border-radius:6px;">';
+      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.9.6" style="width:100%;height:100%;border-radius:6px;">';
     } else if (cardCode) {
       const c = parseCard(cardCode);
       const color = c.red ? 'var(--red)' : '#111';

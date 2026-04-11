@@ -230,6 +230,9 @@ async function handleCreateGame() {
   }
 
   try {
+    errEl.textContent = 'Calling create_game...';
+    errEl.classList.add('show');
+
     const { data, error } = await rpc('create_game', params);
 
     if (error) {
@@ -238,16 +241,15 @@ async function handleCreateGame() {
       return;
     }
 
-    console.log('[create_game] response:', data);
     const code = data?.code || (typeof data === 'string' ? data : null);
     if (code) {
       window.location.href = `contract-rummy.html?game=${code}`;
     } else {
-      errEl.textContent = 'Unexpected response: ' + JSON.stringify(data);
+      errEl.textContent = 'Response: ' + JSON.stringify(data);
       errEl.classList.add('show');
     }
   } catch (err) {
-    errEl.textContent = err.message || 'Failed to create game';
+    errEl.textContent = 'Caught: ' + (err.message || 'Failed to create game');
     errEl.classList.add('show');
   } finally {
     btn.disabled = false;
