@@ -1,5 +1,5 @@
-import { sb, rpc, ensureProfile } from './supabase.js?v=0.10.2';
-import { initTheme } from './theme.js?v=0.10.2';
+import { sb, rpc, ensureProfile } from './supabase.js?v=0.10.3';
+import { initTheme } from './theme.js?v=0.10.3';
 
 // ─────────────────────────────────────────────
 // AUTH STATE
@@ -287,13 +287,14 @@ async function loadHistory() {
     return;
   }
 
-  // Compute stats
+  // Compute stats (exclude incomplete games)
   const games = data;
-  const wins = games.filter(g => g.your_rank === 1).length;
-  const totalScore = games.reduce((s, g) => s + g.your_total_score, 0);
-  const avgScore = Math.round(totalScore / games.length);
+  const completed = games.filter(g => g.rounds_played >= 7);
+  const wins = completed.filter(g => g.your_rank === 1).length;
+  const totalScore = completed.reduce((s, g) => s + g.your_total_score, 0);
+  const avgScore = completed.length ? Math.round(totalScore / completed.length) : 0;
 
-  document.getElementById('statGames').textContent = games.length;
+  document.getElementById('statGames').textContent = completed.length;
   document.getElementById('statWins').textContent = wins;
   document.getElementById('statAvg').textContent = avgScore;
 
@@ -303,7 +304,8 @@ async function loadHistory() {
   list.className = 'history-list';
 
   games.forEach(game => {
-    const isWin = game.your_rank === 1;
+    const isComplete = game.rounds_played >= 7;
+    const isWin = isComplete && game.your_rank === 1;
     const date = new Date(game.finished_at);
     const dateStr = date.toLocaleDateString('en-US', {
       month: 'short', day: 'numeric', year: 'numeric'
@@ -318,21 +320,38 @@ async function loadHistory() {
     };
 
     const item = document.createElement('div');
-    item.className = 'history-item' + (isWin ? ' win' : '');
-    item.innerHTML = `
-      <div class="hi-info">
-        <h4>${isWin ? '&#127942; ' : ''}${game.winner} won${isWin ? ' (You!)' : ''}</h4>
-        <p>${dateStr} &middot; ${game.player_count} players &middot; ${players}</p>
-      </div>
-      <div class="hi-rank">
-        ${ordinal(game.your_rank)}
-        <small>place</small>
-      </div>
-      <div class="hi-score">
-        <span class="pts">${game.your_total_score}</span>
-        <small>total pts</small>
-      </div>
-    `;
+    item.className = 'history-item' + (isWin ? ' win' : '') + (!isComplete ? ' incomplete' : '');
+
+    if (isComplete) {
+      item.innerHTML = `
+        <div class="hi-info">
+          <h4>${isWin ? '&#127942; ' : ''}${game.winner} won${isWin ? ' (You!)' : ''}</h4>
+          <p>${dateStr} &middot; ${game.player_count} players &middot; ${players}</p>
+        </div>
+        <div class="hi-rank">
+          ${ordinal(game.your_rank)}
+          <small>place</small>
+        </div>
+        <div class="hi-score">
+          <span class="pts">${game.your_total_score}</span>
+          <small>total pts</small>
+        </div>
+      `;
+    } else {
+      item.innerHTML = `
+        <div class="hi-info">
+          <h4>Game ended early</h4>
+          <p>${dateStr} &middot; ${game.player_count} players &middot; ${players} &middot; Round ${game.rounds_played}/7</p>
+        </div>
+        <div class="hi-rank incomplete-tag">
+          DNF
+        </div>
+        <div class="hi-score">
+          <span class="pts">${game.your_total_score}</span>
+          <small>total pts</small>
+        </div>
+      `;
+    }
     list.appendChild(item);
   });
 

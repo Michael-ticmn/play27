@@ -1649,6 +1649,7 @@ begin
         order by coalesce(sum(prs3.score), 0)
         limit 1
       ),
+      'rounds_played', (select count(*) from rounds where game_id = g.id and status = 'finished'),
       'players', (
         select jsonb_agg(jsonb_build_object(
           'name', p2.display_name,

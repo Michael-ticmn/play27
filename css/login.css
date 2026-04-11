@@ -502,6 +502,13 @@ body {
 .history-item:hover { border-color: var(--amber-dim); }
 
 .history-item.win { border-left: 3px solid var(--amber); }
+.history-item.incomplete { opacity: 0.55; border-left: 3px solid var(--muted); }
+.history-item.incomplete .hi-info h4 { color: var(--muted); }
+.incomplete-tag {
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
 
 .hi-info h4 {
   font-family: 'Courier New', Courier, monospace;
