@@ -5,7 +5,7 @@
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-export const APP_VERSION = '0.9.8';
+export const APP_VERSION = '0.9.9';
 
 export const SUPABASE_URL = 'https://pxjkedzafalchtxmwvnl.supabase.co';
 export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4amtlZHphZmFsY2h0eG13dm5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDI5MjMsImV4cCI6MjA5MDk3ODkyM30.3EWGJ1R-XzyjDoXHhUQEhldF2rE0Xz0Jui1SmoovPFU';
@@ -28,6 +28,23 @@ function getTokenFromStorage() {
     }
   } catch (e) { /* ignore */ }
   return null;
+}
+
+export async function ensureProfile(userId, displayName) {
+  const token = getTokenFromStorage();
+  if (!token) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/profiles`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({ id: userId, display_name: displayName || 'Player' })
+    });
+  } catch (e) { /* best effort */ }
 }
 
 export async function rpc(fnName, params = {}) {

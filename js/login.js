@@ -1,4 +1,4 @@
-import { sb, rpc } from './supabase.js';
+import { sb, rpc, ensureProfile } from './supabase.js';
 import { initTheme } from './theme.js';
 
 // ─────────────────────────────────────────────
@@ -155,24 +155,11 @@ async function showLobby() {
   document.getElementById('authSection').style.display = 'none';
   document.getElementById('lobbyPanel').classList.add('active');
 
-  // Get display name — ensure profile exists (safety net for missing trigger)
-  let { data: profile } = await sb
-    .from('profiles')
-    .select('display_name')
-    .eq('id', currentUser.id)
-    .single();
+  // Ensure profile exists (direct fetch, no Supabase client dependency)
+  const displayName = currentUser.user_metadata?.display_name || currentUser.email || 'Player';
+  await ensureProfile(currentUser.id, displayName);
 
-  if (!profile) {
-    const name = currentUser.user_metadata?.display_name || 'Player';
-    await sb.from('profiles').upsert({ id: currentUser.id, display_name: name });
-    profile = { display_name: name };
-  }
-
-  document.getElementById('userName').textContent =
-    profile?.display_name
-    || currentUser.user_metadata?.display_name
-    || currentUser.email
-    || 'Player';
+  document.getElementById('userName').textContent = displayName;
 
   await loadHistory();
 }
