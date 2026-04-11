@@ -1946,17 +1946,20 @@ document.getElementById('btnLeaveGame').addEventListener('click', async () => {
 });
 
 // Fullscreen
-document.getElementById('btnFullscreen').addEventListener('click', () => {
-  document.getElementById('settingsDropdown').classList.remove('open');
+function toggleFullscreen() {
+  document.getElementById('settingsDropdown')?.classList.remove('open');
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen().catch(() => {});
   } else {
     document.exitFullscreen();
   }
-});
+}
+document.getElementById('btnFullscreen').addEventListener('click', toggleFullscreen);
+document.getElementById('btnFullscreenWaiting').addEventListener('click', toggleFullscreen);
 document.addEventListener('fullscreenchange', () => {
-  document.getElementById('btnFullscreen').textContent =
-    document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen';
+  const label = document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen';
+  document.getElementById('btnFullscreen').textContent = label;
+  document.getElementById('btnFullscreenWaiting').textContent = label;
 });
 
 // End game
