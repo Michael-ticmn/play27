@@ -104,7 +104,7 @@ function renderHandCard(code) {
 }
 
 function renderCardBack(size) {
-  return `<div class="card-back ${size}"><img src="assets/card-back.svg?v=0.8.6" alt=""></div>`;
+  return `<div class="card-back ${size}"><img src="assets/card-back.svg?v=0.9.0" alt=""></div>`;
 }
 
 function formatValue(cards, hideHole) {
