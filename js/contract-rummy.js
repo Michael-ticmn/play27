@@ -1948,19 +1948,26 @@ document.getElementById('btnLeaveGame').addEventListener('click', async () => {
 // Fullscreen
 function toggleFullscreen() {
   document.getElementById('settingsDropdown')?.classList.remove('open');
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(() => {});
+  const el = document.documentElement;
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) req.call(el).catch(() => showToast('Fullscreen', 'Not supported in this browser'));
+    else showToast('Fullscreen', 'Not supported in this browser');
   } else {
-    document.exitFullscreen();
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exit) exit.call(document);
   }
 }
 document.getElementById('btnFullscreen').addEventListener('click', toggleFullscreen);
 document.getElementById('btnFullscreenWaiting').addEventListener('click', toggleFullscreen);
-document.addEventListener('fullscreenchange', () => {
-  const label = document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen';
+function onFullscreenChange() {
+  const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  const label = isFs ? 'Exit Fullscreen' : 'Fullscreen';
   document.getElementById('btnFullscreen').textContent = label;
   document.getElementById('btnFullscreenWaiting').textContent = label;
-});
+}
+document.addEventListener('fullscreenchange', onFullscreenChange);
+document.addEventListener('webkitfullscreenchange', onFullscreenChange);
 
 // End game
 document.getElementById('btnEndGame').addEventListener('click', () => {
