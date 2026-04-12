@@ -55,17 +55,31 @@ serve(async (req) => {
       );
     }
 
-    // Verify it's this AI's turn and get score
+    // Verify it's this AI's turn
     const { data: gp } = await supabase
       .from('game_players')
-      .select('seat_position, total_score')
+      .select('seat_position')
       .eq('game_id', round.game_id)
       .eq('player_id', ai_player_id)
       .single();
 
+    // Get total score from player_round_state for urgent meld logic
+    const { data: scoreData } = await supabase
+      .from('player_round_state')
+      .select('score, round_id!inner(game_id, status)')
+      .eq('player_id', ai_player_id)
+      .eq('round_id.game_id', round.game_id)
+      .eq('round_id.status', 'finished');
+    const totalScore = (scoreData || []).reduce((sum: number, r: any) => sum + (r.score || 0), 0);
+
     if (!gp || gp.seat_position !== round.current_turn_seat) {
       return new Response(
-        JSON.stringify({ error: 'Not this AI\'s turn' }),
+        JSON.stringify({
+          error: 'Not this AI\'s turn',
+          ai_seat: gp?.seat_position ?? null,
+          current_seat: round.current_turn_seat,
+          phase: round.turn_phase
+        }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -205,7 +219,7 @@ serve(async (req) => {
       );
 
       // Easy tier might miss the opportunity (unless score is high — urgent meld)
-      const urgent = (gp.total_score || 0) >= 150;
+      const urgent = totalScore >= 150;
       const shouldMeld = solution && (tier !== 'easy' || urgent || Math.random() > 0.2);
 
       if (shouldMeld && solution) {

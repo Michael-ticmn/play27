@@ -432,7 +432,7 @@ async function checkAndTriggerAI() {
   if (currentPlayer?.is_ai && round.turn_phase === 'draw') {
     aiTriggerInFlight = true;
     const name = currentPlayer.display_name;
-    aiDebug(`${name} thinking... (draw phase)`);
+    aiDebug(`${name} thinking... (seat=${currentPlayer.seat_position} id=${currentPlayer.player_id.slice(0,8)})`);
     const startTime = Date.now();
     try {
       const controller = new AbortController();
@@ -453,7 +453,11 @@ async function checkAndTriggerAI() {
       const result = await resp.json();
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       if (result.error) {
-        aiDebug(`${name} ERROR: ${result.error} (${elapsed}s)`, 'err');
+        const detail = result.current_seat !== undefined ? ` [ai_seat=${result.ai_seat} current=${result.current_seat} phase=${result.phase}]` : '';
+        aiDebug(`${name} ERROR: ${result.error}${detail} (${elapsed}s)`, 'err');
+        aiTriggerInFlight = false;
+        // Don't re-fetch on "not this AI's turn" — wait for next realtime event
+        return;
       } else {
         aiDebug(`${name} ${result.action || result.status} (${elapsed}s)`, 'ok');
       }
@@ -462,7 +466,7 @@ async function checkAndTriggerAI() {
       aiDebug(`${name} FAILED: ${e.name === 'AbortError' ? 'TIMEOUT 30s' : e.message} (${elapsed}s)`, 'err');
     }
     aiTriggerInFlight = false;
-    // Always re-fetch after AI turn completes — picks up advanced turn and re-triggers next AI
+    // Re-fetch after successful AI turn — picks up advanced turn and re-triggers next AI
     await fetchAndRender();
     return;
   }
