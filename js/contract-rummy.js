@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.18';
-import { initTheme } from './theme.js?v=0.11.18';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.19';
+import { initTheme } from './theme.js?v=0.11.19';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -824,6 +824,14 @@ function renderDeckDiscard(round) {
 
   const buyBtnWrap = document.getElementById('buyBtnWrap');
   const discardTag = document.getElementById('discardTag');
+
+  // Spectators see the board but no interactive buy/draw controls
+  if (isSpectator) {
+    discardWrap.className = 'discard-wrap';
+    discardTag.textContent = '';
+    buyBtnWrap.style.display = 'none';
+    return;
+  }
 
   if (round.turn_phase === 'buy_window') {
     discardWrap.className = 'discard-wrap countdown-active';
