@@ -462,6 +462,8 @@ async function checkAndTriggerAI() {
       aiDebug(`${name} FAILED: ${e.name === 'AbortError' ? 'TIMEOUT 30s' : e.message} (${elapsed}s)`, 'err');
     }
     aiTriggerInFlight = false;
+    // Always re-fetch after AI turn completes — picks up advanced turn and re-triggers next AI
+    await fetchAndRender();
     return;
   }
 
