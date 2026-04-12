@@ -860,10 +860,12 @@
   .rotate-title { font-family:'Courier New',Courier,monospace; font-size:1.4rem; font-weight:700; color:var(--amber); }
   .rotate-sub { font-size:0.9rem; color:var(--muted); line-height:1.5; }
 
+  /* portrait force disabled — testing portrait layout
   @media (orientation: portrait) {
     .rotate-prompt { display:flex; }
     .root, .waiting-room { display:none !important; }
   }
+  */
 
   /* ── TOAST ── */
   .toast {
@@ -1444,3 +1446,18 @@
   transition: all 0.15s;
 }
 .btn-lj-kick:hover { background: #c33; color: #fff; }
+
+/* ── VERSION TAG: left-aligned under standings in game ── */
+.root ~ .version-tag {
+  right: auto;
+  left: 12px;
+}
+
+/* ── SORT BUTTONS: bigger touch targets on mobile ── */
+@media (max-width: 900px) {
+  .sort-btn {
+    padding: 6px 12px;
+    font-size: 0.7rem;
+    min-height: 32px;
+  }
+}
