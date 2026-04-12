@@ -1,5 +1,5 @@
-import { sb, rpc, ensureProfile, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.34';
-import { initTheme } from './theme.js?v=0.11.34';
+import { sb, rpc, ensureProfile, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.35';
+import { initTheme } from './theme.js?v=0.11.35';
 
 // ─────────────────────────────────────────────
 // AUTH STATE

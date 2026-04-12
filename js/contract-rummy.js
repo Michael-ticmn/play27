@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.34';
-import { initTheme } from './theme.js?v=0.11.34';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.35';
+import { initTheme } from './theme.js?v=0.11.35';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -356,7 +356,8 @@ function render() {
   if (!gameState) return;
 
   if (gameState.status === 'finished') {
-    document.getElementById('statusText').textContent = 'Game finished!';
+    showToast('Game Over', 'The host ended the game');
+    setTimeout(() => { window.location.href = 'login.html'; }, 2000);
     return;
   }
 
