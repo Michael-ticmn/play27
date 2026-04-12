@@ -1602,33 +1602,129 @@
 .ai-select {
   flex: 1;
   padding: 6px 10px;
-  background: var(--surface);
-  color: var(--text);
+  background: #1a1a1e;
+  color: #e0e0e0;
   border: 1px solid var(--border);
   border-radius: 6px;
   font-family: 'Courier New', monospace;
   font-size: 0.8rem;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+.ai-select option {
+  background: #1a1a1e;
+  color: #e0e0e0;
 }
 .ai-tier-btns {
   display: flex;
   gap: 4px;
 }
 .ai-tier-btn {
-  width: 32px;
-  height: 32px;
   border: 2px solid transparent;
   border-radius: 6px;
   background: var(--surface);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.65rem;
+  font-family: 'Courier New', monospace;
+  color: var(--text);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 4px 8px;
+  gap: 1px;
+  min-width: 52px;
   transition: border-color 0.15s, transform 0.1s;
 }
-.ai-tier-btn:hover { border-color: var(--amber); transform: scale(1.1); }
+.ai-tier-btn .tier-icon { font-size: 1.1rem; line-height: 1; }
+.ai-tier-btn .tier-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.02em; }
+.ai-tier-btn .tier-desc { font-size: 0.55rem; color: var(--muted); white-space: nowrap; }
+.ai-tier-btn:hover { border-color: var(--amber); transform: scale(1.05); }
 .ai-tier-btn.selected { border-color: var(--amber); background: rgba(255,191,36,0.15); }
+
+/* ── AI Behavior Matrix ── */
+.ai-matrix-toggle {
+  width: 100%;
+  max-width: 340px;
+  margin: 6px auto 0;
+  text-align: center;
+}
+.ai-matrix-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  padding: 6px 18px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.ai-matrix-btn:hover { color: var(--amber); border-color: var(--amber); }
+.ai-matrix {
+  width: 100%;
+  max-width: 780px;
+  margin: 10px auto 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.ai-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.ai-matrix-table th,
+.ai-matrix-table td {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  vertical-align: top;
+}
+.ai-matrix-table thead th {
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  background: rgba(255,255,255,0.03);
+  white-space: nowrap;
+}
+.ai-matrix-table thead th .tier-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 3px;
+  vertical-align: middle;
+}
+.tier-dot.tier-easy   { background: #22c55e; }
+.tier-dot.tier-normal { background: #eab308; }
+.tier-dot.tier-hard   { background: #ef4444; }
+.tier-dot.tier-unfair { background: #a855f7; }
+.ai-m-label {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--amber);
+  white-space: nowrap;
+  text-align: right;
+  width: 70px;
+}
+.ai-matrix-table tbody td {
+  color: #e8e8e8;
+  font-size: 0.8rem;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.ai-m-vibe {
+  font-style: italic;
+  color: #fff;
+  font-weight: 600;
+}
 
 /* ── AI Player in player list ── */
 .player-list li .ai-badge {

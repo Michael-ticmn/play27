@@ -126,7 +126,9 @@ async function showWaitingRoom(game) {
     btnStart.style.display = '';
     waitSub.style.display = 'none';
     document.getElementById('aiPicker').style.display = '';
+    document.getElementById('aiMatrixToggle').style.display = '';
     setupAiPicker();
+    setupAiMatrix();
   }
 
   await refreshPlayerList();
@@ -134,14 +136,25 @@ async function showWaitingRoom(game) {
 }
 
 async function refreshPlayerList() {
-  const { data: players } = await sb.from('game_players')
-    .select('player_id, seat_position, profiles(display_name, is_ai, ai_name, ai_tier)')
+  let { data: players, error } = await sb.from('game_players')
+    .select('player_id, seat_position, profiles!game_players_player_id_fkey(display_name, is_ai, ai_name, ai_tier)')
     .eq('game_id', gameId)
     .order('seat_position');
 
+  // Fallback if PostgREST schema cache hasn't picked up new columns yet
+  if (error) {
+    console.warn('refreshPlayerList fallback:', error.message);
+    ({ data: players } = await sb.from('game_players')
+      .select('player_id, seat_position, profiles!game_players_player_id_fkey(display_name)')
+      .eq('game_id', gameId)
+      .order('seat_position'));
+  }
+
+  console.log('[refreshPlayerList]', { players, error, gameId });
+
   const list = document.getElementById('playerList');
   list.innerHTML = '';
-  if (!players) return;
+  if (!players || players.length === 0) return;
 
   const { data: game } = await sb.from('games').select('created_by').eq('id', gameId).single();
 
@@ -186,6 +199,17 @@ async function refreshPlayerList() {
       if (opt.value) opt.disabled = aiNamesInGame.has(opt.value);
     }
   }
+}
+
+function setupAiMatrix() {
+  const btn = document.getElementById('btnAiMatrix');
+  const matrix = document.getElementById('aiMatrix');
+  if (!btn || !matrix) return;
+  btn.addEventListener('click', () => {
+    const showing = matrix.style.display !== 'none';
+    matrix.style.display = showing ? 'none' : '';
+    btn.textContent = showing ? '\u2139 How AI Players Think' : '\u2715 Hide AI Matrix';
+  });
 }
 
 let aiPickerInitialized = false;

@@ -72,12 +72,88 @@
         <option value="Sue">Sue</option>
       </select>
       <div class="ai-tier-btns" id="aiTierBtns">
-        <button class="ai-tier-btn tier-easy" data-tier="easy" title="Easy">&#x1F7E2;</button>
-        <button class="ai-tier-btn tier-normal" data-tier="normal" title="Normal">&#x1F7E1;</button>
-        <button class="ai-tier-btn tier-hard" data-tier="hard" title="Hard">&#x1F534;</button>
-        <button class="ai-tier-btn tier-unfair" data-tier="unfair" title="Unfair">&#x1F7E3;</button>
+        <button class="ai-tier-btn tier-easy" data-tier="easy"><span class="tier-icon">&#x1F7E2;</span><span class="tier-label">Easy</span><span class="tier-desc">Three beers deep</span></button>
+        <button class="ai-tier-btn tier-normal" data-tier="normal"><span class="tier-icon">&#x1F7E1;</span><span class="tier-label">Normal</span><span class="tier-desc">Plays clean</span></button>
+        <button class="ai-tier-btn tier-hard" data-tier="hard"><span class="tier-icon">&#x1F534;</span><span class="tier-label">Hard</span><span class="tier-desc">20 years at the table</span></button>
+        <button class="ai-tier-btn tier-unfair" data-tier="unfair"><span class="tier-icon">&#x1F7E3;</span><span class="tier-label">Unfair</span><span class="tier-desc">Shouldn't be here</span></button>
       </div>
     </div>
+  </div>
+
+  <!-- AI Behavior Matrix (collapsible) -->
+  <div class="ai-matrix-toggle" id="aiMatrixToggle" style="display:none;">
+    <button class="ai-matrix-btn" id="btnAiMatrix">&#x2139; How AI Players Think</button>
+  </div>
+  <div class="ai-matrix" id="aiMatrix" style="display:none;">
+    <table class="ai-matrix-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th><span class="tier-dot tier-easy"></span> Easy</th>
+          <th><span class="tier-dot tier-normal"></span> Normal</th>
+          <th><span class="tier-dot tier-hard"></span> Hard</th>
+          <th><span class="tier-dot tier-unfair"></span> Unfair</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="ai-m-label">Vibe</td>
+          <td class="ai-m-vibe">Three beers deep, half-watching</td>
+          <td class="ai-m-vibe">Wants to win, plays clean</td>
+          <td class="ai-m-vibe">20 years at the kitchen table</td>
+          <td class="ai-m-vibe">Shouldn't be at your table</td>
+        </tr>
+        <tr>
+          <td class="ai-m-label">Memory</td>
+          <td>None</td>
+          <td>Recent moves</td>
+          <td>Last several moves per player</td>
+          <td>Perfect recall of all visible info</td>
+        </tr>
+        <tr>
+          <td class="ai-m-label">Draw</td>
+          <td>Mostly deck, ignores good discards</td>
+          <td>50/50, takes obvious fits</td>
+          <td>Evaluates odds, adjusts by round</td>
+          <td>Calculates exact card probabilities</td>
+        </tr>
+        <tr>
+          <td class="ai-m-label">Buy</td>
+          <td>Rarely (~15%), only gifts</td>
+          <td>Sometimes (~40%), weighs penalty</td>
+          <td>Often (~55%), considers opponents</td>
+          <td>Surgical — even buy-blocks opponents</td>
+        </tr>
+        <tr>
+          <td class="ai-m-label">Meld</td>
+          <td>Delays — may hold contract by accident</td>
+          <td>Lays down same turn, extends when possible</td>
+          <td>Strategic timing — may hold if safe</td>
+          <td>Optimal timing based on turn estimates</td>
+        </tr>
+        <tr>
+          <td class="ai-m-label">Lay Off</td>
+          <td>Misses most opportunities</td>
+          <td>Catches ~70%, prioritizes high cards</td>
+          <td>Catches nearly all, chains lay-offs</td>
+          <td>100% detection, may withhold strategically</td>
+        </tr>
+        <tr>
+          <td class="ai-m-label">Discard</td>
+          <td>Dumps highest cards blindly</td>
+          <td>Avoids feeding visible melds</td>
+          <td>Tracks recent pickups, baits opponents</td>
+          <td>Full memory, late-round poison discards</td>
+        </tr>
+        <tr>
+          <td class="ai-m-label">Speed</td>
+          <td>3–6s / action (distracted)</td>
+          <td>2–4s / action (steady)</td>
+          <td>1.5–3s / action (confident)</td>
+          <td>1–2.5s / action (sharp)</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
   <button class="btn-start" id="btnStartGame" style="display:none;">Start Game</button>
@@ -321,10 +397,10 @@
         <option value="Sue">Sue</option>
       </select>
       <div class="ai-tier-btns" id="toAiTierBtns">
-        <button class="ai-tier-btn tier-easy" data-tier="easy" title="Easy">&#x1F7E2;</button>
-        <button class="ai-tier-btn tier-normal" data-tier="normal" title="Normal">&#x1F7E1;</button>
-        <button class="ai-tier-btn tier-hard" data-tier="hard" title="Hard">&#x1F534;</button>
-        <button class="ai-tier-btn tier-unfair" data-tier="unfair" title="Unfair">&#x1F7E3;</button>
+        <button class="ai-tier-btn tier-easy" data-tier="easy"><span class="tier-icon">&#x1F7E2;</span><span class="tier-label">Easy</span><span class="tier-desc">Three beers deep</span></button>
+        <button class="ai-tier-btn tier-normal" data-tier="normal"><span class="tier-icon">&#x1F7E1;</span><span class="tier-label">Normal</span><span class="tier-desc">Plays clean</span></button>
+        <button class="ai-tier-btn tier-hard" data-tier="hard"><span class="tier-icon">&#x1F534;</span><span class="tier-label">Hard</span><span class="tier-desc">20 years at the table</span></button>
+        <button class="ai-tier-btn tier-unfair" data-tier="unfair"><span class="tier-icon">&#x1F7E3;</span><span class="tier-label">Unfair</span><span class="tier-desc">Shouldn't be here</span></button>
       </div>
     </div>
     <div class="modal-btn-row">
