@@ -1,5 +1,5 @@
-import { sb, rpc, ensureProfile } from './supabase.js?v=0.11.9';
-import { initTheme } from './theme.js?v=0.11.9';
+import { sb, rpc, ensureProfile, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.10';
+import { initTheme } from './theme.js?v=0.11.10';
 
 // ─────────────────────────────────────────────
 // AUTH STATE
@@ -171,24 +171,33 @@ async function checkActiveGame() {
   const card = document.getElementById('rejoinCard');
 
   if (error || !data) {
+    console.log('[checkActiveGame] no active game');
     card.style.display = 'none';
     return;
   }
 
-  // Player is in the lobby, not in the game — mark disconnected
-  await sb.from('game_players')
-    .update({ is_connected: false })
-    .eq('game_id', data.game_id)
-    .eq('player_id', currentUser.id);
-
+  // Show rejoin card immediately
+  console.log('[checkActiveGame] found active game:', data.code, data.status);
   const status = data.status === 'active'
     ? `Round ${data.current_round || '?'} \u00B7 ${data.player_count} players`
     : `Waiting \u00B7 ${data.player_count} players`;
   document.getElementById('rejoinInfo').textContent = status;
-  card.style.display = '';
+  card.style.display = 'block';
   card.onclick = () => {
     window.location.href = `contract-rummy.html?game=${data.code}`;
   };
+
+  // Mark disconnected (fire-and-forget, don't block UI)
+  fetch(`${SUPABASE_URL}/rest/v1/game_players?game_id=eq.${data.game_id}&player_id=eq.${currentUser.id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${getTokenFromStorage()}`,
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify({ is_connected: false })
+  }).catch(() => {});
 }
 
 // ─────────────────────────────────────────────

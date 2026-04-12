@@ -1913,7 +1913,9 @@ begin
     'code', g.code,
     'status', g.status,
     'player_count', (select count(*) from game_players where game_id = g.id),
-    'current_round', g.current_round
+    'current_round', coalesce((
+      select max(r.round_number) from rounds r where r.game_id = g.id
+    ), 0)
   )
   into v_result
   from games g

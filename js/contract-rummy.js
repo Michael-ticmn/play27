@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.9';
-import { initTheme } from './theme.js?v=0.11.9';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.10';
+import { initTheme } from './theme.js?v=0.11.10';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
