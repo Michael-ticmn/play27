@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.36';
-import { initTheme } from './theme.js?v=0.11.36';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.37';
+import { initTheme } from './theme.js?v=0.11.37';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -358,6 +358,13 @@ function render() {
   if (!gameState) return;
 
   if (gameState.status === 'finished') {
+    const round = gameState.round;
+    // Natural finish (round 7 complete) — show scoreboard with lobby button
+    if (round && round.round_number >= 7 && round.status === 'finished') {
+      showRoundEnd();
+      return;
+    }
+    // Host ended game early — redirect to lobby
     showToast('Game Over', 'The host ended the game');
     setTimeout(() => { window.location.href = 'login.html'; }, 2000);
     return;
@@ -1177,10 +1184,10 @@ function updateDealButton() {
   const waitMsg = document.getElementById('reWaitMsg');
 
   if (round.round_number >= 7) {
-    // Game over
+    // Game over — show lobby button
     dealBtn.style.display = 'none';
     waitMsg.style.display = 'block';
-    waitMsg.textContent = 'Game complete!';
+    waitMsg.innerHTML = 'Game complete!<br><a href="login.html" class="re-lobby-btn">Back to Lobby</a>';
     return;
   }
 

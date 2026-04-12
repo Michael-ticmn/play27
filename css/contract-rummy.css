@@ -1045,6 +1045,19 @@
     font-size:0.7rem;
     color:var(--muted);
   }
+  .re-lobby-btn {
+    display:inline-block;
+    margin-top:10px;
+    padding:8px 20px;
+    background:var(--amber);
+    color:#000;
+    font-weight:700;
+    font-size:0.8rem;
+    border-radius:6px;
+    text-decoration:none;
+    letter-spacing:0.04em;
+  }
+  .re-lobby-btn:hover { background:var(--amber-dk); }
 
   /* ── DEALER BUTTON (classic white puck) ── */
   .dealer-btn {
