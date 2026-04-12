@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.27';
-import { initTheme } from './theme.js?v=0.11.27';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.28';
+import { initTheme } from './theme.js?v=0.11.28';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -542,22 +542,34 @@ function renderTableLines(playerCount) {
     addLine(0, cy, cx - boxW / 2, cy);
     addLine(cx + boxW / 2, cy, w, cy);
   } else {
-    // 3+ players: equal pie slices, user centered at bottom (270°)
-    // Each player gets 360°/playerCount arc. Boundary lines between zones:
-    const sliceAngle = 360 / playerCount;
-    // User's zone is centered at 270° (bottom). First boundary is at 270° - half slice.
-    const startAngle = 270 - sliceAngle / 2; // left edge of user's zone
-    for (let i = 0; i < playerCount; i++) {
-      const angleDeg = (startAngle + i * sliceAngle) % 360;
+    // 3+ players: user always keeps 120° (1/3) at the bottom, opponents split the remaining 240°
+    const userCenter = 270;
+    const leftBound = 210;   // userCenter - 60
+    const rightBound = 330;  // userCenter + 60
+
+    // User's two boundary lines
+    for (const angleDeg of [leftBound, rightBound]) {
       const angleRad = (angleDeg * Math.PI) / 180;
       const cos = Math.cos(angleRad);
       const sin = Math.sin(angleRad);
       const startX = cx + (boxW / 2 + 4) * cos;
       const startY = cy + (boxH / 2 + 4) * sin;
       const reach = Math.max(w, h);
-      const endX = Math.max(0, Math.min(w, cx + reach * cos));
-      const endY = Math.max(0, Math.min(h, cy + reach * sin));
-      addLine(startX, startY, endX, endY);
+      addLine(startX, startY, Math.max(0, Math.min(w, cx + reach * cos)), Math.max(0, Math.min(h, cy + reach * sin)));
+    }
+
+    // Opponents split the remaining 240° (from 330° clockwise to 210°)
+    if (oppCount > 1) {
+      for (let i = 1; i < oppCount; i++) {
+        const angleDeg = (rightBound + i * (240 / oppCount)) % 360;
+        const angleRad = (angleDeg * Math.PI) / 180;
+        const cos = Math.cos(angleRad);
+        const sin = Math.sin(angleRad);
+        const startX = cx + (boxW / 2 + 4) * cos;
+        const startY = cy + (boxH / 2 + 4) * sin;
+        const reach = Math.max(w, h);
+        addLine(startX, startY, Math.max(0, Math.min(w, cx + reach * cos)), Math.max(0, Math.min(h, cy + reach * sin)));
+      }
     }
   }
 }
