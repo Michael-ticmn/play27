@@ -1507,6 +1507,16 @@
     width: 100%;
     order: 0;
   }
+  .your-section {
+    overflow: visible !important;
+  }
+  .your-section-body {
+    overflow: visible;
+  }
+  .hc.sel, .hc:hover {
+    z-index: 50 !important;
+    position: relative;
+  }
   .actions-panel {
     width: 100%;
     order: 1;
