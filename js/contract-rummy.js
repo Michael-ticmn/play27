@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.15';
-import { initTheme } from './theme.js?v=0.11.15';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.16';
+import { initTheme } from './theme.js?v=0.11.16';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -236,6 +236,7 @@ async function fetchAndRender() {
   myPlayerInfo = gameState.players?.find(p => p.is_you);
 
   if (isSpectator) {
+    console.log('[spectator]', { lateJoinStatus, round: !!gameState.round, players: gameState.players?.length });
     updateSpectatorUI();
   } else {
     // If we were a spectator and now we're not, clean up spectator UI
@@ -376,11 +377,14 @@ function render() {
   hideRoundEnd();
   renderTopBar(round);
 
-  // Spectator: show board in read-only mode
+  // Spectator: show board in read-only mode (all players shown as opponents)
   if (isSpectator) {
-    renderSeats(round);
-    renderDeckDiscard(round);
-    // Hide interactive elements
+    try {
+      renderSeats(round);
+      renderDeckDiscard(round);
+    } catch (e) {
+      console.error('[spectator render]', e);
+    }
     const yourSection = document.querySelector('.your-section');
     const actionsPanel = document.querySelector('.actions-panel');
     if (yourSection) yourSection.classList.add('spectator-hidden');
@@ -578,10 +582,11 @@ function renderSeats(round) {
   const opponents = gameState.players.filter(p => !p.is_you);
   const oppData = gameState.opponents || [];
   const iMetContract = myPlayerInfo ? checkMetContract() : false;
+  const totalPlayers = isSpectator ? opponents.length : opponents.length + 1;
   const positions = getSeatPositions(opponents.length);
 
-  // Draw table divider lines (total players = opponents + you)
-  renderTableLines(opponents.length + 1);
+  // Draw table divider lines
+  renderTableLines(totalPlayers);
 
   opponents.forEach((opp, i) => {
     const oppDetail = oppData.find(o => o.player_id === opp.player_id) || {};
