@@ -11,7 +11,9 @@ Use this document to evaluate AI play quality against expected behavior per tier
 - **Buy**: Out-of-turn players may "buy" the top discard (take it + a penalty card from deck). Limited buys per game.
 - **Discard**: Each turn ends by discarding one card.
 - **Lay-offs**: After fulfilling contract, a player may add cards to any meld on the table — but NOT on the same turn they fulfilled their contract.
+- **Aces**: High (after K) or low (before 2), but runs do NOT wrap around (K-A-2 is invalid). A single suit can span A-2-3...Q-K-A across multiple runs.
 - **Jokers**: Wild cards. Can substitute in any set or run. Can be laid off on any meld.
+- **Round 7**: 3 Runs, must meld all cards. Runs can be longer than 3 cards. Exactly 1 card remains for the final discard.
 - **Winning**: First player to empty their hand wins the round. Remaining players score deadwood points (face value; face cards = 10; aces = 15; jokers = 50).
 
 ---
@@ -55,8 +57,9 @@ Use this document to evaluate AI play quality against expected behavior per tier
 | Drawn/bought card protection | Hard block | Cards drawn or bought this turn are ineligible for discard |
 | Buy protection duration | 3 turns | Bought cards stay protected for 3 turns after purchase |
 | Can miss contract | No | Always melds when contract is met |
-| Urgent meld override | 200 pts | When score >= 200, mistake rate drops from 30% → 10% |
-| Urgent mistake rate | 10% | Plays tighter at high scores — fewer suboptimal discards/draws |
+| Urgent meld override | 200 pts | When score >= 200, mistake rate drops from 30% → 5% |
+| Urgent mistake rate | 5% | Near-perfect play when score is high |
+| Urgent speculative match | 1 | At 200+ pts, loosens min speculative match from 2 → 1 (plays like Hard) |
 
 **Speculative pickup rules (Normal)**:
 1. Only speculates on partials that are already 2-of-3 (one card away from completing the meld)
@@ -64,8 +67,9 @@ Use this document to evaluate AI play quality against expected behavior per tier
 3. For runs: must already hold 2+ adjacent same-suit cards — the discard completes the run
 4. Does NOT speculate on 0→1 or 1→2 pickups (too loose, grabs everything)
 5. Weaker paths: only taken if they help the weaker contract dimension (contract weakness bias)
+6. **Urgent override (200+ pts)**: loosens to 1-match threshold — picks up any card that has 1+ matching card in hand, same as Hard tier
 
-**Expected behavior**: Competent casual player. Makes some mistakes but generally plays sensibly. Avoids obvious blunders like feeding melds. Good challenge for average humans. At 200+ points, tightens up — drops to 10% mistakes and prioritizes going down fast.
+**Expected behavior**: Competent casual player. Makes some mistakes but generally plays sensibly. Avoids obvious blunders like feeding melds. Good challenge for average humans. At 200+ points, plays near-perfect — drops to 5% mistakes, loosens pickup gates, and prioritizes going down fast.
 
 **Timing**: 1–2s per action, 6–10s pre-draw pause, buys in middle of countdown (25–75%).
 
@@ -90,7 +94,7 @@ Use this document to evaluate AI play quality against expected behavior per tier
 
 **Speculative pickup rules (Hard/Unfair)**:
 - Quality gate allows 1+ matching card (looser than Normal's 2-of-3)
-- **Contract weakness gate**: For mixed contracts, speculative pickups that pass the quality gate are still rejected if they advance the *stronger* contract dimension while the weaker one is lagging. E.g., if 2S+1R contract and sets are well-covered, picking up a pair-builder is rejected in favor of run-building cards.
+- **Contract weakness gate**: For mixed contracts, speculative pickups that pass the quality gate are still rejected if they advance the *stronger* contract dimension while the weaker one is lagging. Progress is tracked across ALL required melds (e.g., 2S+1R tracks the top-2 value groups for sets, not just the best one). E.g., if 2S+1R contract and both set groups are well-covered, picking up a pair-builder is rejected in favor of run-building cards.
 - Contract weakness bias also applies to weaker paths (same as Normal)
 
 **Post-contract draw rules (Hard/Unfair)**:
@@ -142,7 +146,8 @@ Use this document to evaluate AI play quality against expected behavior per tier
 7. If card completes a run (3+ consecutive same suit) → take it (with mistake chance for Easy/Normal)
 8. **Speculative tiers only** (Normal/Hard/Unfair):
    - If card builds a pair or extends a run AND that partial is a top-ranked path → take it
-   - **Contract weakness gate** (Normal/Hard/Unfair): Even if the pickup passes the quality gate, reject it if it advances the stronger contract dimension while the weaker one is lagging (mixed contracts only)
+   - **Contract weakness gate** (Normal/Hard/Unfair): Even if the pickup passes the quality gate, reject it if it advances the stronger contract dimension while the weaker one is lagging (mixed contracts only). Progress is tracked per-meld (e.g., 2S+1R averages the top-2 value groups vs best run).
+   - **Urgent speculative loosening** (Normal at 200+ pts): min speculative match drops from 2 → 1, matching Hard tier
    - If it's a weaker path but helps the weaker contract dimension → take it (contract weakness bias)
 9. Otherwise → draw from deck
 
@@ -163,7 +168,7 @@ Each card in hand is scored (lower = better to discard):
 
 Mistakes modify the choice (among eligible candidates):
 - Easy (50% mistake rate): picks random card from top half of ranked list
-- Normal (30%, drops to 10% at 200+ pts): picks second-best card
+- Normal (30%, drops to 5% at 200+ pts): picks second-best card
 - Hard (10%, drops to 5% at 150+ pts): picks second-best card
 - Unfair (0%): always picks best card
 
@@ -173,6 +178,7 @@ Mistakes modify the choice (among eligible candidates):
 - Best solution = least remaining deadwood (point value of unused cards)
 - Easy tier: 20% chance of "not noticing" they can meld (overridden if score >= 150)
 - On the turn contract is fulfilled, no lay-offs are allowed (game rule, server-enforced)
+- **Round 7 (must meld all)**: Solver tries variable-length runs (3 to full length) and only accepts solutions leaving exactly 0–1 cards remaining. Server enforces `must_go_out` — rejects melds that leave more than 1 card in hand.
 
 ### Lay-Off Decision
 

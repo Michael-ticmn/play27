@@ -58,6 +58,8 @@ let isSpectator = false;
 let isHost = false;
 let lateJoinStatus = null;      // 'pending' | 'approved' | 'spectating' | 'kicked'
 let activeJoinRequestId = null;  // for host modal dedup
+let lastTurnSeat = null;         // track turn transitions for ding
+let dingOnTurn = true;           // default on
 
 // ── DOM refs ──
 const $loading = document.getElementById('loadingScreen');
@@ -364,6 +366,16 @@ async function fetchAndRender() {
   }
   lastRoundId = curRoundId;
 
+  // Ding when it becomes the player's turn
+  const curSeat = gameState.round?.current_turn_seat ?? null;
+  const isMyTurnNow = myPlayerInfo && curSeat === myPlayerInfo.seat_position
+    && gameState.round?.turn_phase !== 'ready_check';
+  const wasMyTurn = myPlayerInfo && lastTurnSeat === myPlayerInfo.seat_position;
+  if (isMyTurnNow && !wasMyTurn && lastTurnSeat !== null && dingOnTurn) {
+    playTurnDing();
+  }
+  lastTurnSeat = curSeat;
+
   if (showAiHands) fetchAiHands().then(() => render());
   render();
   checkAndTriggerAI();
@@ -442,7 +454,7 @@ async function checkAndTriggerAI() {
   if (currentPlayer?.is_ai && round.turn_phase === 'draw') {
     aiTriggerInFlight = true;
     const name = currentPlayer.display_name;
-    aiDebug(`${name} thinking... (seat=${currentPlayer.seat_position} id=${currentPlayer.player_id.slice(0,8)})`);
+    aiDebug(`${name} thinking... (seat=${currentPlayer.seat_position} id=…${currentPlayer.player_id.slice(-4)})`);
     const startTime = Date.now();
     try {
       const controller = new AbortController();
@@ -2181,8 +2193,10 @@ function detectMeldType(cards) {
 }
 
 function validateSlot(slot) {
+  const isRound7 = gameState?.round?.round_number === 7;
+  const maxCards = isRound7 ? 13 : 3; // round 7: runs can be longer to meld all cards
   if (slot.cards.length < 3) return { valid: false, msg: slot.cards.length === 0 ? '' : `need ${3 - slot.cards.length} more`, type: 'auto' };
-  if (slot.cards.length > 3) return { valid: false, msg: `too many (${slot.cards.length}/3)`, type: 'auto' };
+  if (slot.cards.length > maxCards) return { valid: false, msg: `too many (${slot.cards.length}/${maxCards})`, type: 'auto' };
   const type = detectMeldType(slot.cards);
   if (type === 'invalid') {
     // Give a helpful hint
@@ -2213,12 +2227,11 @@ function renderStagedMelds() {
     const statusHtml = msg ? `<span class="status ${valid ? 'ok' : 'bad'}">${msg}</span>` : '';
     const validClass = !hasCards ? '' : (valid ? ' valid' : ' invalid');
 
-    const minCards = 3;
     const renderedCards = slot.cards.map(c => {
       const p = parseCard(c);
       return `<div class="mc${p.red ? ' r' : ''} removable" data-slot="${i}" data-card="${c}" title="Click to remove"><span class="s">${p.rank}</span><span>${p.symbol}</span></div>`;
     }).join('');
-    const remaining = Math.max(0, minCards - slot.cards.length);
+    const remaining = Math.max(0, 3 - slot.cards.length);
     const placeholders = Array(remaining).fill('<div class="staged-meld-placeholder"></div>').join('');
     const cardsHtml = renderedCards + placeholders;
 
@@ -2230,7 +2243,7 @@ function renderStagedMelds() {
         ${statusHtml}
       </div>
       <div class="staged-meld-cards">${cardsHtml}</div>
-      ${remaining > 0 ? `<div class="staged-meld-add" data-slot="${i}">+ Add Selected</div>` : ''}
+      ${remaining > 0 || (gameState?.round?.round_number === 7) ? `<div class="staged-meld-add" data-slot="${i}">+ Add Selected</div>` : ''}
       ${clearBtn}
     </div>`;
   }).join('');
@@ -2298,13 +2311,24 @@ function renderStagedMelds() {
   const detectedRuns = stagedMelds.filter(s => s.cards.length >= 3 && detectMeldType(s.cards) === 'run').length;
   const contractMet = detectedSets >= req.sets && detectedRuns >= req.runs;
 
-  if (allValid && filledSlots.length === stagedMelds.length && contractMet) {
+  // Round 7: must meld all cards except 1 discard
+  const isRound7 = gameState.round.round_number === 7;
+  const meldedCardCount = stagedMelds.reduce((sum, s) => sum + s.cards.length, 0);
+  const handSize = gameState.my_hand?.length || 0;
+  const remaining = handSize - meldedCardCount;
+  const round7Valid = !isRound7 || remaining === 1;
+
+  if (allValid && filledSlots.length === stagedMelds.length && contractMet && !round7Valid) {
+    hint.textContent = `Must meld all cards — ${remaining} left, need exactly 1 for discard`;
+    hint.style.color = '#d45f5f';
+    submitBtn.disabled = true;
+  } else if (allValid && filledSlots.length === stagedMelds.length && contractMet && round7Valid) {
     if (canSubmitNow) {
-      hint.textContent = 'Contract ready! Hit Submit.';
+      hint.textContent = isRound7 ? 'All cards melded! Hit Submit.' : 'Contract ready! Hit Submit.';
       hint.style.color = '#3cb96a';
       submitBtn.disabled = false;
     } else {
-      hint.textContent = 'Contract ready — submit on your turn';
+      hint.textContent = isRound7 ? 'All cards melded — submit on your turn' : 'Contract ready — submit on your turn';
       hint.style.color = 'var(--amber)';
       submitBtn.disabled = true;
     }
@@ -2830,6 +2854,38 @@ const mobileDefault = window.innerWidth <= 600 ? 'compact' : 'default';
 setCardView('handView', localStorage.getItem('play27-handView') || mobileDefault);
 setCardView('meldView', localStorage.getItem('play27-meldView') || mobileDefault);
 setCardView('sortDir', localStorage.getItem('play27-sortDir') || 'asc');
+
+// Ding on turn setting
+dingOnTurn = localStorage.getItem('play27-dingOnTurn') !== 'off';
+document.getElementById(dingOnTurn ? 'dingOn' : 'dingOff').classList.add('active');
+document.getElementById(dingOnTurn ? 'dingOff' : 'dingOn').classList.remove('active');
+document.querySelectorAll('[data-setting="dingOnTurn"]').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dingOnTurn = btn.dataset.val === 'on';
+    localStorage.setItem('play27-dingOnTurn', dingOnTurn ? 'on' : 'off');
+    document.getElementById('dingOn').classList.toggle('active', dingOnTurn);
+    document.getElementById('dingOff').classList.toggle('active', !dingOnTurn);
+  });
+});
+
+// Turn ding via Web Audio API
+function playTurnDing() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(1175, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.25);
+  } catch (e) { /* audio not available */ }
+}
 
 // Contract pill → rounds dropdown
 document.getElementById('contractPill').addEventListener('click', (e) => {

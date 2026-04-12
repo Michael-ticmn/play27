@@ -1078,6 +1078,14 @@ begin
     raise exception 'Duplicate card used across melds';
   end if;
 
+  -- Round 7: must meld all cards except 1 (the discard)
+  if v_contract.must_go_out then
+    if hand_count(p_round_id, v_player_id) - array_length(v_all_cards, 1) > 1 then
+      raise exception 'Must meld all cards except 1 discard (you have % cards left)',
+        hand_count(p_round_id, v_player_id) - array_length(v_all_cards, 1);
+    end if;
+  end if;
+
   -- Create all melds atomically
   for i in 0 .. jsonb_array_length(p_melds) - 1 loop
     v_meld := p_melds -> i;

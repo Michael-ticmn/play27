@@ -68,7 +68,7 @@ export const TIERS: Record<string, TierProfile> = {
     canMissContract:         false,
     missContractRate:        0,
     urgentMeldThreshold:     200,
-    urgentMistakeRate:       0.1,   // drops from 30% → 10% when score >= 200
+    urgentMistakeRate:       0.05,  // drops from 30% → 5% when score >= 200
   },
 
   hard: {

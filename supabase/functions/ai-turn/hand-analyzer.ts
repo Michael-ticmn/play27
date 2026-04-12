@@ -131,7 +131,8 @@ export function solveContract(
   hand: CardId[],
   requiredSets: number,
   requiredRuns: number,
-  minRunLength = 3
+  minRunLength = 3,
+  mustMeldAll = false
 ): MeldCandidate[][] {
   const solutions: MeldCandidate[][] = [];
 
@@ -142,6 +143,10 @@ export function solveContract(
     depth: number
   ) {
     if (setsFound.length >= requiredSets && runsFound.length >= requiredRuns) {
+      if (mustMeldAll) {
+        // Only accept if exactly 0 or 1 cards remain (1 = the discard)
+        if (remaining.length > 1) return;
+      }
       solutions.push([...setsFound, ...runsFound]);
       return;
     }
@@ -169,15 +174,19 @@ export function solveContract(
       const runs = findPossibleRuns(remaining, minRunLength);
       for (const run of runs) {
         if (run.cards.length < minRunLength) continue;
-        // Only use minimum-length run for contract (save extra cards)
-        const trimmed = run.cards.slice(0, minRunLength);
-        const newRemaining = remaining.filter(c => !trimmed.includes(c));
-        backtrack(
-          newRemaining,
-          setsFound,
-          [...runsFound, { meld_type: 'run', cards: trimmed }],
-          depth + 1
-        );
+
+        // For must-meld-all: try all valid lengths from min to full
+        const maxLen = mustMeldAll ? run.cards.length : minRunLength;
+        for (let len = minRunLength; len <= maxLen; len++) {
+          const trimmed = run.cards.slice(0, len);
+          const newRemaining = remaining.filter(c => !trimmed.includes(c));
+          backtrack(
+            newRemaining,
+            setsFound,
+            [...runsFound, { meld_type: 'run', cards: trimmed }],
+            depth + 1
+          );
+        }
       }
     }
   }
@@ -197,9 +206,10 @@ export function bestContractSolution(
   hand: CardId[],
   requiredSets: number,
   requiredRuns: number,
-  minRunLength = 3
+  minRunLength = 3,
+  mustMeldAll = false
 ): MeldCandidate[] | null {
-  const solutions = solveContract(hand, requiredSets, requiredRuns, minRunLength);
+  const solutions = solveContract(hand, requiredSets, requiredRuns, minRunLength, mustMeldAll);
   if (solutions.length === 0) return null;
 
   let best = solutions[0];
@@ -397,8 +407,9 @@ function isBestRunPath(hand: CardId[], targetSuit: number, requiredRuns: number)
   return targetLen >= weakestTopLen && targetLen >= 1;
 }
 
-// ── Contract weakness check for Normal tier (P6) ──
-// For mixed contracts, check which half is weaker and bias speculation toward it.
+// ── Contract weakness check ──
+// For mixed contracts, check which dimension is weaker and bias speculation toward it.
+// Tracks progress toward ALL required melds (e.g., 2S+1R tracks top-2 value groups).
 // Returns true if the pickup helps the weaker contract dimension.
 export function helpsWeakerContract(
   hand: CardId[],
@@ -411,15 +422,18 @@ export function helpsWeakerContract(
   const dv = cardValue(discardCard);
   const ds = cardSuit(discardCard);
 
-  // Count how close we are to sets vs runs
+  // Set progress: average of top N value groups (where N = requiredSets)
   const byValue = groupByValue(hand);
-  let bestSetSize = 0;
-  for (const [, cards] of byValue) {
-    if (cards.length > bestSetSize) bestSetSize = cards.length;
-  }
+  const setSizes: number[] = [];
+  for (const [, cards] of byValue) setSizes.push(cards.length);
+  setSizes.sort((a, b) => b - a);
+  const topSets = setSizes.slice(0, requiredSets);
+  while (topSets.length < requiredSets) topSets.push(0);
+  const setProgress = topSets.reduce((s, n) => s + n / 3, 0) / requiredSets;
 
+  // Run progress: average of top N suit sequences (where N = requiredRuns)
   const bySuit = groupBySuit(hand);
-  let bestRunLen = 0;
+  const runLens: number[] = [];
   for (const [, cards] of bySuit) {
     const vals = cards.map(c => cardValue(c)).sort((a, b) => a - b);
     let maxC = 1, curC = 1;
@@ -427,12 +441,21 @@ export function helpsWeakerContract(
       if (vals[i] === vals[i - 1] + 1) { curC++; maxC = Math.max(maxC, curC); }
       else if (vals[i] !== vals[i - 1]) curC = 1;
     }
-    if (maxC > bestRunLen) bestRunLen = maxC;
+    // Ace-low check
+    if (vals.includes(14) && vals.includes(2)) {
+      const lowVals = vals.map(v => v === 14 ? 1 : v).sort((a, b) => a - b);
+      let lc = 1;
+      for (let i = 1; i < lowVals.length; i++) {
+        if (lowVals[i] === lowVals[i - 1] + 1) { lc++; maxC = Math.max(maxC, lc); }
+        else if (lowVals[i] !== lowVals[i - 1]) lc = 1;
+      }
+    }
+    runLens.push(maxC);
   }
-
-  // Determine which is weaker: sets need 3, runs need 4
-  const setProgress = bestSetSize / 3;  // 0.0 to 1.0+
-  const runProgress = bestRunLen / 4;   // 0.0 to 1.0+
+  runLens.sort((a, b) => b - a);
+  const topRuns = runLens.slice(0, requiredRuns);
+  while (topRuns.length < requiredRuns) topRuns.push(0);
+  const runProgress = topRuns.reduce((s, n) => s + n / 3, 0) / requiredRuns;
 
   // Does the pickup help sets or runs?
   const helpsSet = hand.some(c => !isJoker(c) && cardValue(c) === dv);

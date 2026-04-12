@@ -142,7 +142,7 @@ serve(async (req) => {
     // Get contract info
     const { data: contract } = await supabase
       .from('contracts')
-      .select('num_sets, num_runs')
+      .select('num_sets, num_runs, must_go_out')
       .eq('round_number', round.round_number)
       .single();
 
@@ -260,6 +260,7 @@ serve(async (req) => {
         tier,
         roundNumber: round.round_number,
         totalScore,
+        mustMeldAll: contract?.must_go_out || false,
       });
 
       if (discardBlocked) console.log(`[AI ${profile.ai_name}] Skipping own discard: ${topDiscard}`);
@@ -291,10 +292,13 @@ serve(async (req) => {
 
     // Try to meet contract
     if (!hasMetContract) {
+      const mustMeldAll = contract?.must_go_out || false;
       const solution = bestContractSolution(
         currentHand,
         contract?.num_sets || 0,
-        contract?.num_runs || 0
+        contract?.num_runs || 0,
+        3,
+        mustMeldAll
       );
 
       // Can this tier miss the contract?
