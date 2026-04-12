@@ -1513,6 +1513,12 @@
     padding: 8px 6px;
     font-size: 0.65rem;
   }
+  .toast {
+    top: 30%;
+  }
+  .toast.show {
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 /* ── SORT BUTTONS: bigger touch targets on tablet ── */
