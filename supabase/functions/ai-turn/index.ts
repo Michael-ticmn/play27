@@ -290,9 +290,10 @@ serve(async (req) => {
 
     // ── ACTION PHASE ──
 
+    const mustMeldAll = contract?.must_go_out || false;
+
     // Try to meet contract
     if (!hasMetContract) {
-      const mustMeldAll = contract?.must_go_out || false;
       const solution = bestContractSolution(
         currentHand,
         contract?.num_sets || 0,
