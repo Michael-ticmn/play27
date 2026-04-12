@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.26';
-import { initTheme } from './theme.js?v=0.11.26';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.27';
+import { initTheme } from './theme.js?v=0.11.27';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -541,27 +541,17 @@ function renderTableLines(playerCount) {
     // 2 players: horizontal line through center
     addLine(0, cy, cx - boxW / 2, cy);
     addLine(cx + boxW / 2, cy, w, cy);
-  } else if (oppCount === 2) {
-    // 3 players: you get the full bottom half, opponents split the top half
-    // Horizontal line left and right of center box
-    addLine(0, cy, cx - boxW / 2, cy);
-    addLine(cx + boxW / 2, cy, w, cy);
-    // Vertical line up from center box splitting the two opponents
-    addLine(cx, 0, cx, cy - boxH / 2);
   } else {
-    // 4+ players: you get the bottom zone, opponents split the top arc
-    // Horizontal lines define your zone boundary (center to left/right walls)
-    addLine(0, cy, cx - boxW / 2, cy);
-    addLine(cx + boxW / 2, cy, w, cy);
-
-    // Opponents split the top half evenly
-    // Dividing lines between opponent zones radiate upward from center
-    for (let i = 1; i < oppCount; i++) {
-      // Spread from 180° to 0° (left to right across the top)
-      const angleDeg = 180 - i * (180 / oppCount);
+    // 3+ players: equal pie slices, user centered at bottom (270°)
+    // Each player gets 360°/playerCount arc. Boundary lines between zones:
+    const sliceAngle = 360 / playerCount;
+    // User's zone is centered at 270° (bottom). First boundary is at 270° - half slice.
+    const startAngle = 270 - sliceAngle / 2; // left edge of user's zone
+    for (let i = 0; i < playerCount; i++) {
+      const angleDeg = (startAngle + i * sliceAngle) % 360;
       const angleRad = (angleDeg * Math.PI) / 180;
       const cos = Math.cos(angleRad);
-      const sin = -Math.sin(angleRad); // negative because y increases downward
+      const sin = Math.sin(angleRad);
       const startX = cx + (boxW / 2 + 4) * cos;
       const startY = cy + (boxH / 2 + 4) * sin;
       const reach = Math.max(w, h);
