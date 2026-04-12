@@ -623,6 +623,7 @@
     background:var(--bg2);
     border-top:2px solid var(--amber);
     position:relative;
+    z-index:10;
     box-shadow:0 -4px 16px rgba(212,160,39,0.1);
     overflow:visible;
   }
