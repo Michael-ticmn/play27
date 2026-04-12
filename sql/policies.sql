@@ -110,6 +110,11 @@ create policy "Players in game can view rounds"
       where game_players.game_id = rounds.game_id
         and game_players.player_id = auth.uid()
     )
+    or exists (
+      select 1 from late_join_requests
+      where late_join_requests.game_id = rounds.game_id
+        and late_join_requests.player_id = auth.uid()
+    )
   );
 
 -- ── PLAYER ROUND STATE ──
@@ -139,6 +144,12 @@ create policy "Players in game can view melds"
       where r.id = melds.round_id
         and gp.player_id = auth.uid()
     )
+    or exists (
+      select 1 from rounds r
+      join late_join_requests ljr on ljr.game_id = r.game_id
+      where r.id = melds.round_id
+        and ljr.player_id = auth.uid()
+    )
   );
 
 -- ── ROUND CARDS ──
@@ -154,22 +165,38 @@ create policy "Players can see own hand cards"
 create policy "Players can see discard pile"
   on round_cards for select using (
     location = 'discard'
-    and exists (
-      select 1 from rounds r
-      join game_players gp on gp.game_id = r.game_id
-      where r.id = round_cards.round_id
-        and gp.player_id = auth.uid()
+    and (
+      exists (
+        select 1 from rounds r
+        join game_players gp on gp.game_id = r.game_id
+        where r.id = round_cards.round_id
+          and gp.player_id = auth.uid()
+      )
+      or exists (
+        select 1 from rounds r
+        join late_join_requests ljr on ljr.game_id = r.game_id
+        where r.id = round_cards.round_id
+          and ljr.player_id = auth.uid()
+      )
     )
   );
 
 create policy "Players can see meld cards"
   on round_cards for select using (
     location = 'meld'
-    and exists (
-      select 1 from rounds r
-      join game_players gp on gp.game_id = r.game_id
-      where r.id = round_cards.round_id
-        and gp.player_id = auth.uid()
+    and (
+      exists (
+        select 1 from rounds r
+        join game_players gp on gp.game_id = r.game_id
+        where r.id = round_cards.round_id
+          and gp.player_id = auth.uid()
+      )
+      or exists (
+        select 1 from rounds r
+        join late_join_requests ljr on ljr.game_id = r.game_id
+        where r.id = round_cards.round_id
+          and ljr.player_id = auth.uid()
+      )
     )
   );
 
@@ -187,6 +214,12 @@ create policy "Players in game can view buy requests"
       where r.id = buy_requests.round_id
         and gp.player_id = auth.uid()
     )
+    or exists (
+      select 1 from rounds r
+      join late_join_requests ljr on ljr.game_id = r.game_id
+      where r.id = buy_requests.round_id
+        and ljr.player_id = auth.uid()
+    )
   );
 
 -- ── GAME ACTIONS ──
@@ -197,6 +230,11 @@ create policy "Players in game can view actions"
       select 1 from game_players
       where game_players.game_id = game_actions.game_id
         and game_players.player_id = auth.uid()
+    )
+    or exists (
+      select 1 from late_join_requests
+      where late_join_requests.game_id = game_actions.game_id
+        and late_join_requests.player_id = auth.uid()
     )
   );
 
