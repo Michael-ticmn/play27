@@ -28,6 +28,7 @@ export interface TurnContext {
   melds: { id: string; meld_type: string; cards: CardId[] }[];
   tier: string;
   roundNumber: number;
+  totalScore: number;
 }
 
 // ── DRAW DECISION ──
@@ -42,7 +43,7 @@ export function decideDrawSource(ctx: TurnContext): 'deck' | 'discard' {
   // Non-speculative tiers: only take definitive helps, with mistake chance
   if (!profile.speculativePickups) {
     if (eval_.reason === 'enables_contract' || eval_.reason === 'completes_set' || eval_.reason === 'completes_run') {
-      return shouldMakeMistake(profile) ? 'deck' : 'discard';
+      return shouldMakeMistake(profile, ctx.totalScore) ? 'deck' : 'discard';
     }
     return 'deck';
   }
@@ -64,6 +65,16 @@ export function decideDrawSource(ctx: TurnContext): 'deck' | 'discard' {
         if (sameSuitAdj < profile.minSpeculativeMatch) return 'deck';
       }
     }
+
+    // Contract weakness gate: for mixed contracts, reject speculative pickups
+    // that advance the stronger dimension while the weaker one is lagging
+    if (profile.contractWeaknessAware && ctx.topDiscard &&
+        (eval_.reason === 'builds_pair' || eval_.reason === 'extends_run')) {
+      if (!helpsWeakerContract(ctx.hand, ctx.topDiscard, ctx.contractSets, ctx.contractRuns)) {
+        return 'deck';
+      }
+    }
+
     return 'discard';
   }
 
@@ -115,7 +126,7 @@ export function decideDiscard(ctx: TurnContext): CardId {
   if (ranked.length === 0) return ctx.hand[0]; // fallback
 
   // Mistake: pick suboptimal discard
-  if (shouldMakeMistake(profile)) {
+  if (shouldMakeMistake(profile, ctx.totalScore)) {
     if (profile.mistakeRate >= 0.4) {
       // High mistake rate (Easy): random from top half
       const topHalf = ranked.slice(0, Math.ceil(ranked.length / 2));

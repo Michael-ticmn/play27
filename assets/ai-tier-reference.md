@@ -28,10 +28,12 @@ Use this document to evaluate AI play quality against expected behavior per tier
 | Speculative pickups | No | Only takes discard if it directly completes a set or run |
 | Contract weakness bias | No | No strategic focus on weaker contract dimension |
 | Post-contract speculation | No | After contract met, only draws from discard for immediate lay-offs |
+| Urgent mistake rate | 50% (unchanged) | Easy stays Easy even when score is high |
 | Drawn/bought card protection | Hard block | Cards drawn or bought this turn are ineligible for discard |
 | Buy protection duration | 3 turns | Bought cards stay protected for 3 turns after purchase |
 | Can miss contract | Yes (20%) | 20% chance of "not noticing" a completable contract |
 | Urgent meld override | 150 pts | If total score >= 150, always melds when possible |
+| Urgent mistake rate | 50% (unchanged) | Easy stays Easy even when score is high |
 
 **Expected behavior**: Slow, error-prone. Frequently discards useful cards, misses lay-offs, sometimes holds contract when it could meld. Should lose to competent humans consistently.
 
@@ -53,7 +55,8 @@ Use this document to evaluate AI play quality against expected behavior per tier
 | Drawn/bought card protection | Hard block | Cards drawn or bought this turn are ineligible for discard |
 | Buy protection duration | 3 turns | Bought cards stay protected for 3 turns after purchase |
 | Can miss contract | No | Always melds when contract is met |
-| Urgent meld override | 150 pts | N/A (never misses) |
+| Urgent meld override | 200 pts | When score >= 200, mistake rate drops from 30% → 10% |
+| Urgent mistake rate | 10% | Plays tighter at high scores — fewer suboptimal discards/draws |
 
 **Speculative pickup rules (Normal)**:
 1. Only speculates on partials that are already 2-of-3 (one card away from completing the meld)
@@ -62,7 +65,7 @@ Use this document to evaluate AI play quality against expected behavior per tier
 4. Does NOT speculate on 0→1 or 1→2 pickups (too loose, grabs everything)
 5. Weaker paths: only taken if they help the weaker contract dimension (contract weakness bias)
 
-**Expected behavior**: Competent casual player. Makes some mistakes but generally plays sensibly. Avoids obvious blunders like feeding melds. Good challenge for average humans.
+**Expected behavior**: Competent casual player. Makes some mistakes but generally plays sensibly. Avoids obvious blunders like feeding melds. Good challenge for average humans. At 200+ points, tightens up — drops to 10% mistakes and prioritizes going down fast.
 
 **Timing**: 1–2s per action, 6–10s pre-draw pause, buys in middle of countdown (25–75%).
 
@@ -82,7 +85,13 @@ Use this document to evaluate AI play quality against expected behavior per tier
 | Drawn/bought card protection | Hard block | Cards drawn or bought this turn are ineligible for discard |
 | Buy protection duration | 3 turns | Bought cards stay protected for 3 turns after purchase |
 | Can miss contract | No | Always melds when contract is met |
-| Urgent meld override | 150 pts | N/A (never misses) |
+| Urgent meld override | 150 pts | When score >= 150, mistake rate drops from 10% → 5% |
+| Urgent mistake rate | 5% | Near-perfect play when score is high |
+
+**Speculative pickup rules (Hard/Unfair)**:
+- Quality gate allows 1+ matching card (looser than Normal's 2-of-3)
+- **Contract weakness gate**: For mixed contracts, speculative pickups that pass the quality gate are still rejected if they advance the *stronger* contract dimension while the weaker one is lagging. E.g., if 2S+1R contract and sets are well-covered, picking up a pair-builder is rejected in favor of run-building cards.
+- Contract weakness bias also applies to weaker paths (same as Normal)
 
 **Post-contract draw rules (Hard/Unfair)**:
 - Draws from discard if card is an immediate lay-off on any visible meld, OR
@@ -109,7 +118,8 @@ Use this document to evaluate AI play quality against expected behavior per tier
 | Drawn/bought card protection | Hard block | Cards drawn or bought this turn are ineligible for discard |
 | Buy protection duration | 3 turns | Bought cards stay protected for 3 turns after purchase |
 | Can miss contract | No | Always melds when contract is met |
-| Urgent meld override | 150 pts | N/A (never misses) |
+| Urgent meld override | 150 pts | N/A (already 0% mistakes) |
+| Urgent mistake rate | 0% | Already perfect |
 
 **Expected behavior**: Perfect execution within the bounds of visible information. Same strategy as Hard but with zero mistakes. Meant to be a ceiling-level opponent.
 
@@ -132,6 +142,7 @@ Use this document to evaluate AI play quality against expected behavior per tier
 7. If card completes a run (3+ consecutive same suit) → take it (with mistake chance for Easy/Normal)
 8. **Speculative tiers only** (Normal/Hard/Unfair):
    - If card builds a pair or extends a run AND that partial is a top-ranked path → take it
+   - **Contract weakness gate** (Normal/Hard/Unfair): Even if the pickup passes the quality gate, reject it if it advances the stronger contract dimension while the weaker one is lagging (mixed contracts only)
    - If it's a weaker path but helps the weaker contract dimension → take it (contract weakness bias)
 9. Otherwise → draw from deck
 
@@ -152,8 +163,8 @@ Each card in hand is scored (lower = better to discard):
 
 Mistakes modify the choice (among eligible candidates):
 - Easy (50% mistake rate): picks random card from top half of ranked list
-- Normal (30%): picks second-best card
-- Hard (10%): picks second-best card
+- Normal (30%, drops to 10% at 200+ pts): picks second-best card
+- Hard (10%, drops to 5% at 150+ pts): picks second-best card
 - Unfair (0%): always picks best card
 
 ### Contract Fulfillment

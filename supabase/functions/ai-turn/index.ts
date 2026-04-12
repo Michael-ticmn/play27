@@ -259,6 +259,7 @@ serve(async (req) => {
         melds,
         tier,
         roundNumber: round.round_number,
+        totalScore,
       });
 
       if (discardBlocked) console.log(`[AI ${profile.ai_name}] Skipping own discard: ${topDiscard}`);

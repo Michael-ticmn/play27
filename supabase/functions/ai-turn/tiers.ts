@@ -24,7 +24,8 @@ export interface TierProfile {
   // ── Contract detection ──
   canMissContract: boolean;   // can "not notice" a completable contract
   missContractRate: number;   // probability of missing (only if canMissContract)
-  urgentMeldThreshold: number; // total score at which missing is overridden
+  urgentMeldThreshold: number; // total score at which urgency kicks in
+  urgentMistakeRate: number;  // reduced mistake rate when score >= urgentMeldThreshold
 }
 
 export const TIERS: Record<string, TierProfile> = {
@@ -46,6 +47,7 @@ export const TIERS: Record<string, TierProfile> = {
     canMissContract:         true,
     missContractRate:        0.2,
     urgentMeldThreshold:     150,
+    urgentMistakeRate:       0.5,   // Easy stays Easy even when urgent
   },
 
   normal: {
@@ -65,7 +67,8 @@ export const TIERS: Record<string, TierProfile> = {
 
     canMissContract:         false,
     missContractRate:        0,
-    urgentMeldThreshold:     150,
+    urgentMeldThreshold:     200,
+    urgentMistakeRate:       0.1,   // drops from 30% → 10% when score >= 200
   },
 
   hard: {
@@ -86,6 +89,7 @@ export const TIERS: Record<string, TierProfile> = {
     canMissContract:         false,
     missContractRate:        0,
     urgentMeldThreshold:     150,
+    urgentMistakeRate:       0.05,  // drops from 10% → 5% when urgent
   },
 
   unfair: {
@@ -106,6 +110,7 @@ export const TIERS: Record<string, TierProfile> = {
     canMissContract:         false,
     missContractRate:        0,
     urgentMeldThreshold:     150,
+    urgentMistakeRate:       0.0,   // already perfect
   },
 };
 
@@ -114,9 +119,12 @@ export function getTier(tier: string): TierProfile {
   return TIERS[tier] || TIERS.normal;
 }
 
-// ── Helper: roll a mistake check ──
-export function shouldMakeMistake(profile: TierProfile): boolean {
-  return Math.random() < profile.mistakeRate;
+// ── Helper: roll a mistake check (uses reduced rate when score is urgent) ──
+export function shouldMakeMistake(profile: TierProfile, totalScore = 0): boolean {
+  const rate = totalScore >= profile.urgentMeldThreshold
+    ? profile.urgentMistakeRate
+    : profile.mistakeRate;
+  return Math.random() < rate;
 }
 
 // ── Helper: random delay from tier range ──
