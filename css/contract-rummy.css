@@ -634,8 +634,6 @@
     text-transform:uppercase;
     letter-spacing:0.15em;
     color:var(--text);
-    position:relative;
-    z-index:1;
   }
   .you-header-left {
     display:flex;
@@ -672,6 +670,8 @@
     align-items:center;
     gap:8px;
     flex:1;
+    position:relative;
+    z-index:2;
   }
 
   .standings-panel {
