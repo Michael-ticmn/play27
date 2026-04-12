@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.28';
-import { initTheme } from './theme.js?v=0.11.28';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.29';
+import { initTheme } from './theme.js?v=0.11.29';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -543,9 +543,10 @@ function renderTableLines(playerCount) {
     addLine(cx + boxW / 2, cy, w, cy);
   } else {
     // 3+ players: user always keeps 120° (1/3) at the bottom, opponents split the remaining 240°
-    const userCenter = 270;
-    const leftBound = 210;   // userCenter - 60
-    const rightBound = 330;  // userCenter + 60
+    // Screen coords: Y increases downward, so 90° = bottom, 270° = top
+    const userCenter = 90;
+    const leftBound = 30;    // userCenter - 60
+    const rightBound = 150;  // userCenter + 60
 
     // User's two boundary lines
     for (const angleDeg of [leftBound, rightBound]) {
