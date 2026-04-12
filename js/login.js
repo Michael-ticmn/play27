@@ -1,5 +1,5 @@
-import { sb, rpc, ensureProfile } from './supabase.js?v=0.11.6';
-import { initTheme } from './theme.js?v=0.11.6';
+import { sb, rpc, ensureProfile } from './supabase.js?v=0.11.7';
+import { initTheme } from './theme.js?v=0.11.7';
 
 // ─────────────────────────────────────────────
 // AUTH STATE
@@ -162,7 +162,26 @@ async function showLobby() {
 
   document.getElementById('userName').textContent = displayName;
 
-  await loadHistory();
+  await Promise.all([loadHistory(), checkActiveGame()]);
+}
+
+async function checkActiveGame() {
+  const { data, error } = await rpc('get_active_game');
+  const card = document.getElementById('rejoinCard');
+
+  if (error || !data) {
+    card.style.display = 'none';
+    return;
+  }
+
+  const status = data.status === 'active'
+    ? `Round ${data.current_round || '?'} \u00B7 ${data.player_count} players`
+    : `Waiting \u00B7 ${data.player_count} players`;
+  document.getElementById('rejoinInfo').textContent = status;
+  card.style.display = '';
+  card.onclick = () => {
+    window.location.href = `contract-rummy.html?game=${data.code}`;
+  };
 }
 
 // ─────────────────────────────────────────────

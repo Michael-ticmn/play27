@@ -249,6 +249,16 @@
     line-height:1;
   }
 
+  .seat.offline { opacity:0.5; }
+  .offline-tag {
+    font-size:0.5rem;
+    color:var(--red);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    font-weight:700;
+    margin-left:4px;
+  }
+
   .seat-score {
     font-family:'Courier New',Courier,monospace;
     font-size:clamp(0.6rem,1.2vw,0.8rem);

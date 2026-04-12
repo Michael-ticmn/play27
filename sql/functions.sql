@@ -1900,6 +1900,34 @@ end;
 $$;
 
 -- ────────────────────────────────────────────────────────────
+-- GET ACTIVE GAME — returns the user's in-progress game (if any)
+-- ────────────────────────────────────────────────────────────
+create or replace function get_active_game()
+returns jsonb
+language plpgsql security definer as $$
+declare
+  v_result jsonb;
+begin
+  select jsonb_build_object(
+    'game_id', g.id,
+    'code', g.code,
+    'status', g.status,
+    'player_count', (select count(*) from game_players where game_id = g.id),
+    'current_round', g.current_round
+  )
+  into v_result
+  from games g
+  join game_players gp on gp.game_id = g.id
+  where gp.player_id = auth.uid()
+    and g.status in ('waiting', 'active')
+  order by g.created_at desc
+  limit 1;
+
+  return v_result;  -- null if no active game
+end;
+$$;
+
+-- ────────────────────────────────────────────────────────────
 -- GET OPEN GAMES
 -- ────────────────────────────────────────────────────────────
 create or replace function get_open_games()

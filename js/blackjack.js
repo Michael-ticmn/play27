@@ -1,4 +1,4 @@
-import { initTheme } from './theme.js?v=0.11.6';
+import { initTheme } from './theme.js?v=0.11.7';
 
 // ── Constants ──
 const SUIT_INFO = [

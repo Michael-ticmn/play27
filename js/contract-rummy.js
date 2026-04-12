@@ -1,5 +1,5 @@
-import { sb, rpc } from './supabase.js?v=0.11.6';
-import { initTheme } from './theme.js?v=0.11.6';
+import { sb, rpc } from './supabase.js?v=0.11.7';
+import { initTheme } from './theme.js?v=0.11.7';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -181,8 +181,24 @@ async function enterGame() {
   $board.style.display = 'grid';
   document.documentElement.classList.add('game-active');
 
+  // Mark connected
+  setConnected(true);
+  window.addEventListener('beforeunload', () => setConnected(false));
+  document.addEventListener('visibilitychange', () => {
+    setConnected(!document.hidden);
+  });
+
   await fetchAndRender();
   setupGameSubscriptions();
+}
+
+function setConnected(connected) {
+  if (!gameId || !myUserId) return;
+  sb.from('game_players')
+    .update({ is_connected: connected })
+    .eq('game_id', gameId)
+    .eq('player_id', myUserId)
+    .then(() => {});
 }
 
 async function fetchAndRender() {
@@ -234,6 +250,9 @@ function setupGameSubscriptions() {
     }, () => { if (!animatingDraw) fetchAndRender(); })
     .on('postgres_changes', {
       event: '*', schema: 'public', table: 'buy_requests'
+    }, () => { if (!animatingDraw) fetchAndRender(); })
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'game_players'
     }, () => { if (!animatingDraw) fetchAndRender(); })
     .on('postgres_changes', {
       event: '*', schema: 'public', table: 'late_join_requests',
@@ -575,10 +594,12 @@ function renderSeats(round) {
     }
 
     const isDealer = opp.seat_position === gameState.dealer_seat;
+    const isOffline = !opp.is_connected;
+    if (isOffline) seat.className += ' offline';
     seat.innerHTML = `
       <div class="seat-turn-label">\u25B6 Playing</div>
       <div class="seat-name-row">
-        ${isDealer ? '<span class="dealer-btn">D</span>' : ''}<span class="seat-name">${opp.display_name}</span>
+        ${isDealer ? '<span class="dealer-btn">D</span>' : ''}<span class="seat-name">${opp.display_name}</span>${isOffline ? '<span class="offline-tag">away</span>' : ''}
         <span class="seat-score">${opp.total_score || 0}</span>
       </div>
       <div class="seat-meta">

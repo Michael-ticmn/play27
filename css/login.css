@@ -328,6 +328,26 @@ body {
   color: var(--muted);
 }
 
+/* ── REJOIN CARD ── */
+.rejoin-card {
+  border-color: var(--amber);
+  background: var(--amber-dim);
+  max-width: 360px;
+  margin: 0 auto 12px;
+  animation: rejoinPulse 2s ease-in-out infinite;
+}
+.rejoin-card:hover {
+  border-color: var(--amber);
+  background: var(--amber-dim);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(212,160,39,0.25);
+}
+.rejoin-card .icon { color: var(--amber); }
+@keyframes rejoinPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212,160,39,0.2); }
+  50% { box-shadow: 0 0 12px 4px rgba(212,160,39,0.15); }
+}
+
 /* ── MODALS ── */
 .modal-overlay {
   display: none;
