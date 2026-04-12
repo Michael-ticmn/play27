@@ -1,4 +1,4 @@
-import { initTheme } from './theme.js?v=0.12.0';
+import { initTheme } from './theme.js?v=0.14.0';
 
 // ── Constants ──
 const SUIT_INFO = [
@@ -104,7 +104,7 @@ function renderHandCard(code) {
 }
 
 function renderCardBack(size) {
-  return `<div class="card-back ${size}"><img src="assets/card-back.svg?v=0.10.1" alt=""></div>`;
+  return `<div class="card-back ${size}"><img src="assets/card-back.svg?v=0.14.0" alt=""></div>`;
 }
 
 function formatValue(cards, hideHole) {
