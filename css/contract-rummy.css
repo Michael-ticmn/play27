@@ -1583,3 +1583,122 @@
     min-height: 32px;
   }
 }
+
+/* ════════════════════════════════════════════════════════════
+   AI PLAYER STYLES
+   ════════════════════════════════════════════════════════════ */
+
+/* ── Waiting Room AI Picker ── */
+.ai-picker {
+  width: 100%;
+  max-width: 340px;
+  margin: 8px auto 0;
+}
+.ai-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ai-select {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.ai-tier-btns {
+  display: flex;
+  gap: 4px;
+}
+.ai-tier-btn {
+  width: 32px;
+  height: 32px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.ai-tier-btn:hover { border-color: var(--amber); transform: scale(1.1); }
+.ai-tier-btn.selected { border-color: var(--amber); background: rgba(255,191,36,0.15); }
+
+/* ── AI Player in player list ── */
+.player-list li .ai-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+  font-style: normal;
+}
+.ai-badge.tier-easy   { background: #22c55e; color: #000; }
+.ai-badge.tier-normal { background: #eab308; color: #000; }
+.ai-badge.tier-hard   { background: #ef4444; color: #fff; }
+.ai-badge.tier-unfair { background: #a855f7; color: #fff; }
+
+.player-list li .ai-remove {
+  margin-left: 6px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0 4px;
+  opacity: 0.6;
+}
+.player-list li .ai-remove:hover { opacity: 1; color: #ef4444; }
+
+/* ── In-Game AI Indicator ── */
+.seat .ai-tier-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.ai-tier-dot.tier-easy   { background: #22c55e; }
+.ai-tier-dot.tier-normal { background: #eab308; }
+.ai-tier-dot.tier-hard   { background: #ef4444; }
+.ai-tier-dot.tier-unfair { background: #a855f7; }
+
+/* AI thinking animation */
+.ai-thinking {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.65rem;
+  color: var(--amber);
+  letter-spacing: 2px;
+}
+.ai-thinking::after {
+  content: '...';
+  animation: ai-dots 1.2s steps(3, end) infinite;
+}
+@keyframes ai-dots {
+  0%   { content: '.'; }
+  33%  { content: '..'; }
+  66%  { content: '...'; }
+}
+
+/* ── AI Takeover Modal ── */
+.ai-takeover-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+.modal-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}

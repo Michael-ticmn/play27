@@ -1,0 +1,339 @@
+import { CardId, cardSuit, cardValue, isJoker, cardPoints } from '../_shared/types.ts';
+
+// ── Group cards by value (for sets) ──
+export function groupByValue(cards: CardId[]): Map<number, CardId[]> {
+  const groups = new Map<number, CardId[]>();
+  for (const c of cards) {
+    if (isJoker(c)) continue; // jokers handled separately
+    const v = cardValue(c);
+    if (!groups.has(v)) groups.set(v, []);
+    groups.get(v)!.push(c);
+  }
+  return groups;
+}
+
+// ── Group cards by suit (for runs) ──
+export function groupBySuit(cards: CardId[]): Map<number, CardId[]> {
+  const groups = new Map<number, CardId[]>();
+  for (const c of cards) {
+    if (isJoker(c)) continue;
+    const s = cardSuit(c);
+    if (!groups.has(s)) groups.set(s, []);
+    groups.get(s)!.push(c);
+  }
+  return groups;
+}
+
+// ── Find all possible sets from a hand (3+ cards same value) ──
+export function findPossibleSets(hand: CardId[]): { cards: CardId[]; value: number }[] {
+  const jokers = hand.filter(c => isJoker(c));
+  const byValue = groupByValue(hand);
+  const results: { cards: CardId[]; value: number }[] = [];
+
+  for (const [value, cards] of byValue) {
+    // Can form a set with 2+ natural cards + jokers
+    if (cards.length >= 3) {
+      results.push({ cards: [...cards], value });
+    }
+    if (cards.length >= 2 && jokers.length >= 1) {
+      results.push({ cards: [...cards, jokers[0]], value });
+    }
+    // Could also do 3 natural + joker for a 4-card set, etc.
+    if (cards.length >= 3 && jokers.length >= 1) {
+      results.push({ cards: [...cards, jokers[0]], value });
+    }
+  }
+  return results;
+}
+
+// ── Find all possible runs from a hand (3+ consecutive same-suit) ──
+export function findPossibleRuns(hand: CardId[], minLength = 3): { cards: CardId[]; suit: number }[] {
+  const jokers = hand.filter(c => isJoker(c));
+  const bySuit = groupBySuit(hand);
+  const results: { cards: CardId[]; suit: number }[] = [];
+
+  for (const [suit, suitCards] of bySuit) {
+    // Sort by value
+    const sorted = suitCards.sort((a, b) => cardValue(a) - cardValue(b));
+    const values = sorted.map(c => cardValue(c));
+
+    // Try each starting position and extend
+    for (let i = 0; i < sorted.length; i++) {
+      const run: CardId[] = [sorted[i]];
+      let lastVal = values[i];
+      let jokersUsed = 0;
+      const availableJokers = [...jokers];
+
+      for (let j = i + 1; j < sorted.length || availableJokers.length > 0; ) {
+        const nextVal = lastVal + 1;
+        if (nextVal > 14) break; // Can't go past Ace
+
+        if (j < sorted.length && values[j] === nextVal) {
+          run.push(sorted[j]);
+          lastVal = nextVal;
+          j++;
+        } else if (availableJokers.length > 0) {
+          run.push(availableJokers.shift()!);
+          lastVal = nextVal;
+          jokersUsed++;
+        } else {
+          break;
+        }
+      }
+
+      if (run.length >= minLength) {
+        results.push({ cards: [...run], suit });
+      }
+
+      // Also try ace-low runs (A-2-3)
+      if (values[i] === 2) {
+        const aceCard = suitCards.find(c => cardValue(c) === 14);
+        if (aceCard) {
+          const aceLowRun: CardId[] = [aceCard, sorted[i]];
+          let lv = 2;
+          const aj = [...jokers];
+          for (let j = i + 1; j < sorted.length || aj.length > 0; ) {
+            const nv = lv + 1;
+            if (j < sorted.length && values[j] === nv) {
+              aceLowRun.push(sorted[j]);
+              lv = nv;
+              j++;
+            } else if (aj.length > 0) {
+              aceLowRun.push(aj.shift()!);
+              lv = nv;
+            } else break;
+          }
+          if (aceLowRun.length >= minLength) {
+            results.push({ cards: [...aceLowRun], suit });
+          }
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
+// ── Contract solver: find valid combinations of sets+runs ──
+export interface MeldCandidate {
+  meld_type: 'set' | 'run';
+  cards: CardId[];
+}
+
+export function solveContract(
+  hand: CardId[],
+  requiredSets: number,
+  requiredRuns: number,
+  minRunLength = 3
+): MeldCandidate[][] {
+  const solutions: MeldCandidate[][] = [];
+
+  function backtrack(
+    remaining: CardId[],
+    setsFound: MeldCandidate[],
+    runsFound: MeldCandidate[],
+    depth: number
+  ) {
+    if (setsFound.length >= requiredSets && runsFound.length >= requiredRuns) {
+      solutions.push([...setsFound, ...runsFound]);
+      return;
+    }
+    if (depth > 20) return; // safety limit
+
+    // Try to find sets
+    if (setsFound.length < requiredSets) {
+      const sets = findPossibleSets(remaining);
+      for (const set of sets) {
+        if (set.cards.length < 3) continue;
+        const newRemaining = remaining.filter(c => !set.cards.includes(c));
+        backtrack(
+          newRemaining,
+          [...setsFound, { meld_type: 'set', cards: set.cards.slice(0, Math.max(3, set.cards.length)) }],
+          runsFound,
+          depth + 1
+        );
+      }
+    }
+
+    // Try to find runs
+    if (runsFound.length < requiredRuns) {
+      const runs = findPossibleRuns(remaining, minRunLength);
+      for (const run of runs) {
+        if (run.cards.length < minRunLength) continue;
+        // Only use minimum-length run for contract (save extra cards)
+        const trimmed = run.cards.slice(0, minRunLength);
+        const newRemaining = remaining.filter(c => !trimmed.includes(c));
+        backtrack(
+          newRemaining,
+          setsFound,
+          [...runsFound, { meld_type: 'run', cards: trimmed }],
+          depth + 1
+        );
+      }
+    }
+  }
+
+  backtrack(hand, [], [], 0);
+  return solutions;
+}
+
+// ── Score remaining hand after removing meld cards ──
+export function deadwoodScore(hand: CardId[], meldCards: CardId[]): number {
+  const used = new Set(meldCards);
+  return hand.filter(c => !used.has(c)).reduce((sum, c) => sum + cardPoints(c), 0);
+}
+
+// ── Pick the best contract solution (least deadwood) ──
+export function bestContractSolution(
+  hand: CardId[],
+  requiredSets: number,
+  requiredRuns: number,
+  minRunLength = 3
+): MeldCandidate[] | null {
+  const solutions = solveContract(hand, requiredSets, requiredRuns, minRunLength);
+  if (solutions.length === 0) return null;
+
+  let best = solutions[0];
+  let bestDead = Infinity;
+  for (const sol of solutions) {
+    const usedCards = sol.flatMap(m => m.cards);
+    const dead = deadwoodScore(hand, usedCards);
+    if (dead < bestDead) {
+      bestDead = dead;
+      best = sol;
+    }
+  }
+  return best;
+}
+
+// ── Discard evaluator: which card hurts least to discard? ──
+export function rankDiscards(
+  hand: CardId[],
+  requiredSets: number,
+  requiredRuns: number
+): CardId[] {
+  // Score each card by how much removing it hurts contract progress
+  const scored = hand.map(card => {
+    const without = hand.filter(c => c !== card);
+    const solutions = solveContract(without, requiredSets, requiredRuns);
+    // If removing this card still allows contract, it's a good discard
+    const canStillMeet = solutions.length > 0;
+    // Higher deadwood = worse card to keep = better to discard
+    const pts = cardPoints(card);
+    return {
+      card,
+      canStillMeet,
+      points: pts,
+      // Priority: discard cards that don't break contract, highest points first
+      score: (canStillMeet ? 0 : 1000) - pts
+    };
+  });
+
+  scored.sort((a, b) => a.score - b.score);
+  return scored.map(s => s.card);
+}
+
+// ── Draw evaluator: should AI take discard or draw from deck? ──
+export function evaluateDiscardDraw(
+  hand: CardId[],
+  discardCard: CardId,
+  requiredSets: number,
+  requiredRuns: number
+): { takeDiscard: boolean; reason: string } {
+  // Test: can we meet contract with the discard card?
+  const withDiscard = [...hand, discardCard];
+  const solutionsWith = solveContract(withDiscard, requiredSets, requiredRuns);
+  const solutionsWithout = solveContract(hand, requiredSets, requiredRuns);
+
+  // If adding discard card enables contract, definitely take it
+  if (solutionsWith.length > 0 && solutionsWithout.length === 0) {
+    return { takeDiscard: true, reason: 'enables_contract' };
+  }
+
+  // Check if card fits into partial melds
+  const byValue = groupByValue(hand);
+  const bySuit = groupBySuit(hand);
+  const dv = cardValue(discardCard);
+  const ds = cardSuit(discardCard);
+
+  // Completes a set (2 existing + this = 3)
+  const sameValue = byValue.get(dv) || [];
+  if (sameValue.length >= 2) {
+    return { takeDiscard: true, reason: 'completes_set' };
+  }
+
+  // Extends a run (adjacent in suit)
+  const sameSuit = (bySuit.get(ds) || []).map(c => cardValue(c)).sort((a, b) => a - b);
+  for (const v of sameSuit) {
+    if (Math.abs(v - dv) === 1) {
+      // Check if this creates 3+ consecutive
+      const allVals = [...sameSuit, dv].sort((a, b) => a - b);
+      let maxConsec = 1, cur = 1;
+      for (let i = 1; i < allVals.length; i++) {
+        if (allVals[i] === allVals[i-1] + 1) { cur++; maxConsec = Math.max(maxConsec, cur); }
+        else cur = 1;
+      }
+      if (maxConsec >= 3) {
+        return { takeDiscard: true, reason: 'extends_run' };
+      }
+    }
+  }
+
+  // Adds to a pair (building toward a set)
+  if (sameValue.length >= 1) {
+    return { takeDiscard: true, reason: 'builds_pair' };
+  }
+
+  return { takeDiscard: false, reason: 'not_useful' };
+}
+
+// ── Find lay-off opportunities ──
+export function findLayOffs(
+  hand: CardId[],
+  melds: { id: string; meld_type: string; cards: CardId[] }[]
+): { card: CardId; meld_id: string }[] {
+  const layoffs: { card: CardId; meld_id: string }[] = [];
+
+  for (const meld of melds) {
+    for (const card of hand) {
+      if (canLayOff(card, meld)) {
+        layoffs.push({ card, meld_id: meld.id });
+      }
+    }
+  }
+
+  // Sort by card points (highest first — get rid of expensive cards)
+  layoffs.sort((a, b) => cardPoints(b.card) - cardPoints(a.card));
+  return layoffs;
+}
+
+function canLayOff(card: CardId, meld: { meld_type: string; cards: CardId[] }): boolean {
+  if (isJoker(card)) return true; // Jokers can be added to any meld
+
+  if (meld.meld_type === 'set') {
+    // Same value as existing set cards
+    const existingValue = meld.cards.find(c => !isJoker(c));
+    if (!existingValue) return true;
+    return cardValue(card) === cardValue(existingValue);
+  }
+
+  if (meld.meld_type === 'run') {
+    // Same suit, extends the sequence
+    const nonJokers = meld.cards.filter(c => !isJoker(c));
+    if (nonJokers.length === 0) return true;
+    const suit = cardSuit(nonJokers[0]);
+    if (cardSuit(card) !== suit) return false;
+
+    const values = meld.cards.map((c, i) => isJoker(c) ? -1 : cardValue(c));
+    // Reconstruct the run values (fill in joker gaps)
+    const firstNonJoker = values.findIndex(v => v !== -1);
+    if (firstNonJoker === -1) return true;
+    const startVal = values[firstNonJoker] - firstNonJoker;
+    const endVal = startVal + meld.cards.length - 1;
+
+    const cv = cardValue(card);
+    return cv === startVal - 1 || cv === endVal + 1;
+  }
+
+  return false;
+}

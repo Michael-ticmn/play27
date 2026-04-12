@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.37';
-import { initTheme } from './theme.js?v=0.11.37';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.12.0';
+import { initTheme } from './theme.js?v=0.12.0';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -125,6 +125,8 @@ async function showWaitingRoom(game) {
   if (isHost) {
     btnStart.style.display = '';
     waitSub.style.display = 'none';
+    document.getElementById('aiPicker').style.display = '';
+    setupAiPicker();
   }
 
   await refreshPlayerList();
@@ -133,7 +135,7 @@ async function showWaitingRoom(game) {
 
 async function refreshPlayerList() {
   const { data: players } = await sb.from('game_players')
-    .select('player_id, seat_position, profiles(display_name)')
+    .select('player_id, seat_position, profiles(display_name, is_ai, ai_name, ai_tier)')
     .eq('game_id', gameId)
     .order('seat_position');
 
@@ -143,13 +145,83 @@ async function refreshPlayerList() {
 
   const { data: game } = await sb.from('games').select('created_by').eq('id', gameId).single();
 
+  const aiNamesInGame = new Set();
   for (const p of players) {
     const li = document.createElement('li');
-    const name = p.profiles?.display_name || 'Player';
-    const isHost = game && p.player_id === game.created_by;
-    li.innerHTML = `<span class="seat-num">#${p.seat_position + 1}</span> ${name}${isHost ? '<span class="host-tag">Host</span>' : ''}`;
+    const prof = p.profiles || {};
+    const name = prof.display_name || 'Player';
+    const isHostPlayer = game && p.player_id === game.created_by;
+    const isAi = prof.is_ai;
+
+    let html = `<span class="seat-num">#${p.seat_position + 1}</span> ${name}`;
+    if (isHostPlayer) html += '<span class="host-tag">Host</span>';
+    if (isAi) {
+      const tier = prof.ai_tier || 'normal';
+      const tierLabel = tier === 'easy' ? 'Easy' : tier === 'normal' ? 'Normal' : tier === 'hard' ? 'Hard' : 'Unfair';
+      html += `<span class="ai-badge tier-${tier}">${tierLabel}</span>`;
+      aiNamesInGame.add(prof.ai_name);
+      if (isHost) {
+        html += `<button class="ai-remove" data-ai-id="${p.player_id}" title="Remove AI">&times;</button>`;
+      }
+    }
+    li.innerHTML = html;
     list.appendChild(li);
   }
+
+  // Attach remove handlers
+  if (isHost) {
+    list.querySelectorAll('.ai-remove').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const aiId = btn.dataset.aiId;
+        const { error } = await rpc('remove_ai_from_game', { p_game_id: gameId, p_ai_profile_id: aiId });
+        if (error) showToast('Error', error.message);
+      });
+    });
+  }
+
+  // Grey out AI names already in game
+  const nameSelect = document.getElementById('aiNameSelect');
+  if (nameSelect) {
+    for (const opt of nameSelect.options) {
+      if (opt.value) opt.disabled = aiNamesInGame.has(opt.value);
+    }
+  }
+}
+
+let aiPickerInitialized = false;
+function setupAiPicker() {
+  if (aiPickerInitialized) return;
+  aiPickerInitialized = true;
+
+  let selectedTier = null;
+  const tierBtns = document.querySelectorAll('#aiTierBtns .ai-tier-btn');
+  const nameSelect = document.getElementById('aiNameSelect');
+
+  tierBtns.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const tier = btn.dataset.tier;
+      const name = nameSelect.value;
+      if (!name) { showToast('Select AI', 'Pick a name first'); return; }
+
+      // Visual feedback
+      tierBtns.forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+
+      const { data, error } = await rpc('add_ai_to_game', {
+        p_game_id: gameId,
+        p_ai_name: name,
+        p_ai_tier: tier
+      });
+      if (error) {
+        showToast('Error', error.message);
+      } else {
+        showToast('AI Added', `${name} (${tier}) joined`);
+        nameSelect.value = '';
+      }
+      // Deselect tier button after adding
+      setTimeout(() => tierBtns.forEach(b => b.classList.remove('selected')), 300);
+    });
+  });
 }
 
 function setupWaitingSubscriptions(game) {
@@ -256,6 +328,84 @@ async function fetchAndRender() {
   }
 
   render();
+  checkAndTriggerAI();
+}
+
+// ── AI Turn Triggering (host client only) ──
+let aiTriggerInFlight = false;
+async function checkAndTriggerAI() {
+  if (!isHost || !gameState?.round || gameState.round.status !== 'active') return;
+  if (aiTriggerInFlight) return;
+
+  const round = gameState.round;
+  const players = gameState.players || [];
+
+  // Check if current turn player is AI (trigger ai-turn)
+  const currentPlayer = players.find(p => p.seat_position === round.current_turn_seat);
+  if (currentPlayer?.is_ai && round.turn_phase === 'draw') {
+    aiTriggerInFlight = true;
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/ai-turn`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          round_id: round.id,
+          ai_player_id: currentPlayer.player_id
+        })
+      });
+    } catch (e) {
+      console.error('[AI trigger error]', e);
+    }
+    aiTriggerInFlight = false;
+    return;
+  }
+
+  // Check for AI players who should evaluate buy during buy_window
+  if (round.turn_phase === 'buy_window' || round.turn_phase === 'draw') {
+    const aiNonActive = players.filter(
+      p => p.is_ai && p.seat_position !== round.current_turn_seat
+    );
+    for (const ai of aiNonActive) {
+      // Fire-and-forget for buy evaluation
+      fetch(`${SUPABASE_URL}/functions/v1/ai-buy`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          round_id: round.id,
+          ai_player_id: ai.player_id,
+          countdown_seconds: gameState.buy_countdown_seconds
+        })
+      }).catch(e => console.error('[AI buy trigger error]', e));
+    }
+  }
+}
+
+// Also trigger AI for deal_next_round when dealer is AI
+async function checkAiDealer() {
+  if (!isHost || !gameState?.round || gameState.round.status !== 'finished') return;
+  if (gameState.round.round_number >= 7) return; // game over
+
+  const nextRound = gameState.round.round_number + 1;
+  const playerCount = (gameState.players || []).length;
+  const dealerSeat = (nextRound - 1) % playerCount;
+  const dealer = (gameState.players || []).find(p => p.seat_position === dealerSeat);
+
+  if (dealer?.is_ai) {
+    // AI dealer should deal next round after a short delay
+    setTimeout(async () => {
+      try {
+        await rpc('deal_next_round', { p_game_id: gameId, p_acting_as: dealer.player_id });
+      } catch (e) {
+        console.error('[AI deal error]', e);
+      }
+    }, 2000);
+  }
 }
 
 // ── Subscriptions ──
@@ -632,11 +782,14 @@ function renderSeats(round) {
 
     const isDealer = opp.seat_position === gameState.dealer_seat;
     const isOffline = !opp.is_connected;
-    if (isOffline) seat.className += ' offline';
+    const isAi = opp.is_ai;
+    const aiTier = opp.ai_tier || '';
+    const isThinking = isAi && round && round.current_turn_seat === opp.seat_position;
+    if (isOffline && !isAi) seat.className += ' offline';
     seat.innerHTML = `
       <div class="seat-turn-label">\u25B6 Playing</div>
       <div class="seat-name-row">
-        ${isDealer ? '<span class="dealer-btn">D</span>' : ''}<span class="seat-name">${opp.display_name}</span>${isOffline ? '<span class="offline-tag">away</span>' : ''}
+        ${isDealer ? '<span class="dealer-btn">D</span>' : ''}${isAi ? `<span class="ai-tier-dot tier-${aiTier}"></span>` : ''}<span class="seat-name">${opp.display_name}</span>${isAi ? '' : (isOffline ? '<span class="offline-tag">away</span>' : '')}${isThinking ? '<span class="ai-thinking"></span>' : ''}
         <span class="seat-score">${opp.total_score || 0}</span>
       </div>
       <div class="seat-meta">
@@ -1199,6 +1352,11 @@ function updateDealButton() {
   if (isDealer) {
     dealBtn.style.display = '';
     waitMsg.style.display = 'none';
+  } else if (dealerPlayer?.is_ai) {
+    dealBtn.style.display = 'none';
+    waitMsg.style.display = 'block';
+    waitMsg.textContent = `${dealerName} is dealing...`;
+    checkAiDealer();
   } else {
     dealBtn.style.display = 'none';
     waitMsg.style.display = 'block';

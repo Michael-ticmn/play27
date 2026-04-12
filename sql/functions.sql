@@ -61,6 +61,21 @@ drop function if exists build_deck(int, int);
 drop function if exists remove_cards(text[], text[]);
 
 -- ────────────────────────────────────────────────────────────
+-- HELPER: Validate AI impersonation
+-- p_acting_as must be NULL (human caller) or an AI profile.
+-- ────────────────────────────────────────────────────────────
+create or replace function validate_acting_as(p_acting_as uuid)
+returns void language plpgsql as $$
+begin
+  if p_acting_as is not null then
+    if not exists (select 1 from profiles where id = p_acting_as and is_ai = true) then
+      raise exception 'Cannot impersonate non-AI player';
+    end if;
+  end if;
+end;
+$$;
+
+-- ────────────────────────────────────────────────────────────
 -- HELPER: Extract deck from card ID
 -- ────────────────────────────────────────────────────────────
 create or replace function card_deck(card text)
@@ -612,17 +627,19 @@ $$;
 -- ────────────────────────────────────────────────────────────
 -- DRAW FROM DECK
 -- ────────────────────────────────────────────────────────────
-create or replace function draw_from_deck(p_round_id uuid)
+create or replace function draw_from_deck(p_round_id uuid, p_acting_as uuid default null)
 returns text
 language plpgsql security definer as $$
 declare
   v_round record;
-  v_player_id uuid := auth.uid();
+  v_player_id uuid := coalesce(p_acting_as, auth.uid());
   v_seat int;
   v_card text;
   v_prs record;
   v_deck_count int;
 begin
+  perform validate_acting_as(p_acting_as);
+
   select * into v_round from rounds where id = p_round_id;
   if v_round.status != 'active' then raise exception 'Round not active'; end if;
   if v_round.turn_phase != 'draw' then raise exception 'Not draw phase'; end if;
@@ -668,16 +685,18 @@ $$;
 -- ────────────────────────────────────────────────────────────
 -- DRAW FROM DISCARD (active player — free, no penalty)
 -- ────────────────────────────────────────────────────────────
-create or replace function draw_from_discard(p_round_id uuid)
+create or replace function draw_from_discard(p_round_id uuid, p_acting_as uuid default null)
 returns text
 language plpgsql security definer as $$
 declare
   v_round record;
-  v_player_id uuid := auth.uid();
+  v_player_id uuid := coalesce(p_acting_as, auth.uid());
   v_seat int;
   v_card text;
   v_discard_count int;
 begin
+  perform validate_acting_as(p_acting_as);
+
   select * into v_round from rounds where id = p_round_id;
   if v_round.status != 'active' then raise exception 'Round not active'; end if;
   if v_round.turn_phase != 'draw' then raise exception 'Not draw phase'; end if;
@@ -772,16 +791,18 @@ $$;
 -- ────────────────────────────────────────────────────────────
 -- REQUEST BUY
 -- ────────────────────────────────────────────────────────────
-create or replace function request_buy(p_round_id uuid)
+create or replace function request_buy(p_round_id uuid, p_acting_as uuid default null)
 returns void
 language plpgsql security definer as $$
 declare
   v_round record;
-  v_player_id uuid := auth.uid();
+  v_player_id uuid := coalesce(p_acting_as, auth.uid());
   v_seat int;
   v_game record;
   v_prs record;
 begin
+  perform validate_acting_as(p_acting_as);
+
   select * into v_round from rounds where id = p_round_id;
   if v_round.status != 'active' then raise exception 'Round not active'; end if;
 
@@ -829,13 +850,15 @@ $$;
 -- ────────────────────────────────────────────────────────────
 -- CANCEL BUY
 -- ────────────────────────────────────────────────────────────
-create or replace function cancel_buy(p_round_id uuid)
+create or replace function cancel_buy(p_round_id uuid, p_acting_as uuid default null)
 returns void
 language plpgsql security definer as $$
 declare
-  v_player_id uuid := auth.uid();
+  v_player_id uuid := coalesce(p_acting_as, auth.uid());
   v_remaining int;
 begin
+  perform validate_acting_as(p_acting_as);
+
   delete from buy_requests
     where round_id = p_round_id and player_id = v_player_id;
 
@@ -943,13 +966,14 @@ $$;
 -- ────────────────────────────────────────────────────────────
 create or replace function fulfill_contract(
   p_round_id uuid,
-  p_melds jsonb
+  p_melds jsonb,
+  p_acting_as uuid default null
 )
 returns jsonb
 language plpgsql security definer as $$
 declare
   v_round record;
-  v_player_id uuid := auth.uid();
+  v_player_id uuid := coalesce(p_acting_as, auth.uid());
   v_seat int;
   v_prs record;
   v_contract record;
@@ -968,6 +992,8 @@ declare
   i int;
   v_pos int;
 begin
+  perform validate_acting_as(p_acting_as);
+
   select * into v_round from rounds where id = p_round_id;
   if v_round.status != 'active' then raise exception 'Round not active'; end if;
   if v_round.turn_phase != 'action' then raise exception 'Not action phase'; end if;
@@ -1091,13 +1117,14 @@ $$;
 create or replace function lay_down_meld(
   p_round_id uuid,
   p_cards text[],
-  p_meld_type meld_type
+  p_meld_type meld_type,
+  p_acting_as uuid default null
 )
 returns uuid
 language plpgsql security definer as $$
 declare
   v_round record;
-  v_player_id uuid := auth.uid();
+  v_player_id uuid := coalesce(p_acting_as, auth.uid());
   v_seat int;
   v_prs record;
   v_meld_id uuid;
@@ -1106,6 +1133,8 @@ declare
   v_card text;
   v_pos int;
 begin
+  perform validate_acting_as(p_acting_as);
+
   select * into v_round from rounds where id = p_round_id;
   if v_round.status != 'active' then raise exception 'Round not active'; end if;
   if v_round.turn_phase != 'action' then raise exception 'Not action phase'; end if;
@@ -1192,17 +1221,20 @@ $$;
 create or replace function lay_off_card(
   p_round_id uuid,
   p_meld_id uuid,
-  p_card text
+  p_card text,
+  p_acting_as uuid default null
 )
 returns void
 language plpgsql security definer as $$
 declare
   v_round record;
-  v_player_id uuid := auth.uid();
+  v_player_id uuid := coalesce(p_acting_as, auth.uid());
   v_seat int;
   v_prs record;
   v_max_pos int;
 begin
+  perform validate_acting_as(p_acting_as);
+
   select * into v_round from rounds where id = p_round_id;
   if v_round.status != 'active' then raise exception 'Round not active'; end if;
   if v_round.turn_phase != 'action' then raise exception 'Not action phase'; end if;
@@ -1253,18 +1285,20 @@ $$;
 -- ────────────────────────────────────────────────────────────
 -- DISCARD
 -- ────────────────────────────────────────────────────────────
-create or replace function discard_card(p_round_id uuid, p_card text)
+create or replace function discard_card(p_round_id uuid, p_card text, p_acting_as uuid default null)
 returns void
 language plpgsql security definer as $$
 declare
   v_round record;
-  v_player_id uuid := auth.uid();
+  v_player_id uuid := coalesce(p_acting_as, auth.uid());
   v_seat int;
   v_prs record;
   v_player_count int;
   v_next_seat int;
   v_max_discard_pos int;
 begin
+  perform validate_acting_as(p_acting_as);
+
   select * into v_round from rounds where id = p_round_id;
   if v_round.status != 'active' then raise exception 'Round not active'; end if;
   if v_round.turn_phase != 'action' then raise exception 'Not action phase'; end if;
@@ -1378,7 +1412,7 @@ $$;
 -- ────────────────────────────────────────────────────────────
 -- DEAL NEXT ROUND (called by the dealer)
 -- ────────────────────────────────────────────────────────────
-create or replace function deal_next_round(p_game_id uuid)
+create or replace function deal_next_round(p_game_id uuid, p_acting_as uuid default null)
 returns void
 language plpgsql security definer as $$
 declare
@@ -1387,7 +1421,7 @@ declare
   v_player_count int;
   v_next_round int;
   v_dealer_seat int;
-  v_player_id uuid := auth.uid();
+  v_player_id uuid := coalesce(p_acting_as, auth.uid());
   v_req record;
   v_next_seat int;
   v_new_num_decks int;
@@ -1396,6 +1430,8 @@ declare
   v_max_score int;
   v_penalty int;
 begin
+  perform validate_acting_as(p_acting_as);
+
   select * into v_game from games where id = p_game_id;
   if v_game.status != 'active' then raise exception 'Game not active'; end if;
 
@@ -1609,6 +1645,9 @@ begin
     'seat_position', gp.seat_position,
     'is_connected', gp.is_connected,
     'is_you', gp.player_id = v_player_id,
+    'is_ai', p.is_ai,
+    'ai_name', p.ai_name,
+    'ai_tier', p.ai_tier,
     'total_score', coalesce((
       select sum(prs.score)
       from player_round_state prs
@@ -1653,7 +1692,10 @@ begin
     'code', v_game.code,
     'status', v_game.status,
     'players', v_players,
-    'buy_countdown_seconds', v_game.buy_countdown_seconds
+    'buy_countdown_seconds', v_game.buy_countdown_seconds,
+    'has_ai_players', coalesce(v_game.has_ai_players, false),
+    'is_modified', coalesce(v_game.is_modified, false),
+    'created_by', v_game.created_by
   );
 
   if v_game.status in ('active', 'finished') then
@@ -1963,5 +2005,207 @@ begin
   where g.status = 'waiting';
 
   return coalesce(v_result, '[]'::jsonb);
+end;
+$$;
+
+-- ════════════════════════════════════════════════════════════
+-- AI PLAYER MANAGEMENT
+-- ════════════════════════════════════════════════════════════
+
+-- ────────────────────────────────────────────────────────────
+-- ADD AI TO GAME (waiting room — host only)
+-- Looks up the AI profile by name+tier, seats them at next position.
+-- Max 1 of each name per game (regardless of tier).
+-- ────────────────────────────────────────────────────────────
+create or replace function add_ai_to_game(
+  p_game_id uuid,
+  p_ai_name text,
+  p_ai_tier text
+)
+returns jsonb
+language plpgsql security definer as $$
+declare
+  v_game record;
+  v_caller uuid := auth.uid();
+  v_ai_profile_id uuid;
+  v_next_seat int;
+  v_player_count int;
+begin
+  -- Validate game and host
+  select * into v_game from games where id = p_game_id;
+  if v_game is null then raise exception 'Game not found'; end if;
+  if v_game.status != 'waiting' then raise exception 'Can only add AI to a waiting game'; end if;
+  if v_game.created_by != v_caller then raise exception 'Only the host can add AI players'; end if;
+
+  -- Check player count limit
+  select count(*) into v_player_count from game_players where game_id = p_game_id;
+  if v_player_count >= 6 then raise exception 'Game is full (max 6 players)'; end if;
+
+  -- Look up AI profile
+  select id into v_ai_profile_id from profiles
+    where is_ai = true and ai_name = p_ai_name and ai_tier = p_ai_tier;
+  if v_ai_profile_id is null then
+    raise exception 'AI profile not found: % %', p_ai_name, p_ai_tier;
+  end if;
+
+  -- Max 1 of each name per game (regardless of tier)
+  if exists (
+    select 1 from game_players gp
+    join profiles p on p.id = gp.player_id
+    where gp.game_id = p_game_id and p.is_ai = true and p.ai_name = p_ai_name
+  ) then
+    raise exception '% is already in this game', p_ai_name;
+  end if;
+
+  -- Seat at next position
+  select coalesce(max(seat_position), -1) + 1 into v_next_seat
+    from game_players where game_id = p_game_id;
+
+  insert into game_players (game_id, player_id, seat_position, is_connected)
+  values (p_game_id, v_ai_profile_id, v_next_seat, true);
+
+  -- Mark game as having AI players
+  update games set has_ai_players = true where id = p_game_id;
+
+  return jsonb_build_object(
+    'ai_profile_id', v_ai_profile_id,
+    'seat_position', v_next_seat,
+    'ai_name', p_ai_name,
+    'ai_tier', p_ai_tier
+  );
+end;
+$$;
+
+-- ────────────────────────────────────────────────────────────
+-- REMOVE AI FROM GAME (waiting room — host only)
+-- ────────────────────────────────────────────────────────────
+create or replace function remove_ai_from_game(
+  p_game_id uuid,
+  p_ai_profile_id uuid
+)
+returns void
+language plpgsql security definer as $$
+declare
+  v_game record;
+  v_caller uuid := auth.uid();
+  v_removed_seat int;
+  v_has_ai boolean;
+begin
+  select * into v_game from games where id = p_game_id;
+  if v_game is null then raise exception 'Game not found'; end if;
+  if v_game.status != 'waiting' then raise exception 'Can only remove AI from a waiting game'; end if;
+  if v_game.created_by != v_caller then raise exception 'Only the host can remove AI players'; end if;
+
+  -- Verify it's an AI profile
+  if not exists (select 1 from profiles where id = p_ai_profile_id and is_ai = true) then
+    raise exception 'Not an AI player';
+  end if;
+
+  -- Get the seat being removed
+  select seat_position into v_removed_seat from game_players
+    where game_id = p_game_id and player_id = p_ai_profile_id;
+  if v_removed_seat is null then raise exception 'AI player not in this game'; end if;
+
+  -- Remove the AI player
+  delete from game_players where game_id = p_game_id and player_id = p_ai_profile_id;
+
+  -- Compact seat positions (close the gap)
+  update game_players set seat_position = seat_position - 1
+    where game_id = p_game_id and seat_position > v_removed_seat;
+
+  -- Update has_ai_players flag
+  select exists (
+    select 1 from game_players gp
+    join profiles p on p.id = gp.player_id
+    where gp.game_id = p_game_id and p.is_ai = true
+  ) into v_has_ai;
+  update games set has_ai_players = v_has_ai where id = p_game_id;
+end;
+$$;
+
+-- ────────────────────────────────────────────────────────────
+-- ASSIGN AI TAKEOVER (mid-game — host only)
+-- Replaces a disconnected human player's seat with an AI.
+-- ────────────────────────────────────────────────────────────
+create or replace function assign_ai_takeover(
+  p_game_id uuid,
+  p_seat_position int,
+  p_ai_name text,
+  p_ai_tier text
+)
+returns jsonb
+language plpgsql security definer as $$
+declare
+  v_game record;
+  v_caller uuid := auth.uid();
+  v_ai_profile_id uuid;
+  v_current_gp record;
+  v_current_round record;
+begin
+  select * into v_game from games where id = p_game_id;
+  if v_game is null then raise exception 'Game not found'; end if;
+  if v_game.status != 'active' then raise exception 'Game must be active for takeover'; end if;
+  if v_game.created_by != v_caller then raise exception 'Only the host can assign AI takeover'; end if;
+
+  -- Get current occupant of the seat
+  select * into v_current_gp from game_players
+    where game_id = p_game_id and seat_position = p_seat_position;
+  if v_current_gp is null then raise exception 'No player at seat %', p_seat_position; end if;
+
+  -- Don't replace an AI with another AI
+  if exists (select 1 from profiles where id = v_current_gp.player_id and is_ai = true) then
+    raise exception 'Seat is already an AI player';
+  end if;
+
+  -- Look up AI profile
+  select id into v_ai_profile_id from profiles
+    where is_ai = true and ai_name = p_ai_name and ai_tier = p_ai_tier;
+  if v_ai_profile_id is null then
+    raise exception 'AI profile not found: % %', p_ai_name, p_ai_tier;
+  end if;
+
+  -- Max 1 of each name per game
+  if exists (
+    select 1 from game_players gp
+    join profiles p on p.id = gp.player_id
+    where gp.game_id = p_game_id and p.is_ai = true and p.ai_name = p_ai_name
+  ) then
+    raise exception '% is already in this game', p_ai_name;
+  end if;
+
+  -- Swap the seat: store original human, replace with AI
+  update game_players set
+    original_player_id = player_id,
+    player_id = v_ai_profile_id,
+    is_connected = true
+  where game_id = p_game_id and seat_position = p_seat_position;
+
+  -- Update round-level ownership: player_round_state
+  select * into v_current_round from rounds
+    where game_id = p_game_id and status = 'active';
+
+  if v_current_round is not null then
+    update player_round_state set player_id = v_ai_profile_id
+      where round_id = v_current_round.id and player_id = v_current_gp.player_id;
+
+    -- Update card ownership in current round
+    update round_cards set player_id = v_ai_profile_id
+      where round_id = v_current_round.id and player_id = v_current_gp.player_id;
+
+    -- Update meld ownership in current round
+    update melds set player_id = v_ai_profile_id
+      where round_id = v_current_round.id and player_id = v_current_gp.player_id;
+  end if;
+
+  -- Flag game as modified (affects stats for all players)
+  update games set is_modified = true, has_ai_players = true where id = p_game_id;
+
+  return jsonb_build_object(
+    'ai_profile_id', v_ai_profile_id,
+    'replaced_player_id', v_current_gp.player_id,
+    'seat_position', p_seat_position,
+    'ai_name', p_ai_name,
+    'ai_tier', p_ai_tier
+  );
 end;
 $$;
