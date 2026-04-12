@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.35';
-import { initTheme } from './theme.js?v=0.11.35';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.36';
+import { initTheme } from './theme.js?v=0.11.36';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -105,7 +105,9 @@ async function init() {
   } else if (game.status === 'active') {
     await enterGame();
   } else {
-    alert('This game has finished.');
+    $loading.style.display = 'none';
+    showToast('Game Over', 'This game has finished');
+    setTimeout(() => { window.location.href = 'login.html'; }, 2000);
   }
 }
 
