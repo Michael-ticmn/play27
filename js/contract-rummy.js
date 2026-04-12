@@ -451,7 +451,7 @@ async function checkAndTriggerAI() {
   // Check if current turn player is AI (trigger ai-turn)
   const currentPlayer = players.find(p => p.seat_position === round.current_turn_seat);
   console.log('[AI] seat:', round.current_turn_seat, 'phase:', round.turn_phase, 'is_ai:', currentPlayer?.is_ai, 'player:', currentPlayer?.display_name);
-  if (currentPlayer?.is_ai && round.turn_phase === 'draw') {
+  if (currentPlayer?.is_ai && (round.turn_phase === 'draw' || round.turn_phase === 'action')) {
     aiTriggerInFlight = true;
     const name = currentPlayer.display_name;
     aiDebug(`${name} thinking... (seat=${currentPlayer.seat_position} id=…${currentPlayer.player_id.slice(-4)})`);
