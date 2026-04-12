@@ -1544,6 +1544,15 @@
     padding: 8px 6px;
     font-size: 0.65rem;
   }
+  .root {
+    grid-template-rows: auto 1fr auto minmax(180px, auto);
+  }
+  .hc {
+    width: clamp(52px, 14vw, 72px);
+    height: clamp(76px, 20vw, 105px);
+  }
+  .hc .rnk { font-size: clamp(1.4rem, 4vw, 1.8rem); }
+  .hc .sct { font-size: clamp(1.8rem, 5vw, 2.4rem); }
   .toast {
     top: 30%;
   }
