@@ -266,12 +266,24 @@ function cardContractRelevance(
 }
 
 // ── Discard evaluator: which card hurts least to discard? ──
+// tableMelds: pass melds on the table so AI avoids feeding opponents.
+// protectedCards: cards that cannot be discarded this turn (drawn/bought this turn).
+// protectionPenalty: score penalty for protected cards (from TierProfile.drawnCardProtection).
 export function rankDiscards(
   hand: CardId[],
   requiredSets: number,
-  requiredRuns: number
+  requiredRuns: number,
+  tableMelds: { id: string; meld_type: string; cards: CardId[] }[] = [],
+  protectedCards: CardId[] = [],
+  protectionPenalty: number = 200
 ): CardId[] {
+  const protectedSet = new Set(protectedCards);
   const scored = hand.map(card => {
+    // Same-turn protection: card drawn or bought this turn
+    if (protectedSet.has(card)) {
+      return { card, score: protectionPenalty };
+    }
+
     // Check if removing this card breaks an existing contract solution
     const without = hand.filter(c => c !== card);
     const canStillMeet = solveContract(without, requiredSets, requiredRuns).length > 0;
@@ -282,19 +294,147 @@ export function rankDiscards(
     // Higher deadwood points = better to discard (if equally irrelevant)
     const pts = cardPoints(card);
 
+    // Penalty for feeding opponent melds — card is playable on a visible meld
+    let feedsPenalty = 0;
+    for (const meld of tableMelds) {
+      if (canLayOff(card, meld)) {
+        feedsPenalty = 40; // strong deterrent: avoid giving opponents free lay-offs
+        break;
+      }
+    }
+
     // Score: lower = better to discard
     // Cards that break contract: strongly keep (1000)
+    // Cards that feed opponent melds: penalize (+40)
     // Then by contract relevance (0-50)
     // Then prefer discarding high-point cards (subtract pts)
     return {
       card,
-      score: (canStillMeet ? 0 : 1000) + relevance - pts
+      score: (canStillMeet ? 0 : 1000) + feedsPenalty + relevance - pts
     };
   });
 
   // Sort ascending: lowest score = best discard candidate
   scored.sort((a, b) => a.score - b.score);
   return scored.map(s => s.card);
+}
+
+// ── Post-contract draw evaluator ──
+// After contract is met, only pick from discard if the card is immediately
+// playable as a lay-off on an existing meld.
+export function evaluatePostContractDraw(
+  discardCard: CardId,
+  melds: { id: string; meld_type: string; cards: CardId[] }[]
+): boolean {
+  if (isJoker(discardCard)) return true;
+  return melds.some(m => canLayOff(discardCard, m));
+}
+
+// ── Pickup quality gates ──
+// Is this pair among the best paths to completing needed sets?
+// Ranks all value groups by size; only returns true if this value's group
+// is in the top N (where N = requiredSets still needed).
+function isBestPairPath(hand: CardId[], targetValue: number, requiredSets: number): boolean {
+  const byValue = groupByValue(hand);
+  // Score each value group by size (bigger = closer to a set)
+  const groups: { value: number; count: number }[] = [];
+  for (const [value, cards] of byValue) {
+    groups.push({ value, count: cards.length });
+  }
+  // Sort descending by count — best paths first
+  groups.sort((a, b) => b.count - a.count);
+  // The target value's current count (before adding the discard card)
+  const targetGroup = groups.find(g => g.value === targetValue);
+  const targetCount = targetGroup?.count || 0;
+  // Check if this value is in the top requiredSets groups
+  // (i.e., it's one of the best paths to completing the contract)
+  const topGroups = groups.slice(0, requiredSets);
+  // Include if it's already in the top paths, OR if it ties with the weakest top path
+  const weakestTopCount = topGroups.length > 0 ? topGroups[topGroups.length - 1].count : 0;
+  return targetCount >= weakestTopCount && targetCount >= 1;
+}
+
+// Is this run extension among the best paths to completing needed runs?
+// Ranks all suit sequences by length; only returns true if this suit's sequence
+// is in the top N (where N = requiredRuns still needed).
+function isBestRunPath(hand: CardId[], targetSuit: number, requiredRuns: number): boolean {
+  const bySuit = groupBySuit(hand);
+  // For each suit, find the longest consecutive sequence
+  const suitBest: { suit: number; maxConsec: number }[] = [];
+  for (const [suit, cards] of bySuit) {
+    const vals = cards.map(c => cardValue(c)).sort((a, b) => a - b);
+    let maxC = 1, curC = 1;
+    for (let i = 1; i < vals.length; i++) {
+      if (vals[i] === vals[i - 1] + 1) { curC++; maxC = Math.max(maxC, curC); }
+      else if (vals[i] !== vals[i - 1]) curC = 1;
+    }
+    // Ace-low check
+    if (vals.includes(14) && vals.includes(2)) {
+      const lowVals = vals.map(v => v === 14 ? 1 : v).sort((a, b) => a - b);
+      let lc = 1;
+      for (let i = 1; i < lowVals.length; i++) {
+        if (lowVals[i] === lowVals[i - 1] + 1) { lc++; maxC = Math.max(maxC, lc); }
+        else if (lowVals[i] !== lowVals[i - 1]) lc = 1;
+      }
+    }
+    suitBest.push({ suit, maxConsec: maxC });
+  }
+  suitBest.sort((a, b) => b.maxConsec - a.maxConsec);
+  const targetSeq = suitBest.find(s => s.suit === targetSuit);
+  const targetLen = targetSeq?.maxConsec || 0;
+  const topSuits = suitBest.slice(0, requiredRuns);
+  const weakestTopLen = topSuits.length > 0 ? topSuits[topSuits.length - 1].maxConsec : 0;
+  return targetLen >= weakestTopLen && targetLen >= 1;
+}
+
+// ── Contract weakness check for Normal tier (P6) ──
+// For mixed contracts, check which half is weaker and bias speculation toward it.
+// Returns true if the pickup helps the weaker contract dimension.
+export function helpsWeakerContract(
+  hand: CardId[],
+  discardCard: CardId,
+  requiredSets: number,
+  requiredRuns: number
+): boolean {
+  if (requiredSets === 0 || requiredRuns === 0) return true; // pure contract, always relevant
+
+  const dv = cardValue(discardCard);
+  const ds = cardSuit(discardCard);
+
+  // Count how close we are to sets vs runs
+  const byValue = groupByValue(hand);
+  let bestSetSize = 0;
+  for (const [, cards] of byValue) {
+    if (cards.length > bestSetSize) bestSetSize = cards.length;
+  }
+
+  const bySuit = groupBySuit(hand);
+  let bestRunLen = 0;
+  for (const [, cards] of bySuit) {
+    const vals = cards.map(c => cardValue(c)).sort((a, b) => a - b);
+    let maxC = 1, curC = 1;
+    for (let i = 1; i < vals.length; i++) {
+      if (vals[i] === vals[i - 1] + 1) { curC++; maxC = Math.max(maxC, curC); }
+      else if (vals[i] !== vals[i - 1]) curC = 1;
+    }
+    if (maxC > bestRunLen) bestRunLen = maxC;
+  }
+
+  // Determine which is weaker: sets need 3, runs need 4
+  const setProgress = bestSetSize / 3;  // 0.0 to 1.0+
+  const runProgress = bestRunLen / 4;   // 0.0 to 1.0+
+
+  // Does the pickup help sets or runs?
+  const helpsSet = hand.some(c => !isJoker(c) && cardValue(c) === dv);
+  const helpsSuit = hand.filter(c => !isJoker(c) && cardSuit(c) === ds)
+    .some(c => Math.abs(cardValue(c) - dv) <= 2);
+
+  // If sets are weaker, prefer pickups that help sets
+  if (setProgress < runProgress) return helpsSet;
+  // If runs are weaker, prefer pickups that help runs
+  if (runProgress < setProgress) return helpsSuit;
+  // Equal progress — either is fine
+  return true;
 }
 
 // ── Draw evaluator: should AI take discard or draw from deck? ──
@@ -346,7 +486,12 @@ export function evaluateDiscardDraw(
     }
 
     if (maxConsec >= 3) return { takeDiscard: true, reason: 'completes_run' };
-    if (maxConsec >= 2 && sameSuit.length >= 1) return { takeDiscard: true, reason: 'extends_run' };
+    if (maxConsec >= 2 && sameSuit.length >= 1) {
+      if (isBestRunPath(hand, ds, requiredRuns)) {
+        return { takeDiscard: true, reason: 'extends_run' };
+      }
+      return { takeDiscard: false, reason: 'weaker_run_path' };
+    }
     return { takeDiscard: false, reason: 'not_useful_for_runs' };
   }
 
@@ -354,7 +499,13 @@ export function evaluateDiscardDraw(
   if (requiredSets > 0 && requiredRuns === 0) {
     const sameValue = hand.filter(c => !isJoker(c) && cardValue(c) === dv);
     if (sameValue.length >= 2) return { takeDiscard: true, reason: 'completes_set' };
-    if (sameValue.length >= 1) return { takeDiscard: true, reason: 'builds_pair' };
+    if (sameValue.length >= 1) {
+      // Only build this pair if it's among the best paths to needed sets
+      if (isBestPairPath(hand, dv, requiredSets)) {
+        return { takeDiscard: true, reason: 'builds_pair' };
+      }
+      return { takeDiscard: false, reason: 'weaker_pair_path' };
+    }
     return { takeDiscard: false, reason: 'not_useful_for_sets' };
   }
 
@@ -372,8 +523,18 @@ export function evaluateDiscardDraw(
   }
   if (maxConsec >= 3) return { takeDiscard: true, reason: 'completes_run' };
 
-  if (sameValue.length >= 1) return { takeDiscard: true, reason: 'builds_pair' };
-  if (maxConsec >= 2 && sameSuit.length >= 1) return { takeDiscard: true, reason: 'extends_run' };
+  if (sameValue.length >= 1) {
+    if (isBestPairPath(hand, dv, requiredSets)) {
+      return { takeDiscard: true, reason: 'builds_pair' };
+    }
+    return { takeDiscard: false, reason: 'weaker_pair_path' };
+  }
+  if (maxConsec >= 2 && sameSuit.length >= 1) {
+    if (isBestRunPath(hand, ds, requiredRuns)) {
+      return { takeDiscard: true, reason: 'extends_run' };
+    }
+    return { takeDiscard: false, reason: 'weaker_run_path' };
+  }
 
   return { takeDiscard: false, reason: 'not_useful' };
 }

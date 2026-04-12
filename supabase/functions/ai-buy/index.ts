@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { supabase, rpc } from '../_shared/supabase.ts';
-import { randomDelay, sleep, BUY_TIMING } from '../_shared/delays.ts';
+import { sleep, BUY_TIMING } from '../_shared/delays.ts';
 import { CardId, cardPoints, cardValue, isJoker } from '../_shared/types.ts';
 import { groupByValue, groupBySuit } from '../ai-turn/hand-analyzer.ts';
 

@@ -611,7 +611,24 @@ begin
     limit 1
   );
 
-  update rounds set status = 'active' where id = v_round_id;
+  -- Start in ready_check phase — players must confirm before play begins
+  update rounds set status = 'active', turn_phase = 'ready_check' where id = v_round_id;
+
+  -- Auto-ready all AI players
+  update player_round_state prs
+  set is_ready = true
+  from profiles p
+  where prs.round_id = v_round_id
+    and prs.player_id = p.id
+    and p.is_ai = true;
+
+  -- If all players are AI (or solo human already ready), advance immediately
+  if not exists (
+    select 1 from player_round_state
+    where round_id = v_round_id and is_ready = false
+  ) then
+    update rounds set turn_phase = 'draw' where id = v_round_id;
+  end if;
 
   insert into game_actions (game_id, round_id, action_type, details)
   values (p_game_id, v_round_id, 'round_start',
@@ -1248,6 +1265,22 @@ begin
   if not v_prs.has_drawn then raise exception 'Must draw first'; end if;
   if not v_prs.has_met_contract then raise exception 'Must meet contract before laying off'; end if;
 
+  -- Cannot lay off on the same turn you fulfilled your contract
+  if exists (
+    select 1 from game_actions
+    where round_id = p_round_id
+      and player_id = v_player_id
+      and action_type = 'contract_met'
+      and created_at > (
+        select max(created_at) from game_actions
+        where round_id = p_round_id
+          and player_id = v_player_id
+          and action_type in ('draw_deck', 'draw_discard')
+      )
+  ) then
+    raise exception 'Cannot lay off on the same turn you fulfilled your contract';
+  end if;
+
   -- Verify card is in player's hand
   if not exists (
     select 1 from round_cards
@@ -1719,7 +1752,8 @@ begin
 
       v_result := v_result || jsonb_build_object(
         'my_has_met_contract', coalesce(v_my_prs.has_met_contract, false),
-        'my_has_drawn', coalesce(v_my_prs.has_drawn, false)
+        'my_has_drawn', coalesce(v_my_prs.has_drawn, false),
+        'my_is_ready', coalesce(v_my_prs.is_ready, false)
       );
     end;
 
@@ -1744,6 +1778,7 @@ begin
         where rc.round_id = v_round.id and rc.player_id = prs.player_id and rc.location = 'hand'
       ),
       'has_met_contract', prs.has_met_contract,
+      'is_ready', prs.is_ready,
       'buys_used', prs.buys_used,
       'score', prs.score
     )) into v_opponents
@@ -1774,7 +1809,9 @@ begin
         'top_discard', v_top_discard,
         'discard_count', v_discard_count,
         'discard_bought', v_round.discard_bought,
-        'status', v_round.status
+        'status', v_round.status,
+        'ready_count', (select count(*) from player_round_state where round_id = v_round.id and is_ready = true),
+        'total_players', (select count(*) from player_round_state where round_id = v_round.id)
       ),
       'my_hand', v_my_hand,
       'melds', coalesce(v_melds, '[]'::jsonb),

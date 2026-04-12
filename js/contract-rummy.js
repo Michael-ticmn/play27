@@ -53,6 +53,7 @@ let logOpen = false;
 let animatingDraw = false;
 let lastRoundId = null;
 let recentMeldCards = new Set(); // cards added to melds this turn, gold highlight
+let meldedThisTurn = false;     // true after fulfilling contract — blocks lay-offs until next turn
 let isSpectator = false;
 let isHost = false;
 let lateJoinStatus = null;      // 'pending' | 'approved' | 'spectating' | 'kicked'
@@ -359,6 +360,7 @@ async function fetchAndRender() {
     if (stagingOpen) closeMeldStaging();
     selectedCards.clear();
     recentMeldCards.clear();
+    meldedThisTurn = false;
   }
   lastRoundId = curRoundId;
 
@@ -377,7 +379,15 @@ window.toggleAiPause = function() {
   aiPaused = !aiPaused;
   const btn = document.getElementById('aiPauseBtn');
   if (btn) btn.textContent = aiPaused ? '▶ Start' : '⏸ Pause';
+  // Also update pause button on round-end overlay
+  const reBtn = document.getElementById('rePauseBtn');
+  if (reBtn) reBtn.textContent = aiPaused ? '▶ Resume AI' : '⏸ Pause AI';
   aiDebug(aiPaused ? 'AI PAUSED' : 'AI RESUMED', aiPaused ? 'err' : 'ok');
+  if (aiPaused && aiDealTimer) {
+    clearTimeout(aiDealTimer);
+    aiDealTimer = null;
+    aiDebug('Deal timer cancelled');
+  }
   if (!aiPaused) fetchAndRender();
 };
 
@@ -498,9 +508,13 @@ async function checkAndTriggerAI() {
 }
 
 // Also trigger AI for deal_next_round when dealer is AI
+let aiDealTimer = null;
+
 async function checkAiDealer() {
   if (!isHost || !gameState?.round || gameState.round.status !== 'finished') return;
   if (gameState.round.round_number >= 7) return; // game over
+  if (aiPaused) { aiDebug('AI paused — deal on hold'); return; }
+  if (aiDealTimer) return; // already scheduled
 
   const nextRound = gameState.round.round_number + 1;
   const playerCount = (gameState.players || []).length;
@@ -510,7 +524,9 @@ async function checkAiDealer() {
   if (dealer?.is_ai) {
     // AI dealer — wait 10s so humans can review the round results
     aiDebug(`${dealer.display_name} dealing next round in 10s...`);
-    setTimeout(async () => {
+    aiDealTimer = setTimeout(async () => {
+      aiDealTimer = null;
+      if (aiPaused) { aiDebug('AI paused — deal cancelled'); return; }
       try {
         await rpc('deal_next_round', { p_game_id: gameId, p_acting_as: dealer.player_id });
         aiDebug(`${dealer.display_name} dealt round ${nextRound}`, 'ok');
@@ -543,6 +559,9 @@ function setupGameSubscriptions() {
       event: 'UPDATE', schema: 'public', table: 'game_players'
     }, () => { if (!animatingDraw) fetchAndRender(); })
     .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'player_round_state'
+    }, () => { if (!animatingDraw) fetchAndRender(); })
+    .on('postgres_changes', {
       event: '*', schema: 'public', table: 'late_join_requests',
       filter: `game_id=eq.${gameId}`
     }, () => { fetchAndRender(); })
@@ -557,8 +576,9 @@ function setupGameSubscriptions() {
       } else if (action.action_type === 'contract_met' && action.details?.cards) {
         action.details.cards.forEach(c => recentMeldCards.add(c));
       } else if (action.action_type === 'discard') {
-        // Turn ended — clear highlights
+        // Turn ended — clear highlights and same-turn flags
         recentMeldCards.clear();
+        meldedThisTurn = false;
       }
       // Animate buy cards flying to hand when I win a buy
       if (action.action_type === 'buy_awarded'
@@ -752,13 +772,13 @@ function renderTopBar(round) {
 }
 
 // ── Seat Positions ──
-// Positions opponents at the angular center of their equal slice of the 240°
-// arc (matching the table-line dividers). User owns 120° at the bottom.
+// Positions opponents at the angular center of their equal slice of the 270°
+// arc (matching the table-line dividers). User owns 90° (1/4) at the bottom.
 function getSeatPositions(count) {
   if (count === 1) return [{ left: 50, top: 5 }];
   const positions = [];
-  const rightBound = 150; // user zone edge (screen-coords, 90° = bottom)
-  const sliceSize = 240 / count;
+  const rightBound = 135; // user zone edge: 90° + 45°
+  const sliceSize = 270 / count;
   const cx = 50, cy = 38; // center of the opponent arc (% coords)
   const rx = 44, ry = 34; // ellipse radii
   for (let i = 0; i < count; i++) {
@@ -811,11 +831,11 @@ function renderTableLines(playerCount) {
     addLine(0, cy, cx - boxW / 2, cy);
     addLine(cx + boxW / 2, cy, w, cy);
   } else {
-    // 3+ players: user always keeps 120° (1/3) at the bottom, opponents split the remaining 240°
+    // 3+ players: user keeps 90° (1/4) at the bottom, opponents split the remaining 270°
     // Screen coords: Y increases downward, so 90° = bottom, 270° = top
     const userCenter = 90;
-    const leftBound = 30;    // userCenter - 60
-    const rightBound = 150;  // userCenter + 60
+    const leftBound = 45;    // userCenter - 45
+    const rightBound = 135;  // userCenter + 45
 
     // User's two boundary lines
     for (const angleDeg of [leftBound, rightBound]) {
@@ -828,10 +848,10 @@ function renderTableLines(playerCount) {
       addLine(startX, startY, Math.max(0, Math.min(w, cx + reach * cos)), Math.max(0, Math.min(h, cy + reach * sin)));
     }
 
-    // Opponents split the remaining 240° (from 330° clockwise to 210°)
+    // Opponents split the remaining 270°
     if (oppCount > 1) {
       for (let i = 1; i < oppCount; i++) {
-        const angleDeg = (rightBound + i * (240 / oppCount)) % 360;
+        const angleDeg = (rightBound + i * (270 / oppCount)) % 360;
         const angleRad = (angleDeg * Math.PI) / 180;
         const cos = Math.cos(angleRad);
         const sin = Math.sin(angleRad);
@@ -901,7 +921,13 @@ function renderSeats(round) {
     const isAi = opp.is_ai;
     const aiTier = opp.ai_tier || '';
     const isThinking = isAi && round && round.current_turn_seat === opp.seat_position;
+    const oppReady = oppDetail.is_ready || false;
+    const inReadyCheck = round.turn_phase === 'ready_check';
     if (isOffline && !isAi) seat.className += ' offline';
+    let metaText = `${cardsInHand} cards${hasMetContract ? ' \u2714' : ''}`;
+    if (inReadyCheck) {
+      metaText = oppReady ? '\u2714 ready' : 'sorting...';
+    }
     seat.innerHTML = `
       <div class="seat-turn-label">\u25B6 Playing</div>
       <div class="seat-name-row">
@@ -909,7 +935,7 @@ function renderSeats(round) {
         <span class="seat-score">${opp.total_score || 0}</span>
       </div>
       <div class="seat-meta">
-        <span>${cardsInHand} cards${hasMetContract ? ' \u2714' : ''}</span>
+        <span>${metaText}</span>
       </div>
       <div class="seat-hand">${cardBacks}</div>
       <div class="seat-melds">${meldsHtml}</div>
@@ -1051,7 +1077,7 @@ async function loadGameLog() {
 
     log.appendChild(entry);
   }
-  log.scrollTop = log.scrollHeight;
+  log.scrollTop = 0;
 }
 
 function toggleGameLog() {
@@ -1087,7 +1113,14 @@ function renderDeckDiscard(round) {
   const turnName = turnPlayer ? (turnPlayer.is_you ? 'Your' : turnPlayer.display_name + "'s") : '???';
   const connectedCount = gameState.players.filter(p => p.is_connected).length;
 
-  let statusStr = `${turnName} turn \u00B7 ${connectedCount} online`;
+  let statusStr;
+  if (round.turn_phase === 'ready_check') {
+    const rc = round.ready_count || 0;
+    const tp = round.total_players || 0;
+    statusStr = `Sort your hand \u00B7 ${rc}/${tp} ready`;
+  } else {
+    statusStr = `${turnName} turn \u00B7 ${connectedCount} online`;
+  }
   const spectators = gameState.spectators || [];
   if (spectators.length > 0) {
     const joining = spectators.filter(s => s.status === 'approved');
@@ -1393,7 +1426,8 @@ function showRoundEnd() {
   // View 1: Round scores
   const roundView = document.getElementById('reViewRound');
   if (currentRoundScores) {
-    const rows = currentRoundScores.scores.map(s => {
+    const sortedScores = [...currentRoundScores.scores].sort((a, b) => a.score - b.score);
+    const rows = sortedScores.map(s => {
       const p = players.find(pl => pl.player_id === s.player_id);
       const name = p ? (p.is_you ? 'You' : p.display_name) : 'Player';
       const isWinner = s.score === 0;
@@ -1424,7 +1458,8 @@ function showRoundEnd() {
   // View 3: Full scoreboard
   const scoreboardView = document.getElementById('reViewScoreboard');
   const roundHeaders = roundScores.map(r => `<th>R${r.round_number}</th>`).join('');
-  const sbRows = players.map(p => {
+  const sortedPlayers = [...players].sort((a, b) => (a.total_score || 0) - (b.total_score || 0));
+  const sbRows = sortedPlayers.map(p => {
     const cls = p.is_you ? ' class="is-you"' : '';
     const name = p.is_you ? 'You' : p.display_name;
     const cells = roundScores.map(r => {
@@ -1458,10 +1493,20 @@ function updateDealButton() {
   const round = gameState.round;
   const dealBtn = document.getElementById('reDealBtn');
   const waitMsg = document.getElementById('reWaitMsg');
+  const pauseBtn = document.getElementById('rePauseBtn');
+
+  // Show pause button on score view when AI bar is visible
+  const aiBarVisible = document.getElementById('aiDebugBar')?.offsetParent !== null;
+  const hasAi = (gameState.players || []).some(p => p.is_ai);
+  if (pauseBtn) {
+    pauseBtn.style.display = (aiBarVisible && hasAi && round.round_number < 7) ? '' : 'none';
+    pauseBtn.textContent = aiPaused ? '▶ Resume AI' : '⏸ Pause AI';
+  }
 
   if (round.round_number >= 7) {
     // Game over — show lobby button
     dealBtn.style.display = 'none';
+    if (pauseBtn) pauseBtn.style.display = 'none';
     waitMsg.style.display = 'block';
     waitMsg.innerHTML = 'Game complete!<br><a href="login.html" class="re-lobby-btn">Back to Lobby</a>';
     return;
@@ -1509,6 +1554,190 @@ function hideRoundEnd() {
   if (reRotateInterval) { clearInterval(reRotateInterval); reRotateInterval = null; }
 }
 
+// ── Round data export for play analysis ──
+window.exportRoundData = async function() {
+  if (!gameState?.round) return;
+  const round = gameState.round;
+  const roundId = round.id;
+  const players = gameState.players || [];
+
+  const exportBtn = document.getElementById('reExportBtn');
+  const origText = exportBtn.textContent;
+  exportBtn.textContent = '⏳ Loading...';
+  exportBtn.disabled = true;
+
+  try {
+    // Fetch all cards for this round (hands + melds + discard pile)
+    const { data: allCards } = await sb.from('round_cards')
+      .select('card_id, location, player_id, meld_id, position')
+      .eq('round_id', roundId)
+      .order('position');
+
+    // Fetch all melds for this round
+    const { data: allMelds } = await sb.from('melds')
+      .select('id, player_id, meld_type')
+      .eq('round_id', roundId);
+
+    // Fetch all actions for this round (play history)
+    const { data: actions } = await sb.from('game_actions')
+      .select('action_type, player_id, details, created_at')
+      .eq('round_id', roundId)
+      .order('created_at', { ascending: true });
+
+    // Build player map
+    const playerMap = {};
+    for (const p of players) {
+      playerMap[p.player_id] = {
+        name: p.display_name,
+        is_ai: p.is_ai || false,
+        ai_tier: p.ai_tier || null,
+        seat: p.seat_position,
+        total_score: p.total_score || 0,
+      };
+    }
+
+    // Build per-player end state
+    const playerStates = {};
+    for (const p of players) {
+      const pid = p.player_id;
+      const hand = (allCards || [])
+        .filter(c => c.player_id === pid && c.location === 'hand')
+        .sort((a, b) => a.position - b.position)
+        .map(c => formatCard(c.card_id));
+
+      const playerMelds = (allMelds || [])
+        .filter(m => m.player_id === pid)
+        .map(m => {
+          const cards = (allCards || [])
+            .filter(c => c.meld_id === m.id && c.location === 'meld')
+            .sort((a, b) => a.position - b.position)
+            .map(c => formatCard(c.card_id));
+          return { type: m.meld_type, cards };
+        });
+
+      playerStates[p.display_name] = {
+        is_ai: p.is_ai || false,
+        ai_tier: p.ai_tier || null,
+        seat: p.seat_position,
+        hand_remaining: hand,
+        hand_count: hand.length,
+        melds: playerMelds,
+      };
+    }
+
+    // Round scores
+    const roundScores = gameState.round_scores || [];
+    const thisRoundScores = roundScores.find(r => r.round_number === round.round_number);
+    const scores = {};
+    if (thisRoundScores) {
+      for (const s of thisRoundScores.scores) {
+        const pInfo = playerMap[s.player_id];
+        if (pInfo) scores[pInfo.name] = s.score;
+      }
+    }
+
+    // Format play history
+    const history = (actions || []).map(a => {
+      const pInfo = playerMap[a.player_id];
+      const name = pInfo ? pInfo.name : 'Unknown';
+      const d = a.details || {};
+      let desc;
+      switch (a.action_type) {
+        case 'round_start': desc = `Round ${d.round}: ${d.contract}`; break;
+        case 'draw_deck': desc = `${name} drew from deck`; break;
+        case 'draw_discard': desc = `${name} picked up ${formatCard(d.card)}`; break;
+        case 'discard': desc = `${name} discarded ${formatCard(d.card)}`; break;
+        case 'contract_met': desc = `${name} fulfilled contract`; break;
+        case 'lay_off': desc = `${name} laid off ${formatCard(d.card)}`; break;
+        case 'buy_request': desc = `${name} requested buy`; break;
+        case 'buy_awarded': desc = `${name} bought ${formatCard(d.discard_card)}${d.penalty_card ? ' (+penalty ' + formatCard(d.penalty_card) + ')' : ''}`; break;
+        case 'round_end': desc = `Round ended`; break;
+        default: desc = `${name}: ${a.action_type}`;
+      }
+      return desc;
+    });
+
+    // Build LLM-optimized text export
+    const lines = [];
+    lines.push(`# Contract Rummy — Round ${round.round_number} of 7`);
+    lines.push(`Game: ${gameState.game_code || gameId}`);
+    lines.push(`Contract: ${round.contract_sets || 0} sets of 3 + ${round.contract_runs || 0} runs of 4`);
+    lines.push('');
+
+    // Player roster
+    lines.push('## Players');
+    for (const p of players) {
+      const info = playerMap[p.player_id];
+      const tier = info.is_ai ? ` (AI ${info.ai_tier})` : ' (human)';
+      lines.push(`- Seat ${info.seat}: ${info.name}${tier} — total score entering round: ${info.total_score}`);
+    }
+    lines.push('');
+
+    // Play-by-play
+    lines.push('## Play-by-Play');
+    let turnNum = 0;
+    for (const line of history) {
+      if (line.startsWith('Round ') && line.includes(':')) {
+        lines.push(line);
+      } else if (line.includes('drew from deck') || line.includes('picked up')) {
+        turnNum++;
+        lines.push(`\n### Turn ${turnNum}`);
+        lines.push(line);
+      } else if (line === 'Round ended') {
+        lines.push('\n' + line);
+      } else {
+        lines.push(line);
+      }
+    }
+    lines.push('');
+
+    // End state per player
+    lines.push('## End State');
+    const sortedPlayers = Object.entries(playerStates).sort((a, b) => (scores[a[0]] || 0) - (scores[b[0]] || 0));
+    for (const [name, state] of sortedPlayers) {
+      const score = scores[name] ?? '?';
+      const winner = score === 0 ? ' ★ WINNER' : '';
+      lines.push(`\n### ${name}${state.is_ai ? ` (AI ${state.ai_tier})` : ' (human)'}${winner}`);
+      lines.push(`Round score: ${score} points`);
+      if (state.melds.length > 0) {
+        lines.push('Melds:');
+        for (const m of state.melds) {
+          lines.push(`  ${m.type}: ${m.cards.join(' ')}`);
+        }
+      } else {
+        lines.push('Melds: none (did not fulfill contract)');
+      }
+      if (state.hand_remaining.length > 0) {
+        lines.push(`Cards left in hand (${state.hand_count}): ${state.hand_remaining.join(' ')}`);
+      } else {
+        lines.push('Cards left in hand: 0 (went out)');
+      }
+    }
+    lines.push('');
+
+    // Analysis prompt
+    lines.push('## Analysis Request');
+    lines.push('Evaluate each player\'s decisions this round:');
+    lines.push('1. Draw decisions: Did they pick up from discard when they should have drawn from deck, or vice versa?');
+    lines.push('2. Discard decisions: Did they discard cards that helped opponents (feeding melds)?');
+    lines.push('3. Contract timing: Did they fulfill their contract at the right time or hold too long?');
+    lines.push('4. Buy decisions: Were buy requests strategically sound?');
+    lines.push('5. Lay-off decisions: Did they miss opportunities to lay off cards on existing melds?');
+    lines.push('6. Overall strategy: Rate each player\'s play quality for this round (1-10).');
+
+    const text = lines.join('\n');
+    await navigator.clipboard.writeText(text);
+    exportBtn.textContent = '✓ Copied';
+    showToast('Exported', 'Round data copied to clipboard');
+    setTimeout(() => { exportBtn.textContent = origText; exportBtn.disabled = false; }, 2000);
+  } catch (e) {
+    console.error('[Export error]', e);
+    showToast('Export Failed', e.message || 'Could not export round data');
+    exportBtn.textContent = origText;
+    exportBtn.disabled = false;
+  }
+};
+
 function switchReView(viewName) {
   document.querySelectorAll('.re-tab').forEach(t => t.classList.toggle('active', t.dataset.reView === viewName));
   document.querySelectorAll('.re-view').forEach(v => v.classList.remove('active'));
@@ -1520,6 +1749,24 @@ function renderActionButtons(round) {
   const isMyTurn = myPlayerInfo && round.current_turn_seat === myPlayerInfo.seat_position;
   const phase = round.turn_phase;
   const iMetContract = checkMetContract();
+
+  // Ready check phase — show ready bar, hide action buttons
+  const readyBar = document.getElementById('readyCheckBar');
+  const actionsPanel = document.getElementById('actionsPanel');
+  if (phase === 'ready_check') {
+    readyBar.style.display = '';
+    actionsPanel.style.display = 'none';
+    const myReady = gameState.my_is_ready || false;
+    const readyBtn = document.getElementById('btnReady');
+    readyBtn.disabled = myReady;
+    readyBtn.textContent = myReady ? 'Waiting...' : 'Ready';
+    const rc = round.ready_count || 0;
+    const tp = round.total_players || 0;
+    document.getElementById('readyStatus').textContent = `${rc}/${tp} ready`;
+    return;
+  }
+  readyBar.style.display = 'none';
+  actionsPanel.style.display = '';
 
   const drawDeckBtn = document.getElementById('btnDrawDeck');
   const drawDiscardBtn = document.getElementById('btnDrawDiscard');
@@ -1534,9 +1781,10 @@ function renderActionButtons(round) {
 
   if (iMetContract) {
     // Contract met: hide Meld Contract, show Add to Meld (on your turn only)
+    // Cannot lay off on the same turn you fulfilled your contract
     btnLayMeld.style.display = 'none';
     btnLayOff.style.display = '';
-    btnLayOff.disabled = !(isMyTurn && (phase === 'action' || phase === 'discard'));
+    btnLayOff.disabled = meldedThisTurn || !(isMyTurn && (phase === 'action' || phase === 'discard'));
   } else {
     // Contract not met: show Meld Contract (always enabled for staging), hide Add to Meld
     btnLayMeld.style.display = '';
@@ -1688,6 +1936,21 @@ function flyCardToMeld(cardCode, targetEl) {
 
     setTimeout(() => { flyEl.remove(); resolve(); }, 1400);
   });
+}
+
+async function handleReady() {
+  if (!gameState?.round) return;
+  const btn = document.getElementById('btnReady');
+  btn.disabled = true;
+  btn.textContent = 'Waiting...';
+  const { error } = await rpc('player_ready', { p_round_id: gameState.round.id });
+  if (error) {
+    showToast('Error', error.message || 'Could not mark ready');
+    btn.disabled = false;
+    btn.textContent = 'Ready';
+    return;
+  }
+  await fetchAndRender();
 }
 
 async function handleDrawDeck() {
@@ -2109,6 +2372,7 @@ async function handleSubmitContract() {
   }
 
   showToast('Contract Met!', 'Your meld has been laid down');
+  meldedThisTurn = true;
   closeMeldStaging();
   await fetchAndRender();
 }
@@ -2408,6 +2672,7 @@ async function resolveLateJoin(decision, scoringMethod) {
 }
 
 // ── Wire up event listeners ──
+document.getElementById('btnReady').addEventListener('click', handleReady);
 document.getElementById('btnDrawDeck').addEventListener('click', handleDrawDeck);
 document.getElementById('btnDrawDiscard').addEventListener('click', handleDrawDiscard);
 document.getElementById('btnLayMeld').addEventListener('click', handleLayMeld);

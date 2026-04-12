@@ -1,11 +1,13 @@
-import { CardId, cardPoints, isJoker } from '../_shared/types.ts';
+import { CardId } from '../_shared/types.ts';
 import {
   bestContractSolution,
   rankDiscards,
   evaluateDiscardDraw,
   findLayOffs,
+  helpsWeakerContract,
   MeldCandidate
 } from './hand-analyzer.ts';
+import { TierProfile, getTier, shouldMakeMistake, filterLayOffs } from './tiers.ts';
 
 export interface TurnDecision {
   drawFrom: 'deck' | 'discard';
@@ -15,7 +17,7 @@ export interface TurnDecision {
   discardCard: CardId;
 }
 
-interface TurnContext {
+export interface TurnContext {
   hand: CardId[];
   topDiscard: CardId | null;
   discardBought: boolean;
@@ -28,42 +30,35 @@ interface TurnContext {
   roundNumber: number;
 }
 
-// ── Tier noise: probability of making a suboptimal choice ──
-const MISTAKE_RATE: Record<string, number> = {
-  easy: 0.5,    // 50% chance of suboptimal
-  normal: 0.3,  // 30%
-  hard: 0.1,    // 10%
-  unfair: 0.0,  // never
-};
-
-function shouldMakeMistake(tier: string): boolean {
-  return Math.random() < (MISTAKE_RATE[tier] ?? 0.3);
-}
-
 // ── DRAW DECISION ──
 export function decideDrawSource(ctx: TurnContext): 'deck' | 'discard' {
   if (ctx.discardBought || !ctx.topDiscard) return 'deck';
 
+  const profile = getTier(ctx.tier);
   const eval_ = evaluateDiscardDraw(
-    ctx.hand,
-    ctx.topDiscard,
-    ctx.contractSets,
-    ctx.contractRuns
+    ctx.hand, ctx.topDiscard, ctx.contractSets, ctx.contractRuns
   );
 
-  // Easy tier: mostly draws from deck regardless
-  if (ctx.tier === 'easy') {
+  // Non-speculative tiers: only take definitive helps, with mistake chance
+  if (!profile.speculativePickups) {
     if (eval_.reason === 'enables_contract' || eval_.reason === 'completes_set' || eval_.reason === 'completes_run') {
-      return shouldMakeMistake(ctx.tier) ? 'deck' : 'discard';
+      return shouldMakeMistake(profile) ? 'deck' : 'discard';
     }
-    return 'deck'; // Easy rarely takes discard
+    return 'deck';
   }
 
-  // Normal+ tiers use the evaluation
+  // Speculative tiers: use the full evaluation
   if (eval_.takeDiscard) {
-    // Normal might miss less obvious opportunities (partial melds)
-    if (ctx.tier === 'normal' && (eval_.reason === 'builds_pair' || eval_.reason === 'extends_run')) {
-      return shouldMakeMistake(ctx.tier) ? 'deck' : 'discard';
+    return 'discard';
+  }
+
+  // Speculative pickups for weaker paths (builds_pair / extends_run that failed quality gate)
+  if (eval_.reason === 'weaker_pair_path' || eval_.reason === 'weaker_run_path') {
+    // Contract-weakness aware: only speculate if it helps the weaker dimension
+    if (profile.contractWeaknessAware && ctx.topDiscard) {
+      if (!helpsWeakerContract(ctx.hand, ctx.topDiscard, ctx.contractSets, ctx.contractRuns)) {
+        return 'deck';
+      }
     }
     return 'discard';
   }
@@ -78,8 +73,8 @@ export function decideMelds(ctx: TurnContext): MeldCandidate[] | null {
   const solution = bestContractSolution(ctx.hand, ctx.contractSets, ctx.contractRuns);
   if (!solution) return null;
 
-  // Easy tier: might hold contract an extra turn by accident
-  if (ctx.tier === 'easy' && Math.random() < 0.2 && ctx.roundNumber < 6) {
+  const profile = getTier(ctx.tier);
+  if (profile.canMissContract && Math.random() < profile.missContractRate && ctx.roundNumber < 6) {
     return null; // "Didn't notice" they could meet contract
   }
 
@@ -93,39 +88,29 @@ export function decideLayOffs(ctx: TurnContext): { card: CardId; meld_id: string
   const opportunities = findLayOffs(ctx.hand, ctx.melds);
   if (opportunities.length === 0) return [];
 
-  // Easy: misses most lay-offs
-  if (ctx.tier === 'easy') {
-    return opportunities.filter(() => Math.random() < 0.15);
-  }
-
-  // Normal: catches ~70%
-  if (ctx.tier === 'normal') {
-    return opportunities.filter(() => Math.random() < 0.7);
-  }
-
-  // Hard/Unfair: catches all
-  return opportunities;
+  return filterLayOffs(getTier(ctx.tier), opportunities);
 }
 
 // ── DISCARD DECISION ──
 export function decideDiscard(ctx: TurnContext): CardId {
-  const ranked = rankDiscards(ctx.hand, ctx.contractSets, ctx.contractRuns);
+  const profile = getTier(ctx.tier);
+  const tableMelds = profile.checksTableMelds ? ctx.melds : [];
+  const ranked = rankDiscards(ctx.hand, ctx.contractSets, ctx.contractRuns, tableMelds);
 
   if (ranked.length === 0) return ctx.hand[0]; // fallback
 
-  // Easy: sometimes discards from own partial melds (accident)
-  if (ctx.tier === 'easy' && shouldMakeMistake(ctx.tier)) {
-    // Pick a random card from the top half (higher points = more likely to discard)
-    const topHalf = ranked.slice(0, Math.ceil(ranked.length / 2));
-    return topHalf[Math.floor(Math.random() * topHalf.length)];
+  // Mistake: pick suboptimal discard
+  if (shouldMakeMistake(profile)) {
+    if (profile.mistakeRate >= 0.4) {
+      // High mistake rate (Easy): random from top half
+      const topHalf = ranked.slice(0, Math.ceil(ranked.length / 2));
+      return topHalf[Math.floor(Math.random() * topHalf.length)];
+    }
+    if (ranked.length > 1) {
+      return ranked[1]; // second-best choice
+    }
   }
 
-  // Normal: usually picks best, sometimes second-best
-  if (ctx.tier === 'normal' && shouldMakeMistake(ctx.tier) && ranked.length > 1) {
-    return ranked[1]; // second-best choice
-  }
-
-  // Hard/Unfair: always best
   return ranked[0];
 }
 
@@ -133,17 +118,13 @@ export function decideDiscard(ctx: TurnContext): CardId {
 export function planTurn(ctx: TurnContext): TurnDecision {
   const drawFrom = decideDrawSource(ctx);
 
-  // Simulate adding the drawn card (we won't know which until we actually draw,
-  // but for discard draw we know the card)
   let handAfterDraw = [...ctx.hand];
   if (drawFrom === 'discard' && ctx.topDiscard) {
     handAfterDraw.push(ctx.topDiscard);
   }
-  // For deck draw, we won't know the card until after the RPC call
 
   const melds = ctx.hasMetContract ? null : decideMelds({ ...ctx, hand: handAfterDraw });
 
-  // After melding, calculate remaining hand
   let handAfterMeld = [...handAfterDraw];
   if (melds) {
     const usedCards = new Set(melds.flatMap(m => m.cards));
@@ -156,16 +137,14 @@ export function planTurn(ctx: TurnContext): TurnDecision {
     hasMetContract: ctx.hasMetContract || melds !== null
   });
 
-  // After lay-offs
   let handAfterLayOffs = [...handAfterMeld];
   for (const lo of layOffs) {
     handAfterLayOffs = handAfterLayOffs.filter(c => c !== lo.card);
   }
 
-  // Pick discard from remaining hand
   const discardCard = handAfterLayOffs.length > 0
     ? decideDiscard({ ...ctx, hand: handAfterLayOffs })
-    : handAfterLayOffs[0]; // shouldn't happen
+    : handAfterLayOffs[0];
 
   return { drawFrom, melds, layOffs, extraMelds: [], discardCard };
 }

@@ -770,6 +770,31 @@
   .hc[draggable="true"]:active { cursor:grabbing; }
   .hc.dragging { opacity:0.4; transform:scale(0.9); }
 
+  .ready-check-bar {
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    min-width:90px; flex-shrink:0;
+  }
+  .btn-ready {
+    font-family:'Courier New',Courier,monospace;
+    font-size:0.85rem; font-weight:700;
+    letter-spacing:0.08em; text-transform:uppercase;
+    padding:10px 20px; border-radius:6px; border:none;
+    background:var(--teal); color:var(--bg);
+    cursor:pointer; transition:all 0.2s;
+    animation: ready-pulse 2s ease-in-out infinite;
+  }
+  .btn-ready:hover { background:#2dd4bf; }
+  .btn-ready:disabled { opacity:0.4; cursor:not-allowed; animation:none; }
+  @keyframes ready-pulse {
+    0%, 100% { box-shadow:0 0 8px rgba(45,212,191,0.3); }
+    50% { box-shadow:0 0 20px rgba(45,212,191,0.6); }
+  }
+  .ready-status {
+    font-family:'Courier New',Courier,monospace;
+    font-size:0.65rem; color:var(--muted);
+    letter-spacing:0.04em;
+  }
+
   .actions-panel {
     display:flex; flex-direction:column; gap:4px;
     min-width:90px;
@@ -1041,6 +1066,30 @@
   }
   .re-deal-btn:hover { background:var(--amber-dk); }
   .re-deal-btn:disabled { opacity:0.4; cursor:not-allowed; }
+
+  .re-bottom-btns {
+    display:flex;
+    gap:8px;
+    justify-content:center;
+    margin-top:4px;
+  }
+
+  .re-pause-btn {
+    margin-top:8px;
+    padding:6px 16px;
+    border:1px solid var(--muted);
+    border-radius:4px;
+    background:transparent;
+    color:var(--muted);
+    font-family:'Courier New',Courier,monospace;
+    font-size:0.7rem;
+    font-weight:700;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    cursor:pointer;
+    transition:border-color 0.15s, color 0.15s;
+  }
+  .re-pause-btn:hover { border-color:var(--amber); color:var(--amber); }
 
   .re-wait-msg {
     margin-top:12px;

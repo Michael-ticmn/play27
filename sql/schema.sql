@@ -35,13 +35,13 @@ drop type if exists game_status cascade;
 
 create type game_status as enum ('waiting', 'active', 'finished');
 create type round_status as enum ('dealing', 'active', 'finished');
-create type turn_phase as enum ('draw', 'action', 'discard', 'buy_window');
+create type turn_phase as enum ('ready_check', 'draw', 'action', 'discard', 'buy_window');
 create type meld_type as enum ('set', 'run');
 create type card_location as enum ('deck', 'discard', 'hand', 'meld');
 create type action_type as enum (
   'draw_deck', 'draw_discard', 'buy_request', 'buy_awarded',
   'contract_met', 'lay_meld', 'lay_off', 'discard', 'round_start', 'round_end',
-  'game_start', 'game_end', 'chat'
+  'game_start', 'game_end', 'chat', 'ready'
 );
 
 -- ============================================================
@@ -124,6 +124,7 @@ create table player_round_state (
   round_id         uuid not null references rounds(id) on delete cascade,
   player_id        uuid not null references profiles(id),
   has_met_contract boolean not null default false,
+  is_ready         boolean not null default false,   -- ready check at round start
   has_drawn        boolean not null default false,  -- reset each turn
   buys_used        int not null default 0,
   score            int,  -- set at round end (points from unmelded cards)

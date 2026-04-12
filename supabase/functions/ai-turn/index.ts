@@ -1,9 +1,10 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { supabase, rpc } from '../_shared/supabase.ts';
-import { randomDelay, preDrawDelay, sleep } from '../_shared/delays.ts';
-import { GameState, CardId } from '../_shared/types.ts';
+import { sleep } from '../_shared/delays.ts';
+import { CardId, cardValue, isJoker } from '../_shared/types.ts';
 import { planTurn } from './strategy.ts';
-import { bestContractSolution, rankDiscards, findLayOffs } from './hand-analyzer.ts';
+import { bestContractSolution, rankDiscards, findLayOffs, evaluatePostContractDraw } from './hand-analyzer.ts';
+import { getTier, randomDelay, preDrawDelay, filterLayOffs } from './tiers.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -40,6 +41,7 @@ serve(async (req) => {
     }
 
     const tier = profile.ai_tier || 'normal';
+    const tp = getTier(tier);
 
     // Get round info to find game_id
     const { data: round } = await supabase
@@ -154,13 +156,43 @@ serve(async (req) => {
 
     const hasMetContract = prs?.has_met_contract || false;
 
+    // Fetch AI's last discard to avoid picking it back up
+    const { data: lastDiscardAction } = await supabase
+      .from('game_actions')
+      .select('details')
+      .eq('round_id', round_id)
+      .eq('player_id', ai_player_id)
+      .eq('action_type', 'discard')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const myLastDiscard: CardId | null = lastDiscardAction?.details?.card || null;
+
+    // Fetch recently bought cards (protected from discard)
+    const { data: recentBuys } = await supabase
+      .from('game_actions')
+      .select('details, created_at')
+      .eq('round_id', round_id)
+      .eq('player_id', ai_player_id)
+      .eq('action_type', 'buy_awarded')
+      .order('created_at', { ascending: false })
+      .limit(2);
+    const boughtCards: CardId[] = (recentBuys || []).flatMap(b => {
+      const cards: CardId[] = [];
+      if (b.details?.discard_card) cards.push(b.details.discard_card);
+      if (b.details?.penalty_card) cards.push(b.details.penalty_card);
+      return cards;
+    }).filter(c => hand.includes(c));
+
     console.log(`[AI ${profile.ai_name} ${tier}] Turn start: ${hand.length} cards, contract: ${contract?.num_sets}S/${contract?.num_runs}R, met: ${hasMetContract}`);
 
     let currentHand = [...hand];
+    let protectedCards: CardId[] = [...boughtCards];
+    const tableMelds = tp.checksTableMelds ? melds : [];
 
     if (!resumingFromAction) {
       // ── PRE-DRAW PAUSE — let humans see the last discard ──
-      await sleep(preDrawDelay(tier));
+      await sleep(preDrawDelay(tp));
 
       // Re-verify it's still this AI's turn (may have changed during delay)
       const { data: roundCheck } = await supabase
@@ -179,10 +211,27 @@ serve(async (req) => {
         );
       }
 
+      // Don't pick up card we just discarded last turn
+      const discardBlocked = topDiscard && myLastDiscard && topDiscard === myLastDiscard;
+
+      // Post-contract draw restriction
+      let postContractBlock = false;
+      if (hasMetContract && topDiscard && !isJoker(topDiscard)) {
+        const isLayOff = evaluatePostContractDraw(topDiscard, melds);
+        if (tp.postContractSpeculation) {
+          // Hard/Unfair: also allow if it completes a set (2+ same value in hand)
+          const dv = cardValue(topDiscard);
+          const sameValCount = hand.filter(c => !isJoker(c) && cardValue(c) === dv).length;
+          postContractBlock = !isLayOff && sameValCount < 2;
+        } else {
+          postContractBlock = !isLayOff;
+        }
+      }
+
       const plan = planTurn({
         hand,
-        topDiscard,
-        discardBought: round.discard_bought,
+        topDiscard: (discardBlocked || postContractBlock) ? null : topDiscard,
+        discardBought: round.discard_bought || discardBlocked || postContractBlock,
         contractSets: contract?.num_sets || 0,
         contractRuns: contract?.num_runs || 0,
         hasMetContract,
@@ -192,8 +241,11 @@ serve(async (req) => {
         roundNumber: round.round_number,
       });
 
+      if (discardBlocked) console.log(`[AI ${profile.ai_name}] Skipping own discard: ${topDiscard}`);
+      if (postContractBlock) console.log(`[AI ${profile.ai_name}] Post-contract: ${topDiscard} not a lay-off, drawing from deck`);
+
       let drawnCard: CardId | null = null;
-      if (plan.drawFrom === 'discard' && topDiscard && !round.discard_bought) {
+      if (plan.drawFrom === 'discard' && topDiscard && !round.discard_bought && !discardBlocked && !postContractBlock) {
         const result = await rpc('draw_from_discard', { p_round_id: round_id, p_acting_as: ai_player_id });
         drawnCard = result as string;
         console.log(`[AI ${profile.ai_name}] Drew from discard: ${drawnCard}`);
@@ -204,6 +256,7 @@ serve(async (req) => {
       }
 
       currentHand = [...hand, drawnCard!];
+      if (drawnCard) protectedCards.push(drawnCard);
     } else {
       console.log(`[AI ${profile.ai_name}] Resuming from action phase with ${hand.length} cards`);
     }
@@ -218,9 +271,12 @@ serve(async (req) => {
         contract?.num_runs || 0
       );
 
-      // Easy tier might miss the opportunity (unless score is high — urgent meld)
-      const urgent = totalScore >= 150;
-      const shouldMeld = solution && (tier !== 'easy' || urgent || Math.random() > 0.2);
+      // Can this tier miss the contract?
+      const urgent = totalScore >= tp.urgentMeldThreshold;
+      let shouldMeld = !!solution;
+      if (solution && tp.canMissContract && !urgent) {
+        shouldMeld = Math.random() > tp.missContractRate;
+      }
 
       if (shouldMeld && solution) {
         console.log(`[AI ${profile.ai_name}] Fulfilling contract with ${solution.length} melds`);
@@ -230,11 +286,9 @@ serve(async (req) => {
           p_acting_as: ai_player_id
         });
 
-        // Remove melded cards from hand
         const usedCards = new Set(solution.flatMap(m => m.cards));
         const handAfterMeld = currentHand.filter(c => !usedCards.has(c));
 
-        // Check if hand is empty (won the round)
         if (handAfterMeld.length === 0) {
           console.log(`[AI ${profile.ai_name}] Won the round! (melded all cards)`);
           return new Response(
@@ -243,43 +297,10 @@ serve(async (req) => {
           );
         }
 
-        // Try lay-offs
-        const layoffs = findLayOffs(handAfterMeld, melds);
-        const filteredLayoffs = tier === 'easy'
-          ? layoffs.filter(() => Math.random() < 0.15)
-          : tier === 'normal'
-            ? layoffs.filter(() => Math.random() < 0.7)
-            : layoffs;
-
-        let handAfterLayoffs = [...handAfterMeld];
-        for (const lo of filteredLayoffs) {
-          if (!handAfterLayoffs.includes(lo.card)) continue;
-          try {
-            await rpc('lay_off_card', {
-              p_round_id: round_id,
-              p_meld_id: lo.meld_id,
-              p_card: lo.card,
-              p_acting_as: ai_player_id
-            });
-            handAfterLayoffs = handAfterLayoffs.filter(c => c !== lo.card);
-            console.log(`[AI ${profile.ai_name}] Laid off ${lo.card}`);
-          } catch (e) {
-            console.log(`[AI ${profile.ai_name}] Lay-off failed: ${e.message}`);
-          }
-
-          if (handAfterLayoffs.length === 0) {
-            console.log(`[AI ${profile.ai_name}] Won the round! (laid off all cards)`);
-            return new Response(
-              JSON.stringify({ status: 'completed', action: 'won_round' }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-        }
-
-        // ── DISCARD PHASE ──
-        await sleep(randomDelay(tier) * 0.4);
-        const discard = rankDiscards(handAfterLayoffs, contract?.num_sets || 0, contract?.num_runs || 0)[0]
-          || handAfterLayoffs[0];
+        // No lay-offs on the same turn as fulfilling contract
+        await sleep(randomDelay(tp) * 0.4);
+        const discard = rankDiscards(handAfterMeld, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, tp.drawnCardProtection)[0]
+          || handAfterMeld[0];
         await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
         console.log(`[AI ${profile.ai_name}] Discarded: ${discard}`);
 
@@ -291,11 +312,7 @@ serve(async (req) => {
     } else {
       // Contract already met — try lay-offs
       const layoffs = findLayOffs(currentHand, melds);
-      const filteredLayoffs = tier === 'easy'
-        ? layoffs.filter(() => Math.random() < 0.15)
-        : tier === 'normal'
-          ? layoffs.filter(() => Math.random() < 0.7)
-          : layoffs;
+      const filteredLayoffs = filterLayOffs(tp, layoffs);
 
       let handAfterLayoffs = [...currentHand];
       for (const lo of filteredLayoffs) {
@@ -322,8 +339,8 @@ serve(async (req) => {
       }
 
       // Discard
-      await sleep(randomDelay(tier));
-      const discard = rankDiscards(handAfterLayoffs, contract?.num_sets || 0, contract?.num_runs || 0)[0]
+      await sleep(randomDelay(tp));
+      const discard = rankDiscards(handAfterLayoffs, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, tp.drawnCardProtection)[0]
         || handAfterLayoffs[0];
       await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
       console.log(`[AI ${profile.ai_name}] Discarded: ${discard}`);
@@ -335,8 +352,8 @@ serve(async (req) => {
     }
 
     // ── Contract not met, no solution found — just discard ──
-    await sleep(randomDelay(tier) * 0.4);
-    const discard = rankDiscards(currentHand, contract?.num_sets || 0, contract?.num_runs || 0)[0]
+    await sleep(randomDelay(tp) * 0.4);
+    const discard = rankDiscards(currentHand, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, tp.drawnCardProtection)[0]
       || currentHand[0];
     await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
     console.log(`[AI ${profile.ai_name}] Discarded (no contract): ${discard}`);
