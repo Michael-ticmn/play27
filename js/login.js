@@ -1,4 +1,4 @@
-import { sb, rpc, ensureProfile, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.12.0';
+import { sb, rpc, ensureProfile, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.12.0';
 import { initTheme } from './theme.js?v=0.12.0';
 
 // ─────────────────────────────────────────────
@@ -167,17 +167,17 @@ async function showLobby() {
 
 async function checkActiveGame() {
   const { data, error } = await rpc('get_active_game');
-  console.log('[checkActiveGame]', data, error);
+  dbg('[checkActiveGame]', data, error);
   const card = document.getElementById('rejoinCard');
 
   if (error || !data) {
-    console.log('[checkActiveGame] no active game');
+    dbg('[checkActiveGame] no active game');
     card.style.display = 'none';
     return;
   }
 
   // Show rejoin card immediately
-  console.log('[checkActiveGame] found active game:', data.code, data.status);
+  dbg('[checkActiveGame] found active game:', data.code, data.status);
   const status = data.status === 'active'
     ? `Round ${data.current_round || '?'} \u00B7 ${data.player_count} players`
     : `Waiting \u00B7 ${data.player_count} players`;

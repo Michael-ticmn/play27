@@ -7,6 +7,10 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 export const APP_VERSION = '0.12.0';
 
+/** Debug logging — auto-enabled on localhost, silent in production */
+export const DEBUG = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+export function dbg(...args) { if (DEBUG) console.log(...args); }
+
 export const SUPABASE_URL = 'https://pxjkedzafalchtxmwvnl.supabase.co';
 export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4amtlZHphZmFsY2h0eG13dm5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDI5MjMsImV4cCI6MjA5MDk3ODkyM30.3EWGJ1R-XzyjDoXHhUQEhldF2rE0Xz0Jui1SmoovPFU';
 
@@ -75,7 +79,7 @@ export async function rpc(fnName, params = {}) {
     if (text) {
       try { result = JSON.parse(text); } catch (e) { result = text; }
     }
-    console.log(`[rpc] ${fnName}`, resp.status, result);
+    if (DEBUG) console.log(`[rpc] ${fnName}`, resp.status, result);
 
     if (!resp.ok) {
       const msg = result?.message || result?.msg || (typeof result === 'string' ? result : JSON.stringify(result)) || 'RPC failed';

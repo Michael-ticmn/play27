@@ -1,4 +1,4 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.12.0';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.12.0';
 import { initTheme } from './theme.js?v=0.12.0';
 
 // ── Constants ──
@@ -154,7 +154,7 @@ async function refreshPlayerList() {
       .order('seat_position'));
   }
 
-  console.log('[refreshPlayerList]', { players, error, gameId });
+  dbg('[refreshPlayerList]', { players, error, gameId });
 
   const list = document.getElementById('playerList');
   list.innerHTML = '';
@@ -299,7 +299,7 @@ async function enterGame() {
 
 function setConnected(connected) {
   if (!gameId || !myUserId) return;
-  console.log('[setConnected]', connected, gameId, myUserId);
+  dbg('[setConnected]', connected, gameId, myUserId);
   // Use sendBeacon for disconnect (beforeunload can't wait for fetch)
   if (!connected) {
     const url = `${SUPABASE_URL}/rest/v1/game_players?game_id=eq.${gameId}&player_id=eq.${myUserId}`;
@@ -339,7 +339,7 @@ async function fetchAndRender() {
   myPlayerInfo = gameState.players?.find(p => p.is_you);
 
   if (isSpectator) {
-    console.log('[spectator]', { lateJoinStatus, round: !!gameState.round, players: gameState.players?.length });
+    dbg('[spectator]', { lateJoinStatus, round: !!gameState.round, players: gameState.players?.length });
     updateSpectatorUI();
   } else {
     // If we were a spectator and now we're not, clean up spectator UI
@@ -435,22 +435,22 @@ function aiDebug(msg, type = '') {
   const cls = type === 'ok' ? 'ai-ok' : type === 'err' ? 'ai-err' : 'ai-act';
   const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
   log.innerHTML = `<span class="${cls}">[${time}] ${msg}</span>`;
-  console.log(`[AI Debug] ${msg}`);
+  dbg(`[AI Debug] ${msg}`);
 }
 
 async function checkAndTriggerAI() {
-  if (!isHost) { console.log('[AI] skip: not host'); return; }
-  if (!gameState?.round) { console.log('[AI] skip: no round'); return; }
-  if (gameState.round.status !== 'active') { console.log('[AI] skip: round status', gameState.round.status); return; }
-  if (aiTriggerInFlight) { console.log('[AI] skip: in flight'); return; }
-  if (aiPaused) { console.log('[AI] skip: paused'); return; }
+  if (!isHost) { dbg('[AI] skip: not host'); return; }
+  if (!gameState?.round) { dbg('[AI] skip: no round'); return; }
+  if (gameState.round.status !== 'active') { dbg('[AI] skip: round status', gameState.round.status); return; }
+  if (aiTriggerInFlight) { dbg('[AI] skip: in flight'); return; }
+  if (aiPaused) { dbg('[AI] skip: paused'); return; }
 
   const round = gameState.round;
   const players = gameState.players || [];
 
   // Check if current turn player is AI (trigger ai-turn)
   const currentPlayer = players.find(p => p.seat_position === round.current_turn_seat);
-  console.log('[AI] seat:', round.current_turn_seat, 'phase:', round.turn_phase, 'is_ai:', currentPlayer?.is_ai, 'player:', currentPlayer?.display_name);
+  dbg('[AI] seat:', round.current_turn_seat, 'phase:', round.turn_phase, 'is_ai:', currentPlayer?.is_ai, 'player:', currentPlayer?.display_name);
   if (currentPlayer?.is_ai && (round.turn_phase === 'draw' || round.turn_phase === 'action')) {
     aiTriggerInFlight = true;
     const name = currentPlayer.display_name;
@@ -633,6 +633,20 @@ function parseCard(code) {
 function cardSuit(code) { return parseInt(code[1]); }
 function cardValue(code) { return parseInt(code.substring(2)); }
 function isJoker(code) { return code[1] === '9'; }
+
+/** Apply face-up card styling to a fly-animation element */
+function styleFlyCardFace(el, cardCode) {
+  const c = parseCard(cardCode);
+  el.style.background = 'white';
+  el.style.display = 'flex';
+  el.style.flexDirection = 'column';
+  el.style.alignItems = 'center';
+  el.style.justifyContent = 'center';
+  el.style.color = c.red ? 'var(--red)' : '#111';
+  el.style.fontWeight = '700';
+  el.style.fontSize = '1.2rem';
+  el.innerHTML = `<span>${c.rank}</span><span style="font-size:1.5rem;">${c.symbol}</span>`;
+}
 
 function renderMiniCard(code) {
   const c = parseCard(code);
@@ -1233,7 +1247,8 @@ function updateCustomOrder(hand) {
 function setHandSort(mode) {
   handSortMode = mode;
   document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById(mode === 'set' ? 'sortSet' : mode === 'run' ? 'sortRun' : 'sortCustom').classList.add('active');
+  const sortBtnIds = { set: 'sortSet', run: 'sortRun', custom: 'sortCustom' };
+  document.getElementById(sortBtnIds[mode]).classList.add('active');
 
   // Set/Run: re-sort customHandOrder, new cards will land at the right after this
   if (mode !== 'custom' && gameState?.my_hand) {
@@ -1425,7 +1440,7 @@ function showRoundEnd() {
   const spectators = (gameState.spectators || []).filter(s => s.status === 'approved' && s.scoring_method);
   function calcPenalty(method, scores) {
     if (!scores || scores.length === 0) return 0;
-    const vals = scores.map(s => s.score).filter(v => v != null);
+    const vals = scores.map(s => s.score).filter(v => v !== null && v !== undefined);
     if (vals.length === 0) return 0;
     const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
     const max = Math.max(...vals);
@@ -1842,17 +1857,7 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
     if (isFaceDown) {
       flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.10.1" style="width:100%;height:100%;border-radius:6px;">';
     } else if (cardCode) {
-      const c = parseCard(cardCode);
-      const color = c.red ? 'var(--red)' : '#111';
-      flyEl.style.background = 'white';
-      flyEl.style.display = 'flex';
-      flyEl.style.flexDirection = 'column';
-      flyEl.style.alignItems = 'center';
-      flyEl.style.justifyContent = 'center';
-      flyEl.style.color = color;
-      flyEl.style.fontWeight = '700';
-      flyEl.style.fontSize = '1.2rem';
-      flyEl.innerHTML = `<span>${c.rank}</span><span style="font-size:1.5rem;">${c.symbol}</span>`;
+      styleFlyCardFace(flyEl, cardCode);
     }
 
     document.body.appendChild(flyEl);
@@ -1868,8 +1873,7 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
     // After fly completes (1.2s), immediately reveal card face
     setTimeout(() => {
       if (cardCode) {
-        const c = parseCard(cardCode);
-        const color = c.red ? 'var(--red)' : '#111';
+        styleFlyCardFace(flyEl, cardCode);
         if (isPenalty) {
           flyEl.style.background = 'linear-gradient(to bottom, rgba(212,80,80,0.15), rgba(212,80,80,0.05)), white';
           flyEl.style.border = '2px solid rgba(212,80,80,0.35)';
@@ -1877,14 +1881,6 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
           flyEl.style.background = 'linear-gradient(to bottom, rgba(212,160,39,0.18), rgba(212,160,39,0.06)), white';
           flyEl.style.border = '2px solid rgba(212,160,39,0.4)';
         }
-        flyEl.style.display = 'flex';
-        flyEl.style.flexDirection = 'column';
-        flyEl.style.alignItems = 'center';
-        flyEl.style.justifyContent = 'center';
-        flyEl.style.color = color;
-        flyEl.style.fontWeight = '700';
-        flyEl.style.fontSize = '1.2rem';
-        flyEl.innerHTML = `<span>${c.rank}</span><span style="font-size:1.5rem;">${c.symbol}</span>`;
       }
 
       // Hold the revealed card for 3s, then fade out
@@ -1912,26 +1908,15 @@ function flyCardToMeld(cardCode, targetEl) {
 
     const sourceRect = sourceEl.getBoundingClientRect();
     const targetRect = targetEl.getBoundingClientRect();
-    const c = parseCard(cardCode);
-    const color = c.red ? 'var(--red)' : '#111';
-
     const flyEl = document.createElement('div');
     flyEl.className = 'fly-card';
     flyEl.style.width = sourceRect.width + 'px';
     flyEl.style.height = sourceRect.height + 'px';
     flyEl.style.left = sourceRect.left + 'px';
     flyEl.style.top = sourceRect.top + 'px';
-    flyEl.style.background = 'white';
-    flyEl.style.display = 'flex';
-    flyEl.style.flexDirection = 'column';
-    flyEl.style.alignItems = 'center';
-    flyEl.style.justifyContent = 'center';
-    flyEl.style.color = color;
-    flyEl.style.fontWeight = '700';
-    flyEl.style.fontSize = '1.2rem';
+    styleFlyCardFace(flyEl, cardCode);
     flyEl.style.border = '2px solid var(--amber)';
     flyEl.style.boxShadow = '0 0 16px rgba(196,164,105,0.6)';
-    flyEl.innerHTML = `<span>${c.rank}</span><span style="font-size:1.5rem;">${c.symbol}</span>`;
 
     document.body.appendChild(flyEl);
 
@@ -2584,16 +2569,20 @@ function startBuyCountdown() {
   }, 250);
 }
 
+// Cached timer DOM refs (queried once, reused 4×/sec)
+let $bcdTime = null;
+let $ringFill = null;
+
 function updateTimer() {
+  if (!$bcdTime) $bcdTime = document.getElementById('bcdTime');
+  if (!$ringFill) $ringFill = document.getElementById('ringFill');
   const display = Math.ceil(countdownVal);
-  const el = document.getElementById('bcdTime');
-  el.textContent = display;
+  $bcdTime.textContent = display;
   const pct = countdownVal / countdownDuration;
-  el.style.color = pct > 0.5 ? 'var(--buy-color)' : 'var(--buy-hot)';
-  const ring = document.getElementById('ringFill');
-  const offset = CIRCUMFERENCE * (1 - (countdownVal / countdownDuration));
-  ring.style.strokeDashoffset = offset;
-  ring.style.stroke = pct > 0.5 ? 'var(--buy-color)' : 'var(--buy-hot)';
+  $bcdTime.style.color = pct > 0.5 ? 'var(--buy-color)' : 'var(--buy-hot)';
+  const offset = CIRCUMFERENCE * (1 - pct);
+  $ringFill.style.strokeDashoffset = offset;
+  $ringFill.style.stroke = pct > 0.5 ? 'var(--buy-color)' : 'var(--buy-hot)';
 }
 
 async function resolveBuyCountdown() {
