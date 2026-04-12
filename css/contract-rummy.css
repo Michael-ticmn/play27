@@ -1463,8 +1463,62 @@
   left: 12px;
 }
 
-/* ── SORT BUTTONS: bigger touch targets on mobile ── */
-@media (max-width: 900px) {
+/* ── MOBILE PORTRAIT: hand header + bottom section ── */
+@media (max-width: 600px) {
+  .you-header {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .you-header-left {
+    width: 100%;
+    justify-content: center;
+  }
+  .you-header-center {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+  }
+  .you-status {
+    font-size: 0.55rem !important;
+  }
+  .sort-btn {
+    padding: 6px 14px;
+    font-size: 0.75rem;
+    min-height: 36px;
+  }
+  .your-section-body {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .standings-panel {
+    width: 100%;
+    order: 2;
+    font-size: 0.55rem;
+  }
+  .hand-wrap {
+    width: 100%;
+    order: 0;
+  }
+  .actions-panel {
+    width: 100%;
+    order: 1;
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    justify-content: center;
+    min-width: 0 !important;
+    gap: 4px;
+  }
+  .actions-panel .btn {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 8px 6px;
+    font-size: 0.65rem;
+  }
+}
+
+/* ── SORT BUTTONS: bigger touch targets on tablet ── */
+@media (min-width: 601px) and (max-width: 900px) {
   .sort-btn {
     padding: 6px 12px;
     font-size: 0.7rem;

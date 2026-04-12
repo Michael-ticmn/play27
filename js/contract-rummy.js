@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.10';
-import { initTheme } from './theme.js?v=0.11.10';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.11';
+import { initTheme } from './theme.js?v=0.11.11';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -920,8 +920,8 @@ function renderHand(round) {
 
   const iMetContract = checkMetContract();
   const contractStr = iMetContract
-    ? 'Contract: <span class="contract-met">\u2714 Met</span>'
-    : 'Contract: <span class="contract-not">\u2718 Not met</span>';
+    ? '<span class="contract-met">\u2714 Contract Met</span>'
+    : '<span class="contract-not">\u2718 Not Met</span>';
 
   document.getElementById('youStatus').innerHTML = contractStr;
 
@@ -2123,9 +2123,10 @@ document.querySelectorAll('[data-setting]').forEach(btn => {
   });
 });
 
-// Apply saved card view settings
-setCardView('handView', localStorage.getItem('play27-handView') || 'default');
-setCardView('meldView', localStorage.getItem('play27-meldView') || 'default');
+// Apply saved card view settings (default to compact on mobile)
+const mobileDefault = window.innerWidth <= 600 ? 'compact' : 'default';
+setCardView('handView', localStorage.getItem('play27-handView') || mobileDefault);
+setCardView('meldView', localStorage.getItem('play27-meldView') || mobileDefault);
 setCardView('sortDir', localStorage.getItem('play27-sortDir') || 'asc');
 
 // Contract pill → rounds dropdown
