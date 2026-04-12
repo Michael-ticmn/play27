@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.14';
-import { initTheme } from './theme.js?v=0.11.14';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.15';
+import { initTheme } from './theme.js?v=0.11.15';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -78,6 +78,15 @@ async function init() {
     return;
   }
 
+  // Always call join_game first — it's security definer so bypasses RLS.
+  // This handles: new join (waiting), rejoin (active), and late-join request (active).
+  const { data: joinData, error: joinErr } = await rpc('join_game', { p_code: gameCode });
+  if (joinErr) {
+    alert(joinErr.message);
+    return;
+  }
+
+  // Now we're in game_players (or have a late-join request), so RLS allows the SELECT
   const { data: game, error: gameErr } = await sb.from('games')
     .select('id, status, created_by, buy_countdown_seconds')
     .eq('code', gameCode)
@@ -94,12 +103,6 @@ async function init() {
   if (game.status === 'waiting') {
     showWaitingRoom(game);
   } else if (game.status === 'active') {
-    // join_game handles both rejoin (existing player) and late-join request (new player)
-    const { error: joinErr } = await rpc('join_game', { p_code: gameCode });
-    if (joinErr) {
-      showToast('Error', joinErr.message);
-      return;
-    }
     await enterGame();
   } else {
     alert('This game has finished.');

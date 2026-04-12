@@ -81,6 +81,7 @@ create policy "Players can view games they are in"
     status = 'waiting'
     or created_by = auth.uid()
     or id in (select game_id from game_players where player_id = auth.uid())
+    or id in (select game_id from late_join_requests where player_id = auth.uid())
   );
 
 create policy "Authenticated users can create games"
