@@ -53,7 +53,7 @@ export function decideDrawSource(ctx: TurnContext): 'deck' | 'discard' {
 
   // Easy tier: mostly draws from deck regardless
   if (ctx.tier === 'easy') {
-    if (eval_.reason === 'enables_contract' || eval_.reason === 'completes_set') {
+    if (eval_.reason === 'enables_contract' || eval_.reason === 'completes_set' || eval_.reason === 'completes_run') {
       return shouldMakeMistake(ctx.tier) ? 'deck' : 'discard';
     }
     return 'deck'; // Easy rarely takes discard
@@ -61,8 +61,8 @@ export function decideDrawSource(ctx: TurnContext): 'deck' | 'discard' {
 
   // Normal+ tiers use the evaluation
   if (eval_.takeDiscard) {
-    // Normal might miss less obvious opportunities
-    if (ctx.tier === 'normal' && eval_.reason === 'builds_pair') {
+    // Normal might miss less obvious opportunities (partial melds)
+    if (ctx.tier === 'normal' && (eval_.reason === 'builds_pair' || eval_.reason === 'extends_run')) {
       return shouldMakeMistake(ctx.tier) ? 'deck' : 'discard';
     }
     return 'discard';

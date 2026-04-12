@@ -55,10 +55,10 @@ serve(async (req) => {
       );
     }
 
-    // Verify it's this AI's turn
+    // Verify it's this AI's turn and get score
     const { data: gp } = await supabase
       .from('game_players')
-      .select('seat_position')
+      .select('seat_position, total_score')
       .eq('game_id', round.game_id)
       .eq('player_id', ai_player_id)
       .single();
@@ -204,8 +204,9 @@ serve(async (req) => {
         contract?.num_runs || 0
       );
 
-      // Easy tier might miss the opportunity
-      const shouldMeld = solution && (tier !== 'easy' || Math.random() > 0.2);
+      // Easy tier might miss the opportunity (unless score is high — urgent meld)
+      const urgent = (gp.total_score || 0) >= 150;
+      const shouldMeld = solution && (tier !== 'easy' || urgent || Math.random() > 0.2);
 
       if (shouldMeld && solution) {
         console.log(`[AI ${profile.ai_name}] Fulfilling contract with ${solution.length} melds`);

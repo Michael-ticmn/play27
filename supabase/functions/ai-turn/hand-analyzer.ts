@@ -31,12 +31,23 @@ export function findPossibleSets(hand: CardId[]): { cards: CardId[]; value: numb
   const results: { cards: CardId[]; value: number }[] = [];
 
   for (const [value, cards] of byValue) {
-    // Can form a set with 2+ natural cards + jokers
+    // Enumerate all C(n,3) combinations so the backtracker can try each allocation
     if (cards.length >= 3) {
-      results.push({ cards: cards.slice(0, 3), value });
+      for (let a = 0; a < cards.length - 2; a++)
+        for (let b = a + 1; b < cards.length - 1; b++)
+          for (let c = b + 1; c < cards.length; c++)
+            results.push({ cards: [cards[a], cards[b], cards[c]], value });
     }
+    // 2 natural + 1 joker: enumerate all C(n,2) pairs
     if (cards.length >= 2 && jokers.length >= 1) {
-      results.push({ cards: [...cards.slice(0, 2), jokers[0]], value });
+      for (let a = 0; a < cards.length - 1; a++)
+        for (let b = a + 1; b < cards.length; b++)
+          results.push({ cards: [cards[a], cards[b], jokers[0]], value });
+    }
+    // 1 natural + 2 jokers
+    if (cards.length >= 1 && jokers.length >= 2) {
+      for (const c of cards)
+        results.push({ cards: [c, jokers[0], jokers[1]], value });
     }
   }
   return results;
@@ -204,40 +215,100 @@ export function bestContractSolution(
   return best;
 }
 
+// ── Contract-aware card relevance scoring ──
+// Score how much a card contributes to the needed contract type.
+// Higher score = more valuable to keep.
+function cardContractRelevance(
+  card: CardId,
+  hand: CardId[],
+  requiredSets: number,
+  requiredRuns: number
+): number {
+  if (isJoker(card)) return 50; // jokers always valuable
+
+  let score = 0;
+  const cv = cardValue(card);
+  const cs = cardSuit(card);
+
+  // ── Set relevance (only if contract needs sets) ──
+  if (requiredSets > 0) {
+    const sameValue = hand.filter(c => !isJoker(c) && cardValue(c) === cv && c !== card);
+    if (sameValue.length >= 2) score += 30; // completes a set
+    else if (sameValue.length === 1) score += 15; // building a pair
+  }
+
+  // ── Run relevance (only if contract needs runs) ──
+  if (requiredRuns > 0) {
+    const sameSuit = hand.filter(c => !isJoker(c) && cardSuit(c) === cs && c !== card)
+      .map(c => cardValue(c));
+
+    // Count adjacent cards in this suit (sequential connectivity)
+    let adjCount = 0;
+    for (const v of sameSuit) {
+      if (Math.abs(v - cv) === 1) adjCount++;
+      else if (Math.abs(v - cv) === 2) adjCount += 0.3; // gap-1, joker could fill
+    }
+    // Ace-low: check if ace connects to 2 or 3
+    if (cv === 14) {
+      if (sameSuit.includes(2)) adjCount++;
+      if (sameSuit.includes(3)) adjCount += 0.3;
+    } else if (cv === 2 && sameSuit.includes(14)) {
+      adjCount++;
+    } else if (cv === 3 && sameSuit.includes(14)) {
+      adjCount += 0.3;
+    }
+
+    if (adjCount >= 2) score += 30; // part of a 3+ card sequence
+    else if (adjCount >= 1) score += 15; // connected pair in suit
+  }
+
+  return score;
+}
+
 // ── Discard evaluator: which card hurts least to discard? ──
 export function rankDiscards(
   hand: CardId[],
   requiredSets: number,
   requiredRuns: number
 ): CardId[] {
-  // Score each card by how much removing it hurts contract progress
   const scored = hand.map(card => {
+    // Check if removing this card breaks an existing contract solution
     const without = hand.filter(c => c !== card);
-    const solutions = solveContract(without, requiredSets, requiredRuns);
-    // If removing this card still allows contract, it's a good discard
-    const canStillMeet = solutions.length > 0;
-    // Higher deadwood = worse card to keep = better to discard
+    const canStillMeet = solveContract(without, requiredSets, requiredRuns).length > 0;
+
+    // Contract-aware relevance (how much does this card help the needed contract?)
+    const relevance = cardContractRelevance(card, hand, requiredSets, requiredRuns);
+
+    // Higher deadwood points = better to discard (if equally irrelevant)
     const pts = cardPoints(card);
+
+    // Score: lower = better to discard
+    // Cards that break contract: strongly keep (1000)
+    // Then by contract relevance (0-50)
+    // Then prefer discarding high-point cards (subtract pts)
     return {
       card,
-      canStillMeet,
-      points: pts,
-      // Priority: discard cards that don't break contract, highest points first
-      score: (canStillMeet ? 0 : 1000) - pts
+      score: (canStillMeet ? 0 : 1000) + relevance - pts
     };
   });
 
+  // Sort ascending: lowest score = best discard candidate
   scored.sort((a, b) => a.score - b.score);
   return scored.map(s => s.card);
 }
 
 // ── Draw evaluator: should AI take discard or draw from deck? ──
+// Contract-first: only pick up cards that help the needed contract type.
 export function evaluateDiscardDraw(
   hand: CardId[],
   discardCard: CardId,
   requiredSets: number,
   requiredRuns: number
 ): { takeDiscard: boolean; reason: string } {
+  if (isJoker(discardCard)) {
+    return { takeDiscard: true, reason: 'joker' };
+  }
+
   // Test: can we meet contract with the discard card?
   const withDiscard = [...hand, discardCard];
   const solutionsWith = solveContract(withDiscard, requiredSets, requiredRuns);
@@ -248,39 +319,61 @@ export function evaluateDiscardDraw(
     return { takeDiscard: true, reason: 'enables_contract' };
   }
 
-  // Check if card fits into partial melds
-  const byValue = groupByValue(hand);
-  const bySuit = groupBySuit(hand);
   const dv = cardValue(discardCard);
   const ds = cardSuit(discardCard);
 
-  // Completes a set (2 existing + this = 3)
-  const sameValue = byValue.get(dv) || [];
-  if (sameValue.length >= 2) {
-    return { takeDiscard: true, reason: 'completes_set' };
-  }
+  // ── Pure run contract: only pick up cards that extend suited sequences ──
+  if (requiredSets === 0 && requiredRuns > 0) {
+    const sameSuit = hand.filter(c => !isJoker(c) && cardSuit(c) === ds)
+      .map(c => cardValue(c)).sort((a, b) => a - b);
 
-  // Extends a run (adjacent in suit)
-  const sameSuit = (bySuit.get(ds) || []).map(c => cardValue(c)).sort((a, b) => a - b);
-  for (const v of sameSuit) {
-    if (Math.abs(v - dv) === 1) {
-      // Check if this creates 3+ consecutive
-      const allVals = [...sameSuit, dv].sort((a, b) => a - b);
-      let maxConsec = 1, cur = 1;
-      for (let i = 1; i < allVals.length; i++) {
-        if (allVals[i] === allVals[i-1] + 1) { cur++; maxConsec = Math.max(maxConsec, cur); }
-        else cur = 1;
-      }
-      if (maxConsec >= 3) {
-        return { takeDiscard: true, reason: 'extends_run' };
+    // Check if card extends or fills a run in this suit
+    const allVals = [...sameSuit, dv].sort((a, b) => a - b);
+    // Also check ace-low: treat 14 as 1 if relevant
+    let maxConsec = 1, cur = 1;
+    for (let i = 1; i < allVals.length; i++) {
+      if (allVals[i] === allVals[i - 1] + 1) { cur++; maxConsec = Math.max(maxConsec, cur); }
+      else if (allVals[i] !== allVals[i - 1]) cur = 1;
+    }
+    // Ace-low check
+    if (allVals.includes(14) && allVals.includes(2)) {
+      const lowVals = allVals.map(v => v === 14 ? 1 : v).sort((a, b) => a - b);
+      let lc = 1;
+      for (let i = 1; i < lowVals.length; i++) {
+        if (lowVals[i] === lowVals[i - 1] + 1) { lc++; maxConsec = Math.max(maxConsec, lc); }
+        else if (lowVals[i] !== lowVals[i - 1]) lc = 1;
       }
     }
+
+    if (maxConsec >= 3) return { takeDiscard: true, reason: 'completes_run' };
+    if (maxConsec >= 2 && sameSuit.length >= 1) return { takeDiscard: true, reason: 'extends_run' };
+    return { takeDiscard: false, reason: 'not_useful_for_runs' };
   }
 
-  // Adds to a pair (building toward a set)
-  if (sameValue.length >= 1) {
-    return { takeDiscard: true, reason: 'builds_pair' };
+  // ── Pure set contract: only pick up cards that match by rank ──
+  if (requiredSets > 0 && requiredRuns === 0) {
+    const sameValue = hand.filter(c => !isJoker(c) && cardValue(c) === dv);
+    if (sameValue.length >= 2) return { takeDiscard: true, reason: 'completes_set' };
+    if (sameValue.length >= 1) return { takeDiscard: true, reason: 'builds_pair' };
+    return { takeDiscard: false, reason: 'not_useful_for_sets' };
   }
+
+  // ── Mixed contract: evaluate both dimensions ──
+  const sameValue = hand.filter(c => !isJoker(c) && cardValue(c) === dv);
+  if (sameValue.length >= 2) return { takeDiscard: true, reason: 'completes_set' };
+
+  const sameSuit = hand.filter(c => !isJoker(c) && cardSuit(c) === ds)
+    .map(c => cardValue(c)).sort((a, b) => a - b);
+  const allVals = [...sameSuit, dv].sort((a, b) => a - b);
+  let maxConsec = 1, cur = 1;
+  for (let i = 1; i < allVals.length; i++) {
+    if (allVals[i] === allVals[i - 1] + 1) { cur++; maxConsec = Math.max(maxConsec, cur); }
+    else if (allVals[i] !== allVals[i - 1]) cur = 1;
+  }
+  if (maxConsec >= 3) return { takeDiscard: true, reason: 'completes_run' };
+
+  if (sameValue.length >= 1) return { takeDiscard: true, reason: 'builds_pair' };
+  if (maxConsec >= 2 && sameSuit.length >= 1) return { takeDiscard: true, reason: 'extends_run' };
 
   return { takeDiscard: false, reason: 'not_useful' };
 }

@@ -51,6 +51,7 @@ let stagedMelds = [];
 let stagingOpen = false;
 let logOpen = false;
 let animatingDraw = false;
+let lastRoundId = null;
 let recentMeldCards = new Set(); // cards added to melds this turn, gold highlight
 let isSpectator = false;
 let isHost = false;
@@ -352,6 +353,15 @@ async function fetchAndRender() {
     showLateJoinRequestModal(gameState.pending_join_requests[0]);
   }
 
+  // Round changed — reset staging, selections, and sort state
+  const curRoundId = gameState.round?.id || null;
+  if (lastRoundId && curRoundId && curRoundId !== lastRoundId) {
+    if (stagingOpen) closeMeldStaging();
+    selectedCards.clear();
+    recentMeldCards.clear();
+  }
+  lastRoundId = curRoundId;
+
   if (showAiHands) fetchAiHands().then(() => render());
   render();
   checkAndTriggerAI();
@@ -368,6 +378,7 @@ window.toggleAiPause = function() {
   const btn = document.getElementById('aiPauseBtn');
   if (btn) btn.textContent = aiPaused ? '▶ Start' : '⏸ Pause';
   aiDebug(aiPaused ? 'AI PAUSED' : 'AI RESUMED', aiPaused ? 'err' : 'ok');
+  if (!aiPaused) fetchAndRender();
 };
 
 window.toggleShowAiHands = async function() {
@@ -385,7 +396,7 @@ window.toggleShowAiHands = async function() {
 async function fetchAiHands() {
   if (!gameState?.round) return;
   try {
-    const { data, error } = await supabase.rpc('peek_ai_hands', { p_round_id: gameState.round.id });
+    const { data, error } = await sb.rpc('peek_ai_hands', { p_round_id: gameState.round.id });
     if (error) { console.error('peek_ai_hands error:', error); return; }
     aiHandsCache = {};
     for (const ai of (data || [])) {
@@ -418,7 +429,7 @@ async function checkAndTriggerAI() {
   // Check if current turn player is AI (trigger ai-turn)
   const currentPlayer = players.find(p => p.seat_position === round.current_turn_seat);
   console.log('[AI] seat:', round.current_turn_seat, 'phase:', round.turn_phase, 'is_ai:', currentPlayer?.is_ai, 'player:', currentPlayer?.display_name);
-  if (currentPlayer?.is_ai && (round.turn_phase === 'draw' || round.turn_phase === 'action')) {
+  if (currentPlayer?.is_ai && round.turn_phase === 'draw') {
     aiTriggerInFlight = true;
     const name = currentPlayer.display_name;
     aiDebug(`${name} thinking... (draw phase)`);
@@ -491,14 +502,16 @@ async function checkAiDealer() {
   const dealer = (gameState.players || []).find(p => p.seat_position === dealerSeat);
 
   if (dealer?.is_ai) {
-    // AI dealer should deal next round after a short delay
+    // AI dealer — wait 10s so humans can review the round results
+    aiDebug(`${dealer.display_name} dealing next round in 10s...`);
     setTimeout(async () => {
       try {
         await rpc('deal_next_round', { p_game_id: gameId, p_acting_as: dealer.player_id });
+        aiDebug(`${dealer.display_name} dealt round ${nextRound}`, 'ok');
       } catch (e) {
         console.error('[AI deal error]', e);
       }
-    }, 2000);
+    }, 10000);
   }
 }
 
@@ -733,22 +746,23 @@ function renderTopBar(round) {
 }
 
 // ── Seat Positions ──
-// Positions opponents around the top half of the table like a real card table.
-// Returns [{left%, top%}] for each opponent based on total count.
+// Positions opponents at the angular center of their equal slice of the 240°
+// arc (matching the table-line dividers). User owns 120° at the bottom.
 function getSeatPositions(count) {
-  // Distribute seats in an arc across the top of the table
-  // Single opponent goes top-center, multiple spread in an arc
   if (count === 1) return [{ left: 50, top: 5 }];
-  if (count === 2) return [{ left: 30, top: 5 }, { left: 70, top: 5 }];
-  if (count === 3) return [{ left: 15, top: 20 }, { left: 50, top: 3 }, { left: 85, top: 20 }];
-  if (count === 4) return [{ left: 10, top: 28 }, { left: 33, top: 5 }, { left: 67, top: 5 }, { left: 90, top: 28 }];
-  if (count === 5) return [{ left: 8, top: 32 }, { left: 27, top: 8 }, { left: 50, top: 2 }, { left: 73, top: 8 }, { left: 92, top: 32 }];
-  if (count === 6) return [{ left: 6, top: 36 }, { left: 22, top: 12 }, { left: 40, top: 2 }, { left: 60, top: 2 }, { left: 78, top: 12 }, { left: 94, top: 36 }];
-  // 7 opponents (8 players)
-  return [
-    { left: 5, top: 40 }, { left: 18, top: 18 }, { left: 33, top: 4 }, { left: 50, top: 1 },
-    { left: 67, top: 4 }, { left: 82, top: 18 }, { left: 95, top: 40 }
-  ];
+  const positions = [];
+  const rightBound = 150; // user zone edge (screen-coords, 90° = bottom)
+  const sliceSize = 240 / count;
+  const cx = 50, cy = 38; // center of the opponent arc (% coords)
+  const rx = 44, ry = 34; // ellipse radii
+  for (let i = 0; i < count; i++) {
+    const angleDeg = rightBound + sliceSize * (i + 0.5); // center of slice
+    const angleRad = (angleDeg * Math.PI) / 180;
+    const left = Math.round(cx + rx * Math.cos(angleRad));
+    const top  = Math.round(cy + ry * Math.sin(angleRad));
+    positions.push({ left: Math.max(4, Math.min(96, left)), top: Math.max(1, top) });
+  }
+  return positions;
 }
 
 function renderTableLines(playerCount) {
@@ -1700,12 +1714,15 @@ async function handleDrawDiscard() {
   }
   lastDrawnCard = data;
   lastPenaltyCard = null;
+  // Immediately hide the discard face so it doesn't ghost after draw
+  if (discardEl) discardEl.style.visibility = 'hidden';
   if (sourceRect) {
     animatingDraw = true;
     await flyCardToHand(sourceRect, data, false, false);
-    animatingDraw = false;
   }
+  if (discardEl) discardEl.style.visibility = '';
   await fetchAndRender();
+  animatingDraw = false;
 }
 
 function handleLayMeld() {
