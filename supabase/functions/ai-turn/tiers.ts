@@ -17,11 +17,9 @@ export interface TierProfile {
 
   // ── Draw behavior ──
   speculativePickups: boolean;      // takes discard to build partials (not just completions)
+  minSpeculativeMatch: number;      // minimum same-value cards in hand before speculating (2 = need pair already)
   contractWeaknessAware: boolean;   // biases speculation toward weaker contract dimension
   postContractSpeculation: boolean; // speculates on discard after contract is met (not just lay-offs)
-
-  // ── Discard protection ──
-  drawnCardProtection: number;      // penalty score for discarding card drawn this turn
 
   // ── Contract detection ──
   canMissContract: boolean;   // can "not notice" a completable contract
@@ -41,10 +39,9 @@ export const TIERS: Record<string, TierProfile> = {
     checksTableMelds:        false,
 
     speculativePickups:      false,
+    minSpeculativeMatch:     0,
     contractWeaknessAware:   false,
     postContractSpeculation: false,
-
-    drawnCardProtection:     200,
 
     canMissContract:         true,
     missContractRate:        0.2,
@@ -62,10 +59,9 @@ export const TIERS: Record<string, TierProfile> = {
     checksTableMelds:        true,
 
     speculativePickups:      true,
+    minSpeculativeMatch:     2,
     contractWeaknessAware:   true,
     postContractSpeculation: false,
-
-    drawnCardProtection:     200,
 
     canMissContract:         false,
     missContractRate:        0,
@@ -83,10 +79,9 @@ export const TIERS: Record<string, TierProfile> = {
     checksTableMelds:        true,
 
     speculativePickups:      true,
+    minSpeculativeMatch:     1,
     contractWeaknessAware:   true,
     postContractSpeculation: true,
-
-    drawnCardProtection:     5000,
 
     canMissContract:         false,
     missContractRate:        0,
@@ -104,10 +99,9 @@ export const TIERS: Record<string, TierProfile> = {
     checksTableMelds:        true,
 
     speculativePickups:      true,
+    minSpeculativeMatch:     1,
     contractWeaknessAware:   true,
     postContractSpeculation: true,
-
-    drawnCardProtection:     5000,
 
     canMissContract:         false,
     missContractRate:        0,

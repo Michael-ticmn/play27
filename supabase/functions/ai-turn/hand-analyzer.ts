@@ -275,15 +275,25 @@ export function rankDiscards(
   requiredRuns: number,
   tableMelds: { id: string; meld_type: string; cards: CardId[] }[] = [],
   protectedCards: CardId[] = [],
-  protectionPenalty: number = 200
+  hasMetContract: boolean = false
 ): CardId[] {
   const protectedSet = new Set(protectedCards);
-  const scored = hand.map(card => {
-    // Same-turn protection: card drawn or bought this turn
-    if (protectedSet.has(card)) {
-      return { card, score: protectionPenalty };
-    }
 
+  // Hard-filter: protected cards (drawn/bought this turn) are ineligible
+  let candidates = hand.filter(c => !protectedSet.has(c));
+  // If ALL cards are protected, fall back to full hand (must discard something)
+  if (candidates.length === 0) candidates = [...hand];
+
+  // Post-contract: also hard-filter cards playable as lay-offs on visible melds
+  if (hasMetContract && tableMelds.length > 0) {
+    const nonLayoffCandidates = candidates.filter(c =>
+      !tableMelds.some(m => canLayOff(c, m))
+    );
+    // Only apply if it leaves at least one candidate
+    if (nonLayoffCandidates.length > 0) candidates = nonLayoffCandidates;
+  }
+
+  const scored = candidates.map(card => {
     // Check if removing this card breaks an existing contract solution
     const without = hand.filter(c => c !== card);
     const canStillMeet = solveContract(without, requiredSets, requiredRuns).length > 0;
@@ -298,7 +308,7 @@ export function rankDiscards(
     let feedsPenalty = 0;
     for (const meld of tableMelds) {
       if (canLayOff(card, meld)) {
-        feedsPenalty = 40; // strong deterrent: avoid giving opponents free lay-offs
+        feedsPenalty = 40; // deterrent: avoid giving opponents free lay-offs
         break;
       }
     }

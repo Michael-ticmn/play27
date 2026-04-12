@@ -1,4 +1,4 @@
-import { CardId } from '../_shared/types.ts';
+import { CardId, cardValue, cardSuit, isJoker } from '../_shared/types.ts';
 import {
   bestContractSolution,
   rankDiscards,
@@ -49,6 +49,21 @@ export function decideDrawSource(ctx: TurnContext): 'deck' | 'discard' {
 
   // Speculative tiers: use the full evaluation
   if (eval_.takeDiscard) {
+    // Enforce minimum match threshold for speculative pickups
+    if (profile.minSpeculativeMatch > 1 && ctx.topDiscard) {
+      const dv = cardValue(ctx.topDiscard);
+      const ds = cardSuit(ctx.topDiscard);
+      if (eval_.reason === 'builds_pair') {
+        const sameVal = ctx.hand.filter(c => !isJoker(c) && cardValue(c) === dv).length;
+        if (sameVal < profile.minSpeculativeMatch) return 'deck';
+      }
+      if (eval_.reason === 'extends_run') {
+        const sameSuitAdj = ctx.hand.filter(c =>
+          !isJoker(c) && cardSuit(c) === ds && Math.abs(cardValue(c) - dv) <= 1
+        ).length;
+        if (sameSuitAdj < profile.minSpeculativeMatch) return 'deck';
+      }
+    }
     return 'discard';
   }
 
