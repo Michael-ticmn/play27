@@ -1817,6 +1817,17 @@ begin
     select count(*) into v_approved_count
       from late_join_requests where game_id = p_game_id and status = 'approved';
     v_result := v_result || jsonb_build_object('approved_join_count', v_approved_count);
+
+    -- Spectators list (visible to all players)
+    v_result := v_result || jsonb_build_object('spectators', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'display_name', p.display_name,
+        'status', ljr.status
+      ) order by ljr.created_at)
+      from late_join_requests ljr
+      join profiles p on p.id = ljr.player_id
+      where ljr.game_id = p_game_id and ljr.status in ('pending', 'approved', 'spectating')
+    ), '[]'::jsonb));
   end;
 
   return v_result;

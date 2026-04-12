@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.17';
-import { initTheme } from './theme.js?v=0.11.17';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.18';
+import { initTheme } from './theme.js?v=0.11.18';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -807,7 +807,16 @@ function renderDeckDiscard(round) {
   const turnName = turnPlayer ? (turnPlayer.is_you ? 'Your' : turnPlayer.display_name + "'s") : '???';
   const connectedCount = gameState.players.filter(p => p.is_connected).length;
 
-  document.getElementById('statusText').textContent = `${turnName} turn \u00B7 ${connectedCount} online`;
+  let statusStr = `${turnName} turn \u00B7 ${connectedCount} online`;
+  const spectators = gameState.spectators || [];
+  if (spectators.length > 0) {
+    const specNames = spectators.map(s => {
+      if (s.status === 'approved') return `${s.display_name} (joining next round)`;
+      return `${s.display_name} (watching)`;
+    });
+    statusStr += ` \u00B7 ${specNames.join(', ')}`;
+  }
+  document.getElementById('statusText').textContent = statusStr;
 
   // Green glow on deck when it's your draw phase
   const deckWrap = document.getElementById('deckWrap');
