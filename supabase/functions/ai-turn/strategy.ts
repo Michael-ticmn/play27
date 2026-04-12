@@ -2,7 +2,9 @@ import { CardId, cardValue, cardSuit, isJoker } from '../_shared/types.ts';
 import {
   bestContractSolution,
   rankDiscards,
+  rankDiscardsRound7,
   evaluateDiscardDraw,
+  evaluateRound7Draw,
   findLayOffs,
   helpsWeakerContract,
   MeldCandidate
@@ -37,6 +39,16 @@ export function decideDrawSource(ctx: TurnContext): 'deck' | 'discard' {
   if (ctx.discardBought || !ctx.topDiscard) return 'deck';
 
   const profile = getTier(ctx.tier);
+
+  // Round 7: adjacency-based speculative pickups (all tiers)
+  if (ctx.mustMeldAll) {
+    const r7 = evaluateRound7Draw(ctx.hand, ctx.topDiscard);
+    if (r7.takeDiscard) {
+      return shouldMakeMistake(profile, ctx.totalScore) ? 'deck' : 'discard';
+    }
+    return 'deck';
+  }
+
   const eval_ = evaluateDiscardDraw(
     ctx.hand, ctx.topDiscard, ctx.contractSets, ctx.contractRuns
   );

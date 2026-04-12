@@ -470,6 +470,113 @@ export function helpsWeakerContract(
   return true;
 }
 
+// ── Round 7 draw evaluator: "fits adjacent to an existing run" ──
+export function evaluateRound7Draw(
+  hand: CardId[],
+  discardCard: CardId
+): { takeDiscard: boolean; reason: string } {
+  if (isJoker(discardCard)) return { takeDiscard: true, reason: 'joker' };
+
+  // Check if adding this card enables a must-meld-all solution
+  const withDiscard = [...hand, discardCard];
+  const solsWith = solveContract(withDiscard, 0, 3, 3, true);
+  const solsWithout = solveContract(hand, 0, 3, 3, true);
+  if (solsWith.length > 0 && solsWithout.length === 0) {
+    return { takeDiscard: true, reason: 'enables_contract' };
+  }
+
+  const ds = cardSuit(discardCard);
+  const dv = cardValue(discardCard);
+
+  // "Speculative" for round 7 = fits adjacent to any same-suit card in hand
+  const sameSuit = hand.filter(c => !isJoker(c) && cardSuit(c) === ds);
+  const adjacent = sameSuit.some(c => {
+    const diff = Math.abs(cardValue(c) - dv);
+    if (diff === 1) return true;
+    // Ace-low adjacency: A(14) adjacent to 2
+    if (dv === 14 && cardValue(c) === 2) return true;
+    if (dv === 2 && cardValue(c) === 14) return true;
+    return false;
+  });
+
+  if (adjacent) return { takeDiscard: true, reason: 'run_adjacent' };
+
+  // Gap of 2 (joker could fill) — still useful
+  const nearGap = sameSuit.some(c => {
+    const diff = Math.abs(cardValue(c) - dv);
+    return diff === 2;
+  });
+  if (nearGap && hand.some(c => isJoker(c))) {
+    return { takeDiscard: true, reason: 'run_gap_fill' };
+  }
+
+  return { takeDiscard: false, reason: 'not_adjacent' };
+}
+
+// ── Round 7 discard evaluator: score by solvability ──
+// For each candidate, count how many valid 3-run must-meld-all solutions exist
+// with vs without the card. The card whose removal keeps the most solutions is best discard.
+export function rankDiscardsRound7(
+  hand: CardId[],
+  tableMelds: { id: string; meld_type: string; cards: CardId[] }[] = [],
+  protectedCards: CardId[] = []
+): CardId[] {
+  const protectedSet = new Set(protectedCards);
+  let candidates = hand.filter(c => !protectedSet.has(c));
+  if (candidates.length === 0) candidates = [...hand];
+
+  const scored = candidates.map(card => {
+    const without = hand.filter(c => c !== card);
+    // Count solutions with must-meld-all (remaining must be 0 after removing 1 card)
+    const solutions = solveContract(without, 0, 3, 3, true).length;
+
+    // Feed penalty for table-aware tiers
+    let feedsPenalty = 0;
+    for (const meld of tableMelds) {
+      if (canLayOff(card, meld)) { feedsPenalty = -20; break; } // slight deterrent
+    }
+
+    const pts = cardPoints(card);
+
+    // Higher solutions = better to discard this card (hand stays solvable without it)
+    // Tiebreak: prefer discarding high-point cards
+    return {
+      card,
+      score: -(solutions * 100) + feedsPenalty - pts
+    };
+  });
+
+  scored.sort((a, b) => a.score - b.score);
+  return scored.map(s => s.card);
+}
+
+// ── Round 7 buy evaluator: is the discard a run connector? ──
+export function evaluateRound7Buy(
+  hand: CardId[],
+  discardCard: CardId
+): number {
+  if (isJoker(discardCard)) return 100;
+
+  const ds = cardSuit(discardCard);
+  const dv = cardValue(discardCard);
+  let score = 0;
+
+  const sameSuit = hand.filter(c => !isJoker(c) && cardSuit(c) === ds);
+  const vals = sameSuit.map(c => cardValue(c));
+
+  // Direct adjacency — extends or connects a run
+  const adjCount = vals.filter(v => Math.abs(v - dv) === 1 ||
+    (dv === 14 && v === 2) || (dv === 2 && v === 14)).length;
+  if (adjCount >= 2) score += 90;  // fills a gap between two cards
+  else if (adjCount >= 1) score += 60;  // extends one end
+
+  // Gap of 2 with joker available
+  const gapCount = vals.filter(v => Math.abs(v - dv) === 2).length;
+  if (gapCount > 0 && hand.some(c => isJoker(c))) score += 40;
+
+  return score;
+}
+
 // ── Draw evaluator: should AI take discard or draw from deck? ──
 // Contract-first: only pick up cards that help the needed contract type.
 export function evaluateDiscardDraw(

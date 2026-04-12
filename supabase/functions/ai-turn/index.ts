@@ -3,7 +3,7 @@ import { supabase, rpc } from '../_shared/supabase.ts';
 import { sleep } from '../_shared/delays.ts';
 import { CardId, cardValue, isJoker } from '../_shared/types.ts';
 import { planTurn } from './strategy.ts';
-import { bestContractSolution, rankDiscards, findLayOffs, evaluatePostContractDraw } from './hand-analyzer.ts';
+import { bestContractSolution, rankDiscards, rankDiscardsRound7, findLayOffs, evaluatePostContractDraw } from './hand-analyzer.ts';
 import { getTier, randomDelay, preDrawDelay, filterLayOffs } from './tiers.ts';
 
 const corsHeaders = {
@@ -329,8 +329,10 @@ serve(async (req) => {
 
         // No lay-offs on the same turn as fulfilling contract
         await sleep(randomDelay(tp) * 0.4);
-        const discard = rankDiscards(handAfterMeld, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, true)[0]
-          || handAfterMeld[0];
+        const discard = (mustMeldAll
+          ? rankDiscardsRound7(handAfterMeld, tableMelds, protectedCards)
+          : rankDiscards(handAfterMeld, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, true)
+        )[0] || handAfterMeld[0];
         await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
         console.log(`[AI ${profile.ai_name}] Discarded: ${discard}`);
 
@@ -370,8 +372,10 @@ serve(async (req) => {
 
       // Discard
       await sleep(randomDelay(tp));
-      const discard = rankDiscards(handAfterLayoffs, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract)[0]
-        || handAfterLayoffs[0];
+      const discard = (mustMeldAll
+        ? rankDiscardsRound7(handAfterLayoffs, tableMelds, protectedCards)
+        : rankDiscards(handAfterLayoffs, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract)
+      )[0] || handAfterLayoffs[0];
       await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
       console.log(`[AI ${profile.ai_name}] Discarded: ${discard}`);
 
@@ -383,8 +387,10 @@ serve(async (req) => {
 
     // ── Contract not met, no solution found — just discard ──
     await sleep(randomDelay(tp) * 0.4);
-    const discard = rankDiscards(currentHand, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract)[0]
-      || currentHand[0];
+    const discard = (mustMeldAll
+      ? rankDiscardsRound7(currentHand, tableMelds, protectedCards)
+      : rankDiscards(currentHand, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract)
+    )[0] || currentHand[0];
     await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
     console.log(`[AI ${profile.ai_name}] Discarded (no contract): ${discard}`);
 

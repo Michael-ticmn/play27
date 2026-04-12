@@ -2,7 +2,7 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { supabase, rpc } from '../_shared/supabase.ts';
 import { sleep, BUY_TIMING } from '../_shared/delays.ts';
 import { CardId, cardPoints, cardValue, isJoker } from '../_shared/types.ts';
-import { groupByValue, groupBySuit } from '../ai-turn/hand-analyzer.ts';
+import { groupByValue, groupBySuit, evaluateRound7Buy } from '../ai-turn/hand-analyzer.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -119,31 +119,36 @@ serve(async (req) => {
     }
 
     // ── EVALUATE: should the AI buy this card? ──
-    const dv = cardValue(topDiscard);
-    const byValue = groupByValue(hand);
-    const bySuit = groupBySuit(hand);
-
     let buyScore = 0;
 
-    // Card completes a set (2 in hand + discard = 3)
-    const sameValue = byValue.get(dv) || [];
-    if (sameValue.length >= 2) buyScore += 80;
-    else if (sameValue.length >= 1) buyScore += 30;
+    if (round.round_number === 7) {
+      // Round 7: aggressive connector buying — penalty card is just next turn's discard
+      buyScore = evaluateRound7Buy(hand, topDiscard);
+    } else {
+      const dv = cardValue(topDiscard);
+      const byValue = groupByValue(hand);
+      const bySuit = groupBySuit(hand);
 
-    // Card fits a run (adjacent in suit)
-    if (!isJoker(topDiscard)) {
-      const ds = parseInt(topDiscard[1]);
-      const sameSuit = (bySuit.get(ds) || []).map(c => cardValue(c));
-      for (const v of sameSuit) {
-        if (Math.abs(v - dv) <= 2) buyScore += 20;
+      // Card completes a set (2 in hand + discard = 3)
+      const sameValue = byValue.get(dv) || [];
+      if (sameValue.length >= 2) buyScore += 80;
+      else if (sameValue.length >= 1) buyScore += 30;
+
+      // Card fits a run (adjacent in suit)
+      if (!isJoker(topDiscard)) {
+        const ds = parseInt(topDiscard[1]);
+        const sameSuit = (bySuit.get(ds) || []).map(c => cardValue(c));
+        for (const v of sameSuit) {
+          if (Math.abs(v - dv) <= 2) buyScore += 20;
+        }
       }
+
+      // Joker is always valuable
+      if (isJoker(topDiscard)) buyScore += 90;
+
+      // Penalty: buying costs an extra card from deck
+      buyScore -= 15;
     }
-
-    // Joker is always valuable
-    if (isJoker(topDiscard)) buyScore += 90;
-
-    // Penalty: buying costs an extra card from deck
-    buyScore -= 15;
 
     // Tier-specific thresholds
     const thresholds: Record<string, number> = {

@@ -151,7 +151,25 @@ Use this document to evaluate AI play quality against expected behavior per tier
    - If it's a weaker path but helps the weaker contract dimension → take it (contract weakness bias)
 9. Otherwise → draw from deck
 
-### Discard Decision (all tiers)
+### Round 7 Draw Decision (overrides above)
+
+Round 7 redefines "speculative" as "fits adjacent to an existing run in my hand":
+1. If joker → always take it
+2. If adding the card enables a must-meld-all solution → take it
+3. If card is same suit and directly adjacent (±1 value) to any card in hand → take it
+4. If card is same suit with a gap of 2 and AI holds a joker → take it (gap fill)
+5. Otherwise → draw from deck
+
+### Round 7 Buy Decision (overrides standard buy)
+
+Round 7 buys aggressively for connectors — penalty card is just next turn's discard candidate:
+- Card fills a gap between two same-suit cards in hand → score 90
+- Card extends one end of a same-suit sequence → score 60
+- Card has gap-of-2 with joker available → score 40
+- Joker → score 100
+- No penalty subtracted (penalty card cost is irrelevant in round 7)
+
+### Discard Decision (rounds 1–6)
 
 Each card in hand is scored (lower = better to discard):
 
@@ -165,6 +183,12 @@ Each card in hand is scored (lower = better to discard):
 | Card was bought within last 3 turns | EXCLUDED from candidates (hard block) |
 
 **Post-contract discard**: Cards playable as lay-offs on visible melds are also excluded from discard candidates (the AI should lay them off instead).
+
+### Discard Decision (round 7)
+
+Instead of contract relevance scoring, each card is scored by **solvability**: how many valid 3-run must-meld-all solutions exist in the hand WITHOUT this card. The card whose removal leaves the MOST solutions is the best discard — the hand stays most flexible without it. Tiebreaker: prefer discarding high-point cards. Feed penalty still applies (slight deterrent).
+
+### Mistake modifiers (all rounds)
 
 Mistakes modify the choice (among eligible candidates):
 - Easy (50% mistake rate): picks random card from top half of ranked list
