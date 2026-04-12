@@ -1,5 +1,5 @@
-import { sb, rpc, ensureProfile } from './supabase.js?v=0.11.7';
-import { initTheme } from './theme.js?v=0.11.7';
+import { sb, rpc, ensureProfile } from './supabase.js?v=0.11.8';
+import { initTheme } from './theme.js?v=0.11.8';
 
 // ─────────────────────────────────────────────
 // AUTH STATE
@@ -167,6 +167,7 @@ async function showLobby() {
 
 async function checkActiveGame() {
   const { data, error } = await rpc('get_active_game');
+  console.log('[checkActiveGame]', data, error);
   const card = document.getElementById('rejoinCard');
 
   if (error || !data) {

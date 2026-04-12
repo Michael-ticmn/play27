@@ -5,7 +5,7 @@
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-export const APP_VERSION = '0.11.7';
+export const APP_VERSION = '0.11.8';
 
 export const SUPABASE_URL = 'https://pxjkedzafalchtxmwvnl.supabase.co';
 export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4amtlZHphZmFsY2h0eG13dm5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDI5MjMsImV4cCI6MjA5MDk3ODkyM30.3EWGJ1R-XzyjDoXHhUQEhldF2rE0Xz0Jui1SmoovPFU';
@@ -17,7 +17,7 @@ export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
  * which can silently hang on stale auth tokens.
  * Returns { data, error } matching the Supabase convention.
  */
-function getTokenFromStorage() {
+export function getTokenFromStorage() {
   // Read token directly from localStorage — bypasses sb.auth.getSession() which can hang
   const storageKey = `sb-pxjkedzafalchtxmwvnl-auth-token`;
   try {

@@ -1,5 +1,5 @@
-import { sb, rpc } from './supabase.js?v=0.11.7';
-import { initTheme } from './theme.js?v=0.11.7';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.8';
+import { initTheme } from './theme.js?v=0.11.8';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -194,11 +194,30 @@ async function enterGame() {
 
 function setConnected(connected) {
   if (!gameId || !myUserId) return;
+  console.log('[setConnected]', connected, gameId, myUserId);
+  // Use sendBeacon for disconnect (beforeunload can't wait for fetch)
+  if (!connected) {
+    const url = `${SUPABASE_URL}/rest/v1/game_players?game_id=eq.${gameId}&player_id=eq.${myUserId}`;
+    const headers = {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${getTokenFromStorage()}`,
+      'Prefer': 'return=minimal'
+    };
+    // sendBeacon only supports POST, so use fetch with keepalive
+    fetch(url, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ is_connected: false }),
+      keepalive: true
+    }).catch(() => {});
+    return;
+  }
   sb.from('game_players')
     .update({ is_connected: connected })
     .eq('game_id', gameId)
     .eq('player_id', myUserId)
-    .then(() => {});
+    .then(({ error }) => { if (error) console.error('[setConnected] error:', error); });
 }
 
 async function fetchAndRender() {
