@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.19';
-import { initTheme } from './theme.js?v=0.11.19';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.20';
+import { initTheme } from './theme.js?v=0.11.20';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -810,11 +810,10 @@ function renderDeckDiscard(round) {
   let statusStr = `${turnName} turn \u00B7 ${connectedCount} online`;
   const spectators = gameState.spectators || [];
   if (spectators.length > 0) {
-    const specNames = spectators.map(s => {
-      if (s.status === 'approved') return `${s.display_name} (joining next round)`;
-      return `${s.display_name} (watching)`;
-    });
-    statusStr += ` \u00B7 ${specNames.join(', ')}`;
+    const joining = spectators.filter(s => s.status === 'approved');
+    const watching = spectators.filter(s => s.status !== 'approved');
+    if (joining.length) statusStr += ` \u00B7 ${joining.map(s => s.display_name).join(', ')} joining`;
+    if (watching.length) statusStr += ` \u00B7 ${watching.map(s => s.display_name).join(', ')} watching`;
   }
   document.getElementById('statusText').textContent = statusStr;
 
