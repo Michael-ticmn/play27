@@ -45,6 +45,16 @@
 - Server enforces must_go_out — rejects melds leaving >1 card
 - Client validates all-but-1 before allowing submit
 - AI solver tries variable-length runs, only accepts 0–1 remaining
+- AI draw: adjacency-based speculation with solvability check (not partial-meld logic)
+- AI discard: solvability scoring — counts valid 3-run solutions without each card
+- AI discard: -50 isolation penalty for face cards (J/Q/K/A) without same-suit neighbors
+- AI buy: aggressive connector buying — gap-fillers score 90, extenders 60, no penalty cost
+
+**UI Polish:**
+- Suit sort alternates black/red: Spades → Hearts → Clubs → Diamonds
+- Run sort: Ace sorts low when hand has a 2 of same suit
+- Ding on turn: Web Audio tone when it becomes your turn (settings toggle)
+- AI error recovery: auto-retry on errors, triggers on action phase for mid-turn crashes
 
 **Infrastructure:**
 - Supabase: PostgreSQL DB, Realtime subscriptions, Edge Functions, Auth
