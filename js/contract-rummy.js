@@ -1242,11 +1242,11 @@ function setHandSort(mode) {
       cards.sort((a, b) => {
         const va = cardValue(a), vb = cardValue(b);
         if (va !== vb) return (va - vb) * dir;
-        return (cardSuit(a) - cardSuit(b)) * dir;
+        return (SUIT_SORT[cardSuit(a)] - SUIT_SORT[cardSuit(b)]) * dir;
       });
     } else {
       cards.sort((a, b) => {
-        const sa = cardSuit(a), sb = cardSuit(b);
+        const sa = SUIT_SORT[cardSuit(a)], sb = SUIT_SORT[cardSuit(b)];
         if (sa !== sb) return (sa - sb) * dir;
         return (cardValue(a) - cardValue(b)) * dir;
       });
@@ -2080,10 +2080,12 @@ function getSortDir() {
   return localStorage.getItem('play27-sortDir') || 'asc';
 }
 
+// Suit sort order: alternate black/red — S(0), H(1), C(3), D(2)
+const SUIT_SORT = [0, 1, 3, 2]; // maps suit index → sort position
 function sortCards(cards) {
   const dir = getSortDir() === 'desc' ? -1 : 1;
   return [...cards].sort((a, b) => {
-    const sa = cardSuit(a), sb = cardSuit(b);
+    const sa = SUIT_SORT[cardSuit(a)], sb = SUIT_SORT[cardSuit(b)];
     if (sa !== sb) return (sa - sb) * dir;
     return (cardValue(a) - cardValue(b)) * dir;
   });
