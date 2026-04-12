@@ -1,5 +1,5 @@
-import { sb, rpc, ensureProfile } from './supabase.js?v=0.11.8';
-import { initTheme } from './theme.js?v=0.11.8';
+import { sb, rpc, ensureProfile } from './supabase.js?v=0.11.9';
+import { initTheme } from './theme.js?v=0.11.9';
 
 // ─────────────────────────────────────────────
 // AUTH STATE
@@ -174,6 +174,12 @@ async function checkActiveGame() {
     card.style.display = 'none';
     return;
   }
+
+  // Player is in the lobby, not in the game — mark disconnected
+  await sb.from('game_players')
+    .update({ is_connected: false })
+    .eq('game_id', data.game_id)
+    .eq('player_id', currentUser.id);
 
   const status = data.status === 'active'
     ? `Round ${data.current_round || '?'} \u00B7 ${data.player_count} players`
