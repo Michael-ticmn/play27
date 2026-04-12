@@ -713,9 +713,10 @@
   .sort-btn { background:none; border:1px solid var(--border); color:var(--text); padding:2px 7px; border-radius:3px; font-size:clamp(0.55rem,0.9vw,0.7rem); text-transform:uppercase; letter-spacing:0.1em; cursor:pointer; transition:all 0.15s; }
   .sort-btn:hover { border-color:var(--amber); color:var(--text); }
   .sort-btn.active { border-color:var(--amber); color:var(--amber); background:var(--amber-dim); }
-  .hand-cards { display:flex; justify-content:center; }
+  .hand-cards { display:flex; justify-content:center; overflow:visible; padding-top:24px; }
 
   .hc {
+    position:relative; z-index:1;
     width:clamp(46px,6.5vw,68px); height:clamp(66px,9.5vw,100px);
     border-radius:6px; background:white; border:1px solid var(--card-border);
     display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -739,8 +740,8 @@
   .compact-hand .hc .rnk { font-size:clamp(1.1rem,1.8vw,1.5rem); }
   .compact-hand .hc .sct { font-size:clamp(1.3rem,2.2vw,1.9rem); }
   .hc.r { color:var(--red); }
-  .hc:hover { transform:translateY(-16px); box-shadow:3px 10px 20px var(--card-shadow); z-index:40; position:relative; }
-  .hc.sel { transform:translateY(-20px); box-shadow:0 0 0 2px var(--amber),3px 10px 20px var(--card-shadow); z-index:40; position:relative; }
+  .hc:hover { transform:translateY(-16px); box-shadow:3px 10px 20px var(--card-shadow); z-index:999 !important; position:relative; isolation:isolate; }
+  .hc.sel { transform:translateY(-20px); box-shadow:0 0 0 2px var(--amber),3px 10px 20px var(--card-shadow); z-index:999 !important; position:relative; isolation:isolate; }
   .hc.just-drawn { background:linear-gradient(to bottom, rgba(212,160,39,0.12), rgba(212,160,39,0.04)), white; }
   .hc.just-penalty {
     background:repeating-linear-gradient(
@@ -895,6 +896,7 @@
     padding:16px 28px;
     text-align:center;
     z-index:100;
+    pointer-events:none;
     pointer-events:none;
     opacity:0;
     transition:opacity 0.25s, transform 0.25s;
@@ -1540,8 +1542,9 @@
     overflow: visible;
   }
   .hc.sel, .hc:hover {
-    z-index: 50 !important;
+    z-index: 999 !important;
     position: relative;
+    isolation: isolate;
   }
   .actions-panel {
     width: 100%;
@@ -1784,6 +1787,56 @@
   0%   { content: '.'; }
   33%  { content: '..'; }
   66%  { content: '...'; }
+}
+
+/* ── AI Debug Bar (dev) ── */
+.ai-debug-bar {
+  position: relative;
+  background: #0a0a0c;
+  border-top: 1px solid #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+  z-index: 200;
+  max-height: 60px;
+  overflow-y: auto;
+}
+.ai-debug-label {
+  color: var(--amber);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ai-debug-log {
+  color: #aaa;
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ai-debug-log .ai-ok { color: #22c55e; }
+.ai-debug-log .ai-err { color: #ef4444; }
+.ai-debug-log .ai-act { color: var(--amber); }
+.ai-pause-btn {
+  background: #333;
+  color: #e0e0e0;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ai-pause-btn:hover { background: #444; }
+
+/* Peeked AI hand — mini cards in seat */
+.seat-hand .mc {
+  font-size: clamp(6px, 1.2vw, 10px);
+  min-width: clamp(12px, 2vw, 18px);
+  padding: 1px 2px;
 }
 
 /* ── AI Takeover Modal ── */

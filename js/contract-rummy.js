@@ -330,6 +330,7 @@ async function fetchAndRender() {
   gameState = data;
   countdownDuration = gameState.buy_countdown_seconds || 5;
   isSpectator = gameState.is_spectator || false;
+  isHost = gameState.created_by === myUserId;
   lateJoinStatus = gameState.my_late_join_status || null;
   myPlayerInfo = gameState.players?.find(p => p.is_you);
 
@@ -351,25 +352,81 @@ async function fetchAndRender() {
     showLateJoinRequestModal(gameState.pending_join_requests[0]);
   }
 
+  if (showAiHands) fetchAiHands().then(() => render());
   render();
   checkAndTriggerAI();
 }
 
 // ── AI Turn Triggering (host client only) ──
 let aiTriggerInFlight = false;
+let aiPaused = false;
+let showAiHands = false;
+let aiHandsCache = {}; // { player_id: [card_id, ...] }
+
+window.toggleAiPause = function() {
+  aiPaused = !aiPaused;
+  const btn = document.getElementById('aiPauseBtn');
+  if (btn) btn.textContent = aiPaused ? '▶ Start' : '⏸ Pause';
+  aiDebug(aiPaused ? 'AI PAUSED' : 'AI RESUMED', aiPaused ? 'err' : 'ok');
+};
+
+window.toggleShowAiHands = async function() {
+  showAiHands = !showAiHands;
+  const btn = document.getElementById('aiShowHandsBtn');
+  if (btn) btn.textContent = showAiHands ? '🂠 Hide' : '👁 Hands';
+  if (showAiHands) {
+    await fetchAiHands();
+  } else {
+    aiHandsCache = {};
+  }
+  render();
+};
+
+async function fetchAiHands() {
+  if (!gameState?.round) return;
+  try {
+    const { data, error } = await supabase.rpc('peek_ai_hands', { p_round_id: gameState.round.id });
+    if (error) { console.error('peek_ai_hands error:', error); return; }
+    aiHandsCache = {};
+    for (const ai of (data || [])) {
+      aiHandsCache[ai.player_id] = ai.hand || [];
+    }
+  } catch (e) {
+    console.error('fetchAiHands failed:', e);
+  }
+}
+
+function aiDebug(msg, type = '') {
+  const log = document.getElementById('aiDebugLog');
+  if (!log) return;
+  const cls = type === 'ok' ? 'ai-ok' : type === 'err' ? 'ai-err' : 'ai-act';
+  const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  log.innerHTML = `<span class="${cls}">[${time}] ${msg}</span>`;
+  console.log(`[AI Debug] ${msg}`);
+}
+
 async function checkAndTriggerAI() {
-  if (!isHost || !gameState?.round || gameState.round.status !== 'active') return;
-  if (aiTriggerInFlight) return;
+  if (!isHost) { console.log('[AI] skip: not host'); return; }
+  if (!gameState?.round) { console.log('[AI] skip: no round'); return; }
+  if (gameState.round.status !== 'active') { console.log('[AI] skip: round status', gameState.round.status); return; }
+  if (aiTriggerInFlight) { console.log('[AI] skip: in flight'); return; }
+  if (aiPaused) { console.log('[AI] skip: paused'); return; }
 
   const round = gameState.round;
   const players = gameState.players || [];
 
   // Check if current turn player is AI (trigger ai-turn)
   const currentPlayer = players.find(p => p.seat_position === round.current_turn_seat);
-  if (currentPlayer?.is_ai && round.turn_phase === 'draw') {
+  console.log('[AI] seat:', round.current_turn_seat, 'phase:', round.turn_phase, 'is_ai:', currentPlayer?.is_ai, 'player:', currentPlayer?.display_name);
+  if (currentPlayer?.is_ai && (round.turn_phase === 'draw' || round.turn_phase === 'action')) {
     aiTriggerInFlight = true;
+    const name = currentPlayer.display_name;
+    aiDebug(`${name} thinking... (draw phase)`);
+    const startTime = Date.now();
     try {
-      await fetch(`${SUPABASE_URL}/functions/v1/ai-turn`, {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/ai-turn`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
@@ -378,22 +435,32 @@ async function checkAndTriggerAI() {
         body: JSON.stringify({
           round_id: round.id,
           ai_player_id: currentPlayer.player_id
-        })
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timeout);
+      const result = await resp.json();
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      if (result.error) {
+        aiDebug(`${name} ERROR: ${result.error} (${elapsed}s)`, 'err');
+      } else {
+        aiDebug(`${name} ${result.action || result.status} (${elapsed}s)`, 'ok');
+      }
     } catch (e) {
-      console.error('[AI trigger error]', e);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      aiDebug(`${name} FAILED: ${e.name === 'AbortError' ? 'TIMEOUT 30s' : e.message} (${elapsed}s)`, 'err');
     }
     aiTriggerInFlight = false;
     return;
   }
 
-  // Check for AI players who should evaluate buy during buy_window
-  if (round.turn_phase === 'buy_window' || round.turn_phase === 'draw') {
+  // Check for AI players who should evaluate buy during buy_window only
+  if (round.turn_phase === 'buy_window') {
     const aiNonActive = players.filter(
       p => p.is_ai && p.seat_position !== round.current_turn_seat
     );
     for (const ai of aiNonActive) {
-      // Fire-and-forget for buy evaluation
+      aiDebug(`${ai.display_name} evaluating buy...`);
       fetch(`${SUPABASE_URL}/functions/v1/ai-buy`, {
         method: 'POST',
         headers: {
@@ -405,7 +472,10 @@ async function checkAndTriggerAI() {
           ai_player_id: ai.player_id,
           countdown_seconds: gameState.buy_countdown_seconds
         })
-      }).catch(e => console.error('[AI buy trigger error]', e));
+      }).then(r => r.json()).then(result => {
+        if (result.error) aiDebug(`${ai.display_name} buy error: ${result.error}`, 'err');
+        else aiDebug(`${ai.display_name} buy: ${result.status}`, result.status === 'buy_requested' ? 'ok' : '');
+      }).catch(e => aiDebug(`${ai.display_name} buy failed: ${e.message}`, 'err'));
     }
   }
 }
@@ -605,17 +675,12 @@ function renderStandings() {
     // 5. Lowest final round score
     return (a.final_round_score || 0) - (b.final_round_score || 0);
   });
-  // Assign ranks with ties (all tiebreakers equal = same rank)
+  // Assign ranks with ties (same total score = same rank)
   const ranks = [];
   let rank = 1;
   for (let i = 0; i < sorted.length; i++) {
     if (i > 0) {
-      const a = sorted[i], b = sorted[i - 1];
-      const tied = (a.total_score || 0) === (b.total_score || 0)
-        && (a.rounds_won || 0) === (b.rounds_won || 0)
-        && (a.total_buys || 0) === (b.total_buys || 0)
-        && (a.jokers_used || 0) === (b.jokers_used || 0)
-        && (a.final_round_score || 0) === (b.final_round_score || 0);
+      const tied = (sorted[i].total_score || 0) === (sorted[i - 1].total_score || 0);
       if (!tied) rank = i + 1;
     }
     ranks.push(rank);
@@ -787,17 +852,24 @@ function renderSeats(round) {
     seat.style.left = pos.left + '%';
     seat.style.top = pos.top + '%';
 
-    // Card backs
+    // Card backs or revealed hand
+    const isAiPeek = opp.is_ai && showAiHands && aiHandsCache[opp.player_id];
     let cardBacks = '';
-    for (let j = 0; j < Math.min(cardsInHand, 14); j++) {
-      cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.10.1"></div>';
+    if (isAiPeek) {
+      const hand = sortCards(aiHandsCache[opp.player_id]);
+      cardBacks = hand.map(c => renderMiniCard(c)).join('');
+    } else {
+      for (let j = 0; j < Math.min(cardsInHand, 14); j++) {
+        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.10.1"></div>';
+      }
     }
 
     // Melds HTML
     let meldsHtml = '';
     for (const meld of oppMelds) {
       const interClass = iMetContract ? 'interactive' : 'locked';
-      const cards = sortCards(meld.cards || []).map(c => renderMiniCard(c)).join('');
+      const sorted = meld.meld_type === 'run' ? sortMeldCards(meld.cards || []) : sortCards(meld.cards || []);
+      const cards = sorted.map(c => renderMiniCard(c)).join('');
       meldsHtml += `<div class="meld-row ${interClass}" data-meld-id="${meld.id}" title="Add to this ${meld.meld_type}">${cards}</div>`;
     }
     if (oppMelds.length === 0) {
@@ -849,7 +921,8 @@ function renderMyMelds(round) {
     myMeldsBar.style.display = '';
     const interClass = iMetContract ? 'interactive' : 'locked';
     myMeldsArea.innerHTML = myMelds.map(meld => {
-      const cards = sortCards(meld.cards || []).map(c => renderMiniCard(c)).join('');
+      const sorted = meld.meld_type === 'run' ? sortMeldCards(meld.cards || []) : sortCards(meld.cards || []);
+      const cards = sorted.map(c => renderMiniCard(c)).join('');
       return `<div class="meld-row ${interClass}" data-meld-id="${meld.id}" title="Add to this ${meld.meld_type}">${cards}</div>`;
     }).join('');
 
@@ -1191,10 +1264,16 @@ function wireHandCard(el) {
     if (selectedCards.has(card)) {
       selectedCards.delete(card);
       el.classList.remove('sel');
+      el.style.zIndex = '';
     } else {
       selectedCards.add(card);
       el.classList.add('sel');
+      el.style.zIndex = '999';
     }
+    // Re-apply z-index to all cards: selected cards on top, others reset
+    el.parentElement?.querySelectorAll('.hc').forEach(c => {
+      if (!c.classList.contains('sel')) c.style.zIndex = '';
+    });
   });
 
   el.addEventListener('dragstart', (e) => {
@@ -1642,13 +1721,11 @@ function openMeldStaging() {
   const rn = round.round_number || 1;
   document.getElementById('stagingContract').textContent = `Need: ${CONTRACT_DESCRIPTIONS[rn] || ''}`;
 
-  // Build placeholder slots based on contract
+  // Build placeholder slots based on contract (type auto-detected from cards)
+  const totalSlots = (round.contract_sets || 0) + (round.contract_runs || 0);
   stagedMelds = [];
-  for (let i = 0; i < (round.contract_sets || 0); i++) {
-    stagedMelds.push({ cards: [], meld_type: 'set' });
-  }
-  for (let i = 0; i < (round.contract_runs || 0); i++) {
-    stagedMelds.push({ cards: [], meld_type: 'run' });
+  for (let i = 0; i < totalSlots; i++) {
+    stagedMelds.push({ cards: [], meld_type: 'auto' });
   }
 
   document.getElementById('meldStaging').classList.add('active');
@@ -1714,8 +1791,48 @@ function sortCards(cards) {
   });
 }
 
+function isAceLowRun(cards) {
+  const nonJokers = cards.filter(c => !isJoker(c));
+  if (nonJokers.length < 2) return false;
+  const vals = nonJokers.map(c => cardValue(c));
+  if (!vals.includes(14)) return false;
+  // Check if ace-low interpretation makes a valid run
+  const lowVals = vals.map(v => v === 14 ? 1 : v).sort((a, b) => a - b);
+  const highVals = [...vals].sort((a, b) => a - b);
+  // Ace-low if low range is tighter than high range
+  const lowRange = lowVals[lowVals.length - 1] - lowVals[0];
+  const highRange = highVals[highVals.length - 1] - highVals[0];
+  return lowRange < highRange;
+}
+
+function sortMeldCards(cards) {
+  const dir = getSortDir() === 'desc' ? -1 : 1;
+  const aceLow = isAceLowRun(cards);
+  return [...cards].sort((a, b) => {
+    let va = isJoker(a) ? -100 : cardValue(a);
+    let vb = isJoker(b) ? -100 : cardValue(b);
+    if (aceLow) {
+      if (va === 14) va = 1;
+      if (vb === 14) vb = 1;
+    }
+    // Place jokers by gap position (simple: sort by value)
+    if (isJoker(a) || isJoker(b)) {
+      // Just put jokers at the end for now
+      if (isJoker(a) && isJoker(b)) return 0;
+      return isJoker(a) ? 1 * dir : -1 * dir;
+    }
+    return (va - vb) * dir;
+  });
+}
+
 function sortSlotCards(index) {
-  stagedMelds[index].cards = sortCards(stagedMelds[index].cards);
+  const slot = stagedMelds[index];
+  const type = detectMeldType(slot.cards);
+  if (type === 'run') {
+    slot.cards = sortMeldCards(slot.cards);
+  } else {
+    slot.cards = sortCards(slot.cards);
+  }
 }
 
 function removeCardFromSlot(slotIndex, cardCode) {
@@ -1731,31 +1848,66 @@ function clearSlot(index) {
   render();
 }
 
-function validateSlot(slot) {
-  if (slot.cards.length < 3) return { valid: false, msg: slot.cards.length === 0 ? '' : `need ${3 - slot.cards.length} more` };
-  if (slot.cards.length > 3) return { valid: false, msg: `too many (${slot.cards.length}/3)` };
-  if (slot.meld_type === 'set') {
-    const values = slot.cards.filter(c => !isJoker(c)).map(c => cardValue(c));
-    const uniqueVals = new Set(values);
-    if (uniqueVals.size > 1) return { valid: false, msg: 'mixed values' };
-    return { valid: true, msg: 'valid' };
-  } else {
-    const nonJokers = slot.cards.filter(c => !isJoker(c));
-    const suits = nonJokers.map(c => cardSuit(c));
-    const uniqueSuits = new Set(suits);
-    if (uniqueSuits.size > 1) return { valid: false, msg: 'mixed suits' };
-    // Check consecutive sequence (jokers fill gaps)
-    const vals = nonJokers.map(c => cardValue(c)).sort((a, b) => a - b);
-    const jokerCount = slot.cards.length - nonJokers.length;
-    let gaps = 0;
-    for (let i = 1; i < vals.length; i++) {
-      const diff = vals[i] - vals[i - 1];
-      if (diff === 0) return { valid: false, msg: 'duplicate values' };
+function isValidSet(cards) {
+  const values = cards.filter(c => !isJoker(c)).map(c => cardValue(c));
+  const uniqueVals = new Set(values);
+  return uniqueVals.size <= 1;
+}
+
+function isValidRun(cards) {
+  const nonJokers = cards.filter(c => !isJoker(c));
+  const suits = nonJokers.map(c => cardSuit(c));
+  if (new Set(suits).size > 1) return false;
+  const vals = nonJokers.map(c => cardValue(c)).sort((a, b) => a - b);
+  const jokerCount = cards.length - nonJokers.length;
+
+  // Try ace-high
+  let gaps = 0;
+  for (let i = 1; i < vals.length; i++) {
+    const diff = vals[i] - vals[i - 1];
+    if (diff === 0) return false;
+    if (diff > 1) gaps += diff - 1;
+  }
+  if (gaps <= jokerCount) return true;
+
+  // Try ace-low
+  if (vals.includes(14)) {
+    const lowVals = vals.map(v => v === 14 ? 1 : v).sort((a, b) => a - b);
+    gaps = 0;
+    for (let i = 1; i < lowVals.length; i++) {
+      const diff = lowVals[i] - lowVals[i - 1];
+      if (diff === 0) return false;
       if (diff > 1) gaps += diff - 1;
     }
-    if (gaps > jokerCount) return { valid: false, msg: 'not in sequence' };
-    return { valid: true, msg: 'valid' };
+    if (gaps <= jokerCount) return true;
   }
+  return false;
+}
+
+function detectMeldType(cards) {
+  if (cards.length === 0) return 'auto';
+  const set = isValidSet(cards);
+  const run = isValidRun(cards);
+  if (set && !run) return 'set';
+  if (run && !set) return 'run';
+  if (set && run) return 'set'; // ambiguous (e.g. 3 jokers) — default to set
+  return 'invalid';
+}
+
+function validateSlot(slot) {
+  if (slot.cards.length < 3) return { valid: false, msg: slot.cards.length === 0 ? '' : `need ${3 - slot.cards.length} more`, type: 'auto' };
+  if (slot.cards.length > 3) return { valid: false, msg: `too many (${slot.cards.length}/3)`, type: 'auto' };
+  const type = detectMeldType(slot.cards);
+  if (type === 'invalid') {
+    // Give a helpful hint
+    const nonJokers = slot.cards.filter(c => !isJoker(c));
+    const vals = nonJokers.map(c => cardValue(c));
+    const suits = nonJokers.map(c => cardSuit(c));
+    if (new Set(vals).size > 1 && new Set(suits).size > 1) return { valid: false, msg: 'not a set or run', type };
+    if (new Set(vals).size > 1) return { valid: false, msg: 'not in sequence', type };
+    return { valid: false, msg: 'not valid', type };
+  }
+  return { valid: true, msg: 'valid', type };
 }
 
 function renderStagedMelds() {
@@ -1765,11 +1917,13 @@ function renderStagedMelds() {
   // Auto-sort all slots before rendering
   stagedMelds.forEach((s, idx) => { if (s.cards.length > 0) sortSlotCards(idx); });
 
-  let setNum = 0, runNum = 0;
+  let meldNum = 0;
   container.innerHTML = stagedMelds.map((slot, i) => {
-    const label = slot.meld_type === 'set' ? `Set ${++setNum}` : `Run ${++runNum}`;
+    meldNum++;
     const hasCards = slot.cards.length > 0;
-    const { valid, msg } = hasCards ? validateSlot(slot) : { valid: false, msg: '' };
+    const { valid, msg, type } = hasCards ? validateSlot(slot) : { valid: false, msg: '', type: 'auto' };
+    const detectedType = (type && type !== 'auto' && type !== 'invalid') ? type : slot.meld_type;
+    const label = detectedType === 'set' ? `Set ${meldNum}` : detectedType === 'run' ? `Run ${meldNum}` : `Meld ${meldNum}`;
     const statusHtml = msg ? `<span class="status ${valid ? 'ok' : 'bad'}">${msg}</span>` : '';
     const validClass = !hasCards ? '' : (valid ? ' valid' : ' invalid');
 
@@ -1853,7 +2007,12 @@ function renderStagedMelds() {
     && gameState.round.current_turn_seat === myPlayerInfo.seat_position
     && gameState.round.turn_phase === 'action';
 
-  if (allValid && filledSlots.length === stagedMelds.length) {
+  // Verify detected types match contract requirements
+  const detectedSets = stagedMelds.filter(s => s.cards.length >= 3 && detectMeldType(s.cards) === 'set').length;
+  const detectedRuns = stagedMelds.filter(s => s.cards.length >= 3 && detectMeldType(s.cards) === 'run').length;
+  const contractMet = detectedSets >= req.sets && detectedRuns >= req.runs;
+
+  if (allValid && filledSlots.length === stagedMelds.length && contractMet) {
     if (canSubmitNow) {
       hint.textContent = 'Contract ready! Hit Submit.';
       hint.style.color = '#3cb96a';
@@ -1863,14 +2022,17 @@ function renderStagedMelds() {
       hint.style.color = 'var(--amber)';
       submitBtn.disabled = true;
     }
+  } else if (allValid && filledSlots.length === stagedMelds.length && !contractMet) {
+    hint.textContent = `Need ${req.sets} set${req.sets !== 1 ? 's' : ''} and ${req.runs} run${req.runs !== 1 ? 's' : ''} — got ${detectedSets} set${detectedSets !== 1 ? 's' : ''}, ${detectedRuns} run${detectedRuns !== 1 ? 's' : ''}`;
+    hint.style.color = '#d45f5f';
+    submitBtn.disabled = true;
   } else {
     const emptySlots = stagedMelds.filter(s => s.cards.length === 0).length;
     const invalidDetails = [];
-    let setNum2 = 0, runNum2 = 0;
-    stagedMelds.forEach(s => {
-      const lbl = s.meld_type === 'set' ? `Set ${++setNum2}` : `Run ${++runNum2}`;
+    stagedMelds.forEach((s, idx) => {
       if (s.cards.length > 0) {
         const res = validateSlot(s);
+        const lbl = `Meld ${idx + 1}`;
         if (!res.valid && res.msg) invalidDetails.push(`${lbl}: ${res.msg}`);
       }
     });
@@ -1894,7 +2056,7 @@ async function handleSubmitContract() {
 
   const meldsPayload = stagedMelds.map(m => ({
     cards: m.cards,
-    meld_type: m.meld_type
+    meld_type: detectMeldType(m.cards)
   }));
 
   const { error } = await rpc('fulfill_contract', {

@@ -33,14 +33,10 @@ export function findPossibleSets(hand: CardId[]): { cards: CardId[]; value: numb
   for (const [value, cards] of byValue) {
     // Can form a set with 2+ natural cards + jokers
     if (cards.length >= 3) {
-      results.push({ cards: [...cards], value });
+      results.push({ cards: cards.slice(0, 3), value });
     }
     if (cards.length >= 2 && jokers.length >= 1) {
-      results.push({ cards: [...cards, jokers[0]], value });
-    }
-    // Could also do 3 natural + joker for a 4-card set, etc.
-    if (cards.length >= 3 && jokers.length >= 1) {
-      results.push({ cards: [...cards, jokers[0]], value });
+      results.push({ cards: [...cards.slice(0, 2), jokers[0]], value });
     }
   }
   return results;
@@ -145,10 +141,12 @@ export function solveContract(
       const sets = findPossibleSets(remaining);
       for (const set of sets) {
         if (set.cards.length < 3) continue;
-        const newRemaining = remaining.filter(c => !set.cards.includes(c));
+        // Only use 3 cards per set for contract (save extras for lay-offs)
+        const trimmed = set.cards.slice(0, 3);
+        const newRemaining = remaining.filter(c => !trimmed.includes(c));
         backtrack(
           newRemaining,
-          [...setsFound, { meld_type: 'set', cards: set.cards.slice(0, Math.max(3, set.cards.length)) }],
+          [...setsFound, { meld_type: 'set', cards: trimmed }],
           runsFound,
           depth + 1
         );

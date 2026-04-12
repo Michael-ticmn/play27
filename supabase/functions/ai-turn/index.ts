@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { supabase, rpc } from '../_shared/supabase.ts';
-import { randomDelay, sleep } from '../_shared/delays.ts';
+import { randomDelay, preDrawDelay, sleep } from '../_shared/delays.ts';
 import { GameState, CardId } from '../_shared/types.ts';
 import { planTurn } from './strategy.ts';
 import { bestContractSolution, rankDiscards, findLayOffs } from './hand-analyzer.ts';
@@ -70,13 +70,15 @@ serve(async (req) => {
       );
     }
 
-    // Idempotency: check turn_phase is 'draw' (hasn't started yet)
-    if (round.turn_phase !== 'draw') {
+    // Only handle draw or action phase (action = recovery from mid-turn crash)
+    if (round.turn_phase !== 'draw' && round.turn_phase !== 'action') {
       return new Response(
-        JSON.stringify({ status: 'already_in_progress' }),
+        JSON.stringify({ status: 'wrong_phase', phase: round.turn_phase }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const resumingFromAction = round.turn_phase === 'action';
 
     // Get AI's hand
     const { data: handCards } = await supabase
@@ -140,39 +142,59 @@ serve(async (req) => {
 
     console.log(`[AI ${profile.ai_name} ${tier}] Turn start: ${hand.length} cards, contract: ${contract?.num_sets}S/${contract?.num_runs}R, met: ${hasMetContract}`);
 
-    // ── DRAW PHASE ──
-    await sleep(randomDelay(tier));
+    let currentHand = [...hand];
 
-    // Decide draw source
-    const plan = planTurn({
-      hand,
-      topDiscard,
-      discardBought: round.discard_bought,
-      contractSets: contract?.num_sets || 0,
-      contractRuns: contract?.num_runs || 0,
-      hasMetContract,
-      hasDrawn: false,
-      melds,
-      tier,
-      roundNumber: round.round_number,
-    });
+    if (!resumingFromAction) {
+      // ── PRE-DRAW PAUSE — let humans see the last discard ──
+      await sleep(preDrawDelay(tier));
 
-    let drawnCard: CardId | null = null;
-    if (plan.drawFrom === 'discard' && topDiscard && !round.discard_bought) {
-      const result = await rpc('draw_from_discard', { p_round_id: round_id, p_acting_as: ai_player_id });
-      drawnCard = result as string;
-      console.log(`[AI ${profile.ai_name}] Drew from discard: ${drawnCard}`);
+      // Re-verify it's still this AI's turn (may have changed during delay)
+      const { data: roundCheck } = await supabase
+        .from('rounds')
+        .select('current_turn_seat, turn_phase, status')
+        .eq('id', round_id)
+        .single();
+
+      if (!roundCheck || roundCheck.status !== 'active' ||
+          roundCheck.current_turn_seat !== gp.seat_position ||
+          (roundCheck.turn_phase !== 'draw' && roundCheck.turn_phase !== 'action')) {
+        console.log(`[AI ${profile.ai_name}] Turn changed during delay, aborting`);
+        return new Response(
+          JSON.stringify({ status: 'aborted', reason: 'turn_changed' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const plan = planTurn({
+        hand,
+        topDiscard,
+        discardBought: round.discard_bought,
+        contractSets: contract?.num_sets || 0,
+        contractRuns: contract?.num_runs || 0,
+        hasMetContract,
+        hasDrawn: false,
+        melds,
+        tier,
+        roundNumber: round.round_number,
+      });
+
+      let drawnCard: CardId | null = null;
+      if (plan.drawFrom === 'discard' && topDiscard && !round.discard_bought) {
+        const result = await rpc('draw_from_discard', { p_round_id: round_id, p_acting_as: ai_player_id });
+        drawnCard = result as string;
+        console.log(`[AI ${profile.ai_name}] Drew from discard: ${drawnCard}`);
+      } else {
+        const result = await rpc('draw_from_deck', { p_round_id: round_id, p_acting_as: ai_player_id });
+        drawnCard = result as string;
+        console.log(`[AI ${profile.ai_name}] Drew from deck: ${drawnCard}`);
+      }
+
+      currentHand = [...hand, drawnCard!];
     } else {
-      const result = await rpc('draw_from_deck', { p_round_id: round_id, p_acting_as: ai_player_id });
-      drawnCard = result as string;
-      console.log(`[AI ${profile.ai_name}] Drew from deck: ${drawnCard}`);
+      console.log(`[AI ${profile.ai_name}] Resuming from action phase with ${hand.length} cards`);
     }
 
-    // Update hand with drawn card
-    const currentHand = [...hand, drawnCard!];
-
     // ── ACTION PHASE ──
-    await sleep(randomDelay(tier));
 
     // Try to meet contract
     if (!hasMetContract) {
@@ -189,7 +211,7 @@ serve(async (req) => {
         console.log(`[AI ${profile.ai_name}] Fulfilling contract with ${solution.length} melds`);
         await rpc('fulfill_contract', {
           p_round_id: round_id,
-          p_melds: JSON.stringify(solution),
+          p_melds: solution,
           p_acting_as: ai_player_id
         });
 
@@ -207,7 +229,6 @@ serve(async (req) => {
         }
 
         // Try lay-offs
-        await sleep(randomDelay(tier) * 0.5);
         const layoffs = findLayOffs(handAfterMeld, melds);
         const filteredLayoffs = tier === 'easy'
           ? layoffs.filter(() => Math.random() < 0.15)
@@ -241,7 +262,7 @@ serve(async (req) => {
         }
 
         // ── DISCARD PHASE ──
-        await sleep(randomDelay(tier));
+        await sleep(randomDelay(tier) * 0.4);
         const discard = rankDiscards(handAfterLayoffs, contract?.num_sets || 0, contract?.num_runs || 0)[0]
           || handAfterLayoffs[0];
         await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
@@ -273,7 +294,6 @@ serve(async (req) => {
           });
           handAfterLayoffs = handAfterLayoffs.filter(c => c !== lo.card);
           console.log(`[AI ${profile.ai_name}] Laid off ${lo.card}`);
-          await sleep(randomDelay(tier) * 0.3);
         } catch (e) {
           console.log(`[AI ${profile.ai_name}] Lay-off failed: ${e.message}`);
         }
@@ -300,7 +320,7 @@ serve(async (req) => {
     }
 
     // ── Contract not met, no solution found — just discard ──
-    await sleep(randomDelay(tier));
+    await sleep(randomDelay(tier) * 0.4);
     const discard = rankDiscards(currentHand, contract?.num_sets || 0, contract?.num_runs || 0)[0]
       || currentHand[0];
     await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });

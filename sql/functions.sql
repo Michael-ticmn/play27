@@ -1653,6 +1653,7 @@ begin
       from player_round_state prs
       join rounds r on r.id = prs.round_id
       where r.game_id = p_game_id and prs.player_id = gp.player_id
+        and r.status = 'finished'
     ), 0),
     'rounds_won', coalesce((
       select count(*)
@@ -2207,5 +2208,51 @@ begin
     'ai_name', p_ai_name,
     'ai_tier', p_ai_tier
   );
+end;
+$$;
+
+-- ────────────────────────────────────────────────────────────
+-- PEEK AI HANDS (dev / training mode)
+-- Returns hand cards for all AI players in a round.
+-- Only callable by the game host.
+-- ────────────────────────────────────────────────────────────
+create or replace function peek_ai_hands(p_round_id uuid)
+returns jsonb
+language plpgsql security definer as $$
+declare
+  v_round   record;
+  v_game    record;
+  v_result  jsonb := '[]'::jsonb;
+  v_ai      record;
+begin
+  select * into v_round from rounds where id = p_round_id;
+  if v_round is null then raise exception 'Round not found'; end if;
+
+  select * into v_game from games where id = v_round.game_id;
+  if v_game.created_by != auth.uid() then
+    raise exception 'Only the host can peek at AI hands';
+  end if;
+
+  for v_ai in
+    select gp.player_id, p.ai_name, p.ai_tier
+    from game_players gp
+    join profiles p on p.id = gp.player_id
+    where gp.game_id = v_game.id and p.is_ai = true
+  loop
+    v_result := v_result || jsonb_build_object(
+      'player_id', v_ai.player_id,
+      'ai_name', v_ai.ai_name,
+      'ai_tier', v_ai.ai_tier,
+      'hand', (
+        select coalesce(jsonb_agg(rc.card_id order by rc.position), '[]'::jsonb)
+        from round_cards rc
+        where rc.round_id = p_round_id
+          and rc.player_id = v_ai.player_id
+          and rc.location = 'hand'
+      )
+    );
+  end loop;
+
+  return v_result;
 end;
 $$;
