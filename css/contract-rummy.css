@@ -1366,6 +1366,11 @@
 
 /* ── SPECTATOR MODE ── */
 .spectator-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
   background: var(--amber);
   color: #000;
   text-align: center;
