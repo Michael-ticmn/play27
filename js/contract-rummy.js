@@ -2495,6 +2495,10 @@ async function handleDiscard() {
   lastPenaltyCard = null;
   recentMeldCards.clear();
   if (!gameState?.round) return;
+  if (gameState.round.turn_phase !== 'action') {
+    showToast('Wait', 'Not in action phase yet');
+    return;
+  }
   const cards = [...selectedCards];
   if (cards.length !== 1) {
     showToast('Select One Card', 'Select exactly 1 card to discard');
