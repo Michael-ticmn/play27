@@ -1246,10 +1246,17 @@ function setHandSort(mode) {
         return (SUIT_SORT[cardSuit(a)] - SUIT_SORT[cardSuit(b)]) * dir;
       });
     } else {
+      // Ace-low heuristic: if hand has a 2 of the same suit, treat Ace as 1
+      const has2 = new Set(cards.filter(c => !isJoker(c) && cardValue(c) === 2).map(c => cardSuit(c)));
+      const runVal = (c) => {
+        if (isJoker(c)) return 99; // jokers sort last
+        const v = cardValue(c);
+        return (v === 14 && has2.has(cardSuit(c))) ? 1 : v;
+      };
       cards.sort((a, b) => {
         const sa = SUIT_SORT[cardSuit(a)], sb = SUIT_SORT[cardSuit(b)];
         if (sa !== sb) return (sa - sb) * dir;
-        return (cardValue(a) - cardValue(b)) * dir;
+        return (runVal(a) - runVal(b)) * dir;
       });
     }
     customHandOrder = cards;
