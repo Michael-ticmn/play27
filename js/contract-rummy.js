@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.23';
-import { initTheme } from './theme.js?v=0.11.23';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.24';
+import { initTheme } from './theme.js?v=0.11.24';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -538,39 +538,33 @@ function renderTableLines(playerCount) {
     // 2 players: horizontal line through center
     addLine(0, cy, cx - boxW / 2, cy);
     addLine(cx + boxW / 2, cy, w, cy);
+  } else if (oppCount === 2) {
+    // 3 players: you get the full bottom half, opponents split the top half
+    // Horizontal line left and right of center box
+    addLine(0, cy, cx - boxW / 2, cy);
+    addLine(cx + boxW / 2, cy, w, cy);
+    // Vertical line up from center box splitting the two opponents
+    addLine(cx, 0, cx, cy - boxH / 2);
   } else {
-    // 3+ players: you get the bottom quarter (triangle from center to bottom-left and bottom-right corners)
-    // Two diagonal lines define your zone: center to bottom-left corner, center to bottom-right corner
-    // That's 225° (bottom-left) and 315° (bottom-right)
-    const yourAngles = [225, 315];
-    for (const angleDeg of yourAngles) {
+    // 4+ players: you get the bottom zone, opponents split the top arc
+    // Horizontal lines define your zone boundary (center to left/right walls)
+    addLine(0, cy, cx - boxW / 2, cy);
+    addLine(cx + boxW / 2, cy, w, cy);
+
+    // Opponents split the top half evenly
+    // Dividing lines between opponent zones radiate upward from center
+    for (let i = 1; i < oppCount; i++) {
+      // Spread from 180° to 0° (left to right across the top)
+      const angleDeg = 180 - i * (180 / oppCount);
       const angleRad = (angleDeg * Math.PI) / 180;
       const cos = Math.cos(angleRad);
-      const sin = Math.sin(angleRad);
+      const sin = -Math.sin(angleRad); // negative because y increases downward
       const startX = cx + (boxW / 2 + 4) * cos;
       const startY = cy + (boxH / 2 + 4) * sin;
       const reach = Math.max(w, h);
       const endX = Math.max(0, Math.min(w, cx + reach * cos));
       const endY = Math.max(0, Math.min(h, cy + reach * sin));
       addLine(startX, startY, endX, endY);
-    }
-
-    // Remaining 270° (from 315° clockwise to 225°) split evenly among opponents
-    // That arc goes: 315° -> 360°/0° -> ... -> 225° (i.e. 270° of arc)
-    // Dividing lines between opponent zones: N-1 opponents need N-2 lines
-    if (oppCount > 1) {
-      for (let i = 1; i < oppCount; i++) {
-        const angleDeg = 315 + i * (270 / oppCount);
-        const angleRad = ((angleDeg % 360) * Math.PI) / 180;
-        const cos = Math.cos(angleRad);
-        const sin = Math.sin(angleRad);
-        const startX = cx + (boxW / 2 + 4) * cos;
-        const startY = cy + (boxH / 2 + 4) * sin;
-        const reach = Math.max(w, h);
-        const endX = Math.max(0, Math.min(w, cx + reach * cos));
-        const endY = Math.max(0, Math.min(h, cy + reach * sin));
-        addLine(startX, startY, endX, endY);
-      }
     }
   }
 }
