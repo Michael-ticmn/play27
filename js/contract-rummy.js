@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.25';
-import { initTheme } from './theme.js?v=0.11.25';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.26';
+import { initTheme } from './theme.js?v=0.11.26';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -513,9 +513,12 @@ function renderTableLines(playerCount) {
   const cx = w / 2;
   const cy = h / 2;
 
-  // Center box around draw/discard
-  const boxW = Math.min(w * 0.4, 340);
-  const boxH = Math.min(h * 0.35, 160);
+  // Center box around draw/discard — size to actual table-center element
+  const tcEl = document.querySelector('.table-center');
+  const tcRect = tcEl ? tcEl.getBoundingClientRect() : null;
+  const tableRect = table.getBoundingClientRect();
+  const boxW = tcRect ? Math.min(tcRect.width + 16, w * 0.85) : Math.min(w * 0.4, 340);
+  const boxH = tcRect ? Math.min(tcRect.height + 12, h * 0.5) : Math.min(h * 0.35, 160);
   const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
   rect.setAttribute('x', cx - boxW / 2);
   rect.setAttribute('y', cy - boxH / 2);
