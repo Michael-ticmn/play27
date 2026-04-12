@@ -197,7 +197,7 @@ serve(async (req) => {
       return cards;
     }).filter(c => hand.includes(c));
 
-    console.log(`[AI ${profile.ai_name} ${tier}] Turn start: ${hand.length} cards, contract: ${contract?.num_sets}S/${contract?.num_runs}R, met: ${hasMetContract}`);
+    console.log(`[AI ${profile.ai_name} ${tier}] Turn start: ${hand.length} cards, contract: ${contract?.num_sets}S/${contract?.num_runs}R, met: ${hasMetContract}, protected: ${boughtCards.length} bought`);
 
     let currentHand = [...hand];
     let protectedCards: CardId[] = [...boughtCards];

@@ -156,9 +156,10 @@ Use this document to evaluate AI play quality against expected behavior per tier
 Round 7 redefines "speculative" as "fits adjacent to an existing run in my hand":
 1. If joker → always take it
 2. If adding the card enables a must-meld-all solution → take it
-3. If card is same suit and directly adjacent (±1 value) to any card in hand → take it
-4. If card is same suit with a gap of 2 and AI holds a joker → take it (gap fill)
-5. Otherwise → draw from deck
+3. If card is same suit and directly adjacent (±1 value) to any card in hand → take it, BUT only if adding it doesn't reduce the hand's overall run potential (solvability check)
+4. If card fills a gap between two same-suit cards (extends a 2+ card sequence) → take it even if run potential dips
+5. If card is same suit with a gap of 2 and AI holds a joker → take it (gap fill)
+6. Otherwise → draw from deck
 
 ### Round 7 Buy Decision (overrides standard buy)
 
@@ -186,7 +187,12 @@ Each card in hand is scored (lower = better to discard):
 
 ### Discard Decision (round 7)
 
-Instead of contract relevance scoring, each card is scored by **solvability**: how many valid 3-run must-meld-all solutions exist in the hand WITHOUT this card. The card whose removal leaves the MOST solutions is the best discard — the hand stays most flexible without it. Tiebreaker: prefer discarding high-point cards. Feed penalty still applies (slight deterrent).
+Instead of contract relevance scoring, each card is scored by **solvability**: how many valid 3-run must-meld-all solutions exist in the hand WITHOUT this card. The card whose removal leaves the MOST solutions is the best discard — the hand stays most flexible without it.
+
+Additional round 7 discard factors:
+- **Isolation penalty (-50)**: Face cards (J/Q/K/A) without any same-suit neighbor are heavily penalized — they're 10-15 points of deadwood and nearly impossible to fit into runs. Lone Kings, lone Aces without low connectors are top discard priorities.
+- **Feed penalty (-20)**: Slight deterrent for cards playable on opponent melds (table-aware tiers).
+- **Tiebreaker**: Prefer discarding high-point cards.
 
 ### Mistake modifiers (all rounds)
 

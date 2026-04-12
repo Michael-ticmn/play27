@@ -499,7 +499,19 @@ export function evaluateRound7Draw(
     return false;
   });
 
-  if (adjacent) return { takeDiscard: true, reason: 'run_adjacent' };
+  if (adjacent) {
+    // Verify adding this card doesn't wreck overall solvability direction
+    // (only reject if hand+card has strictly fewer potential runs than hand alone)
+    const currentRunPotential = countRunPotential(hand);
+    const newRunPotential = countRunPotential(withDiscard);
+    if (newRunPotential >= currentRunPotential) {
+      return { takeDiscard: true, reason: 'run_adjacent' };
+    }
+    // Adjacent but hurts overall shape — still take if it extends a 2+ card sequence
+    if (sameSuit.filter(c => Math.abs(cardValue(c) - dv) === 1).length >= 2) {
+      return { takeDiscard: true, reason: 'run_gap_fill' };
+    }
+  }
 
   // Gap of 2 (joker could fill) — still useful
   const nearGap = sameSuit.some(c => {
@@ -511,6 +523,46 @@ export function evaluateRound7Draw(
   }
 
   return { takeDiscard: false, reason: 'not_adjacent' };
+}
+
+// ── Round 7 helper: count how many 3+ card same-suit sequences exist in hand ──
+// Higher = hand is better shaped for runs
+function countRunPotential(hand: CardId[]): number {
+  const bySuit = groupBySuit(hand);
+  let total = 0;
+  for (const [, cards] of bySuit) {
+    const vals = cards.map(c => cardValue(c)).sort((a, b) => a - b);
+    let consec = 1;
+    for (let i = 1; i < vals.length; i++) {
+      if (vals[i] === vals[i - 1] + 1) {
+        consec++;
+        if (consec >= 3) total++;
+      } else if (vals[i] !== vals[i - 1]) {
+        consec = 1;
+      }
+    }
+    // Ace-low check
+    if (vals.includes(14) && vals.includes(2)) {
+      const lowVals = vals.map(v => v === 14 ? 1 : v).sort((a, b) => a - b);
+      let lc = 1;
+      for (let i = 1; i < lowVals.length; i++) {
+        if (lowVals[i] === lowVals[i - 1] + 1) { lc++; if (lc >= 3) total++; }
+        else if (lowVals[i] !== lowVals[i - 1]) lc = 1;
+      }
+    }
+  }
+  return total;
+}
+
+// ── Round 7 helper: check if a card has same-suit neighbors in hand ──
+function hasRunNeighbors(card: CardId, hand: CardId[]): boolean {
+  if (isJoker(card)) return true;
+  const cs = cardSuit(card);
+  const cv = cardValue(card);
+  return hand.some(c => c !== card && !isJoker(c) && cardSuit(c) === cs &&
+    (Math.abs(cardValue(c) - cv) === 1 ||
+     (cv === 14 && cardValue(c) === 2) ||
+     (cv === 2 && cardValue(c) === 14)));
 }
 
 // ── Round 7 discard evaluator: score by solvability ──
@@ -533,16 +585,24 @@ export function rankDiscardsRound7(
     // Feed penalty for table-aware tiers
     let feedsPenalty = 0;
     for (const meld of tableMelds) {
-      if (canLayOff(card, meld)) { feedsPenalty = -20; break; } // slight deterrent
+      if (canLayOff(card, meld)) { feedsPenalty = -20; break; }
     }
 
     const pts = cardPoints(card);
 
+    // Isolation penalty: unsupported face cards (J/Q/K/A without same-suit neighbors)
+    // are deadweight — high points, hard to fit into runs
+    let isolationPenalty = 0;
+    if (!isJoker(card) && cardValue(card) >= 11 && !hasRunNeighbors(card, hand)) {
+      isolationPenalty = -50; // strongly favor discarding isolated face cards
+    }
+
     // Higher solutions = better to discard this card (hand stays solvable without it)
+    // Isolation penalty makes lone face cards top discard priority
     // Tiebreak: prefer discarding high-point cards
     return {
       card,
-      score: -(solutions * 100) + feedsPenalty - pts
+      score: -(solutions * 100) + feedsPenalty + isolationPenalty - pts
     };
   });
 
