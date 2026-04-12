@@ -624,6 +624,7 @@
     border-top:2px solid var(--amber);
     position:relative;
     box-shadow:0 -4px 16px rgba(212,160,39,0.1);
+    overflow:visible;
   }
 
   .you-header {
@@ -633,6 +634,8 @@
     text-transform:uppercase;
     letter-spacing:0.15em;
     color:var(--text);
+    position:relative;
+    z-index:1;
   }
   .you-header-left {
     display:flex;
@@ -735,8 +738,8 @@
   .compact-hand .hc .rnk { font-size:clamp(1.1rem,1.8vw,1.5rem); }
   .compact-hand .hc .sct { font-size:clamp(1.3rem,2.2vw,1.9rem); }
   .hc.r { color:var(--red); }
-  .hc:hover { transform:translateY(-16px); box-shadow:3px 10px 20px var(--card-shadow); z-index:30; }
-  .hc.sel { transform:translateY(-20px); box-shadow:0 0 0 2px var(--amber),3px 10px 20px var(--card-shadow); z-index:30; }
+  .hc:hover { transform:translateY(-16px); box-shadow:3px 10px 20px var(--card-shadow); z-index:40; position:relative; }
+  .hc.sel { transform:translateY(-20px); box-shadow:0 0 0 2px var(--amber),3px 10px 20px var(--card-shadow); z-index:40; position:relative; }
   .hc.just-drawn { background:linear-gradient(to bottom, rgba(212,160,39,0.12), rgba(212,160,39,0.04)), white; }
   .hc.just-penalty {
     background:repeating-linear-gradient(
