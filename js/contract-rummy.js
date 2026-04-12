@@ -478,10 +478,8 @@ async function checkAndTriggerAI() {
         const detail = result.current_seat !== undefined ? ` [ai_seat=${result.ai_seat} current=${result.current_seat} phase=${result.phase}]` : '';
         aiDebug(`${name} ERROR: ${result.error}${detail} (${elapsed}s)`, 'err');
         aiTriggerInFlight = false;
-        // Retry after a delay for recoverable errors (not "wrong turn" errors)
-        if (result.ai_seat === undefined) {
-          setTimeout(() => fetchAndRender(), 3000);
-        }
+        // Always re-fetch after errors — picks up turn changes and triggers next AI
+        setTimeout(() => fetchAndRender(), result.ai_seat !== undefined ? 500 : 3000);
         return;
       } else {
         aiDebug(`${name} ${result.action || result.status} (${elapsed}s)`, 'ok');
