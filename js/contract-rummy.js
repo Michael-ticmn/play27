@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.22';
-import { initTheme } from './theme.js?v=0.11.22';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js?v=0.11.23';
+import { initTheme } from './theme.js?v=0.11.23';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -1082,6 +1082,28 @@ function showRoundEnd() {
   document.getElementById('reSubtitle').textContent = round.round_number >= 7
     ? 'Final round — game over!' : `Round ${round.round_number} of 7`;
 
+  // ── Compute projected penalty scores for approved spectators ──
+  const spectators = (gameState.spectators || []).filter(s => s.status === 'approved' && s.scoring_method);
+  function calcPenalty(method, scores) {
+    if (!scores || scores.length === 0) return 0;
+    const vals = scores.map(s => s.score).filter(v => v != null);
+    if (vals.length === 0) return 0;
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const max = Math.max(...vals);
+    if (method === 'max') return max;
+    if (method === 'max_plus_avg') return Math.round((max + avg) / 2);
+    return Math.round(avg); // 'average' or default
+  }
+  const specProjections = spectators.map(sp => {
+    const perRound = roundScores.map(r => ({
+      round_number: r.round_number,
+      score: calcPenalty(sp.scoring_method, r.scores)
+    }));
+    const total = perRound.reduce((sum, r) => sum + r.score, 0);
+    const methodLabel = sp.scoring_method === 'max' ? 'worst' : sp.scoring_method === 'max_plus_avg' ? 'mid' : 'avg';
+    return { display_name: sp.display_name, scoring_method: sp.scoring_method, methodLabel, perRound, total };
+  });
+
   // View 1: Round scores
   const roundView = document.getElementById('reViewRound');
   if (currentRoundScores) {
@@ -1092,15 +1114,24 @@ function showRoundEnd() {
       const cls = p?.is_you ? ' class="is-you"' : '';
       return `<tr${cls}><td class="name-cell">${name}</td><td class="${isWinner ? 'winner-cell' : ''}">${s.score === 0 ? '\u2605 0' : s.score}</td></tr>`;
     });
+    // Add spectator projected scores for this round
+    specProjections.forEach(sp => {
+      const rScore = sp.perRound.find(r => r.round_number === round.round_number);
+      rows.push(`<tr class="spectator-row"><td class="name-cell">${sp.display_name} <span class="joining-tag">joining · ${sp.methodLabel}</span></td><td>${rScore ? rScore.score : '-'}</td></tr>`);
+    });
     roundView.innerHTML = `<table class="re-scores"><thead><tr><th>Player</th><th>Points</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
   }
 
   // View 2: Total standings
   const standingsView = document.getElementById('reViewStandings');
-  const sorted = [...players].sort((a, b) => (a.total_score || 0) - (b.total_score || 0));
-  const standingsRows = sorted.map((p, i) => {
-    const cls = p.is_you ? ' class="is-you"' : '';
-    return `<tr${cls}><td class="name-cell">${i + 1}. ${p.is_you ? 'You' : p.display_name}</td><td class="total-cell">${p.total_score || 0}</td></tr>`;
+  const allForStandings = [
+    ...players.map(p => ({ name: p.is_you ? 'You' : p.display_name, total: p.total_score || 0, isYou: p.is_you, isSpec: false })),
+    ...specProjections.map(sp => ({ name: sp.display_name, total: sp.total, isYou: false, isSpec: true, methodLabel: sp.methodLabel }))
+  ].sort((a, b) => a.total - b.total);
+  const standingsRows = allForStandings.map((p, i) => {
+    const cls = p.isYou ? ' class="is-you"' : p.isSpec ? ' class="spectator-row"' : '';
+    const tag = p.isSpec ? ` <span class="joining-tag">joining · ${p.methodLabel}</span>` : '';
+    return `<tr${cls}><td class="name-cell">${i + 1}. ${p.name}${tag}</td><td class="total-cell">${p.total}</td></tr>`;
   });
   standingsView.innerHTML = `<table class="re-scores"><thead><tr><th>Rank</th><th>Total</th></tr></thead><tbody>${standingsRows.join('')}</tbody></table>`;
 
@@ -1117,6 +1148,11 @@ function showRoundEnd() {
       return `<td class="${cellCls}">${score === 0 ? '\u2605' : score}</td>`;
     }).join('');
     return `<tr${cls}><td class="name-cell">${name}</td>${cells}<td class="total-cell">${p.total_score || 0}</td></tr>`;
+  });
+  // Add spectator rows to scoreboard
+  specProjections.forEach(sp => {
+    const cells = sp.perRound.map(r => `<td>${r.score}</td>`).join('');
+    sbRows.push(`<tr class="spectator-row"><td class="name-cell">${sp.display_name} <span class="joining-tag">joining · ${sp.methodLabel}</span></td>${cells}<td class="total-cell">${sp.total}</td></tr>`);
   });
   scoreboardView.innerHTML = `<table class="re-scores"><thead><tr><th></th>${roundHeaders}<th>Total</th></tr></thead><tbody>${sbRows.join('')}</tbody></table>`;
 

@@ -1008,6 +1008,15 @@
   .re-scores tr.is-you td { color:var(--amber); }
   .re-scores tr.is-you td.winner-cell { color:var(--green); }
 
+  /* Spectator / late-joiner rows in score views */
+  .re-scores tr.spectator-row td { color:var(--muted); font-style:italic; opacity:0.7; }
+  .re-scores tr.spectator-row td.total-cell { color:var(--muted); font-weight:400; }
+  .joining-tag {
+    display:inline-block; font-size:0.6rem; font-style:normal; opacity:0.8;
+    background:var(--amber); color:#000; padding:1px 5px; border-radius:3px;
+    margin-left:4px; vertical-align:middle; letter-spacing:0.02em;
+  }
+
   /* Deal button */
   .re-deal-btn {
     margin-top:16px;

@@ -1822,7 +1822,8 @@ begin
     v_result := v_result || jsonb_build_object('spectators', coalesce((
       select jsonb_agg(jsonb_build_object(
         'display_name', p.display_name,
-        'status', ljr.status
+        'status', ljr.status,
+        'scoring_method', ljr.scoring_method
       ) order by ljr.created_at)
       from late_join_requests ljr
       join profiles p on p.id = ljr.player_id
