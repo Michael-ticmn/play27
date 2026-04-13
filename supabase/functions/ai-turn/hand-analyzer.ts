@@ -327,6 +327,74 @@ export function rankDiscards(
     if (nonLayoffCandidates.length > 0) candidates = nonLayoffCandidates;
   }
 
+  // ── Suit concentration: identify top N suits by run potential ──
+  // Cards in non-focused suits should be discarded more readily
+  let topSuits: Set<number> | undefined;
+  if (requiredRuns > 0 && !hasMetContract) {
+    const bySuit = groupBySuit(hand);
+    const suitScores: { suit: number; score: number }[] = [];
+    for (const [suit, cards] of bySuit) {
+      // Score = longest consecutive chain in this suit
+      const vals = cards.map(c => cardValue(c)).sort((a, b) => a - b);
+      let maxChain = 1, chain = 1;
+      for (let i = 1; i < vals.length; i++) {
+        if (vals[i] === vals[i - 1] + 1) { chain++; maxChain = Math.max(maxChain, chain); }
+        else if (vals[i] === vals[i - 1] + 2) { chain++; maxChain = Math.max(maxChain, chain); } // gap-1 (joker fillable)
+        else { chain = 1; }
+      }
+      suitScores.push({ suit, score: maxChain * 10 + cards.length });
+    }
+    suitScores.sort((a, b) => b.score - a.score);
+    topSuits = new Set(suitScores.slice(0, requiredRuns).map(s => s.suit));
+  }
+
+  // ── Post-contract: simplified scoring — dump highest points, keep near-layable ──
+  if (hasMetContract) {
+    const scored = candidates.map(card => {
+      const pts = cardPoints(card);
+
+      // Bonus: card is 1 away from extending a table meld (near-layable)
+      let nearLayable = 0;
+      if (!isJoker(card)) {
+        const cv = cardValue(card);
+        const cs = cardSuit(card);
+        for (const meld of tableMelds) {
+          if (meld.meld_type === 'run') {
+            const nonJokers = meld.cards.filter(c => !isJoker(c));
+            if (nonJokers.length === 0) continue;
+            const suit = cardSuit(nonJokers[0]);
+            if (cs !== suit) continue;
+            const nonJokerValues = nonJokers.map(c => cardValue(c));
+            const minVal = Math.min(...nonJokerValues);
+            const maxVal = Math.max(...nonJokerValues);
+            // 1-away from either end (would become layable if someone else extends first)
+            if (cv === minVal - 2 || cv === maxVal + 2) nearLayable += 10;
+            // 2-away
+            if (cv === minVal - 3 || cv === maxVal + 3) nearLayable += 3;
+          } else if (meld.meld_type === 'set') {
+            const existingValue = meld.cards.find(c => !isJoker(c));
+            if (existingValue && cardValue(card) === cardValue(existingValue)) {
+              nearLayable += 15; // same value as a set — might get laid off
+            }
+          }
+        }
+      }
+
+      // Feed strategy bonus (Hard/Unfair)
+      let feedBonus = 0;
+      if (tableModel && tableModel.myPlayerId) {
+        feedBonus = feedLayOffBonus(card, hand, tableModel, tableModel.myPlayerId);
+      }
+
+      // Score: lower = better to discard
+      // Dump high-point cards, keep near-layable cards, apply feed strategy
+      return { card, score: nearLayable - pts - feedBonus };
+    });
+
+    scored.sort((a, b) => a.score - b.score);
+    return scored.map(s => s.card);
+  }
+
   const scored = candidates.map(card => {
     // Check if removing this card breaks an existing contract solution
     const without = hand.filter(c => c !== card);
@@ -348,9 +416,8 @@ export function rankDiscards(
     }
 
     // Card memory: extra penalty if an opponent wants this value/suit
-    // Only apply pre-contract — post-contract priority is dumping hand fast
     let opponentFeedPenalty = 0;
-    if (memory && !isJoker(card) && !hasMetContract) {
+    if (memory && !isJoker(card)) {
       const cv = cardValue(card);
       const cs = cardSuit(card);
       if (opponentWantsValue(memory, '', cv)) {
@@ -361,14 +428,6 @@ export function rankDiscards(
       }
     }
 
-    // Post-contract feed strategy: bonus for discarding cards that trigger opponent melds
-    // we can later lay off onto (Hard/Unfair only — requires tableModel)
-    let feedBonus = 0;
-    if (hasMetContract && tableModel && tableModel.myPlayerId) {
-      feedBonus = feedLayOffBonus(card, hand, tableModel, tableModel.myPlayerId);
-      // feedBonus is positive = prefer discarding this card → subtract from score (lower = discard first)
-    }
-
     // Isolation penalty: lone high cards with no run neighbors (run-heavy rounds)
     let isolationScore = 0;
     if (isolation < 0 && !isJoker(card) && cardValue(card) >= 11) {
@@ -377,15 +436,24 @@ export function rankDiscards(
       }
     }
 
+    // Suit concentration: penalize cards not in the top N suits for runs
+    let suitConcentration = 0;
+    if (topSuits && !isJoker(card)) {
+      if (!topSuits.has(cardSuit(card))) {
+        suitConcentration = -20 * rw; // wrong suit — easier to discard
+      }
+    }
+
     // Score: lower = better to discard
     // Cards that break contract: strongly keep (1000)
     // Cards that feed opponent melds: penalize (+40 meld, +25/15 memory)
     // Then by contract relevance (0-50)
+    // Suit concentration: cards in non-focus suits penalized (-20)
     // Isolation penalty for lone high cards (negative in run-heavy rounds)
     // Then prefer discarding high-point cards (subtract pts)
     return {
       card,
-      score: (canStillMeet ? 0 : 1000) + feedsPenalty + opponentFeedPenalty + relevance + isolationScore - pts - feedBonus
+      score: (canStillMeet ? 0 : 1000) + feedsPenalty + opponentFeedPenalty + relevance + suitConcentration + isolationScore - pts
     };
   });
 
@@ -845,12 +913,25 @@ function canLayOff(card: CardId, meld: { meld_type: string; cards: CardId[] }): 
     const suit = cardSuit(nonJokers[0]);
     if (cardSuit(card) !== suit) return false;
 
-    const values = meld.cards.map((c, i) => isJoker(c) ? -1 : cardValue(c));
-    // Reconstruct the run values (fill in joker gaps)
-    const firstNonJoker = values.findIndex(v => v !== -1);
-    if (firstNonJoker === -1) return true;
-    const startVal = values[firstNonJoker] - firstNonJoker;
-    const endVal = startVal + meld.cards.length - 1;
+    // Compute actual min/max values from non-joker cards
+    // (can't trust card order — lay-offs append with max position, not sorted by value)
+    const nonJokerValues = nonJokers.map(c => cardValue(c));
+    const minVal = Math.min(...nonJokerValues);
+    const maxVal = Math.max(...nonJokerValues);
+
+    const jokerCount = meld.cards.length - nonJokers.length;
+    if (jokerCount === 0) {
+      // No jokers: run is simply minVal..maxVal
+      const cv = cardValue(card);
+      return cv === minVal - 1 || cv === maxVal + 1;
+    }
+
+    // With jokers: they fill gaps first, then extend ends
+    const naturalSpan = maxVal - minVal + 1;
+    const gapJokers = naturalSpan - nonJokers.length;
+    const endJokers = Math.max(0, jokerCount - gapJokers);
+    const startVal = minVal - Math.floor(endJokers / 2);
+    const endVal = maxVal + Math.ceil(endJokers / 2);
 
     const cv = cardValue(card);
     return cv === startVal - 1 || cv === endVal + 1;

@@ -160,6 +160,13 @@ GROUP BY tier;
 - Feed strategy has narrow impact in sets-only rounds (lay-off surface is 1 value per meld)
 - Expect Unfair to separate more in run-heavy rounds where lay-off surface is wider
 
+### Round 3 baseline (2 runs of 3)
+- Easy 0% / avg 40, Normal 39% / avg 15, Hard 28% / avg 16, Unfair 33% / avg 19
+- Unfair passes Hard (33% vs 28%) — feed strategy + card memory pay off with wider run lay-off surface
+- Normal drops from 54% → 39% — smarter tiers close the gap in runs
+- Avg 54 turns (vs 38 in R1) — runs take longer to shed post-contract
+- Critical bug fixes required: `canLayOff` ordering, chain lay-offs, `--round N` flag, post-contract discard strategy
+
 ### Tuning recipe
 1. Baseline 100 games, all 4 tiers, current round
 2. If tiers don't separate: check `mistakeRate` first

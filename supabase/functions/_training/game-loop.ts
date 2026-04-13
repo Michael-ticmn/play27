@@ -103,7 +103,10 @@ export async function runGame(
   }
 
   // ── 3. START GAME ──
-  await hostRpc(clients.host, 'start_game', { p_game_id: gameId });
+  await hostRpc(clients.host, 'start_game', {
+    p_game_id: gameId,
+    p_start_round: config.roundNumber,
+  });
 
   // ── 4. READY CHECK ──
   let roundState = await getCurrentRound(clients.service, gameId);
@@ -489,33 +492,46 @@ async function executeActionPhase(
     return;
   }
 
-  // ── CONTRACT ALREADY MET — LAY-OFFS THEN DISCARD ──
-  const layoffs = findLayOffs(currentHand, melds);
-  const filteredLayoffs = filterLayOffs(tp, layoffs);
-
+  // ── CONTRACT ALREADY MET — CHAIN LAY-OFFS THEN DISCARD ──
+  // Re-read melds after each lay-off so chain extensions are found
+  // (e.g., run 5-6-7 → lay off 4 → now 3 fits too)
   let handAfterLayoffs = [...currentHand];
-  for (const lo of filteredLayoffs) {
-    if (!handAfterLayoffs.includes(lo.card)) continue;
-    try {
-      await callAction('lay_off_card', {
-        p_round_id: roundState.roundId,
-        p_meld_id: lo.meld_id,
-        p_card: lo.card,
-      });
-      handAfterLayoffs = handAfterLayoffs.filter(c => c !== lo.card);
+  let currentMelds = melds;
+  let madeProgress = true;
+  while (madeProgress && handAfterLayoffs.length > 0) {
+    madeProgress = false;
+    const layoffs = findLayOffs(handAfterLayoffs, currentMelds);
+    const filteredLayoffs = filterLayOffs(tp, layoffs);
 
-      if (config.logDecisions) {
-        await logDecision(
-          clients.service, gameId, roundState.roundId,
-          turnCount, currentSeat, currentTier, 'lay_off',
-          { action: 'lay_off', card: lo.card, meld_id: lo.meld_id, hand_size: handAfterLayoffs.length }
-        );
+    for (const lo of filteredLayoffs) {
+      if (!handAfterLayoffs.includes(lo.card)) continue;
+      try {
+        await callAction('lay_off_card', {
+          p_round_id: roundState.roundId,
+          p_meld_id: lo.meld_id,
+          p_card: lo.card,
+        });
+        handAfterLayoffs = handAfterLayoffs.filter(c => c !== lo.card);
+        madeProgress = true;
+
+        if (config.logDecisions) {
+          await logDecision(
+            clients.service, gameId, roundState.roundId,
+            turnCount, currentSeat, currentTier, 'lay_off',
+            { action: 'lay_off', card: lo.card, meld_id: lo.meld_id, hand_size: handAfterLayoffs.length }
+          );
+        }
+      } catch {
+        // Lay-off may fail
       }
-    } catch {
-      // Lay-off may fail
+
+      if (handAfterLayoffs.length === 0) return; // Won!
     }
 
-    if (handAfterLayoffs.length === 0) return; // Won!
+    // Re-read melds if we laid anything off (runs may have extended)
+    if (madeProgress && handAfterLayoffs.length > 0) {
+      currentMelds = await getMelds(clients.service, roundState.roundId);
+    }
   }
 
   // Discard

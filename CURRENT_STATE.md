@@ -1,6 +1,6 @@
 # Contract Rummy — CURRENT_STATE.md
 
-## As of 2026-04-12 (v0.14.0)
+## As of 2026-04-13 (v0.14.1)
 
 **What exists and works:**
 - index.html — landing page with game directory, copyright footer
@@ -97,8 +97,25 @@
 - Round 1 tier separation: Easy < Hard/Unfair < Normal (Normal still dominant)
 - Feed strategy (opponent model) more impactful in run-heavy rounds with wider lay-off surface
 
+**Round 3 Training Results (100-game baseline):**
+- Easy 0% / avg 40 — never wins, consistent bottom
+- Normal 39% / avg 15 — still leads but less dominant than Round 1 (54% → 39%)
+- Hard 28% / avg 16 — solid middle, same as Round 1
+- Unfair 33% / avg 19 — jumped from 26% to 33%, now ahead of Hard
+- Round 3 tier separation: Easy < Hard < Unfair < Normal (Unfair passes Hard in runs)
+- Feed strategy + card memory more impactful with wider run lay-off surface (confirmed)
+- Avg 54 turns (vs 38 in Round 1) — runs take longer to complete
+
+**Round 3 Bug Fixes (critical):**
+- `--round N` flag was ignored — `start_game` always dealt round 1; added `p_start_round` parameter
+- `canLayOff()` assumed meld cards in sequential order — but `lay_off_card` SQL appends with `max(position)+1`, so laid-off cards went to the end regardless of value; fixed to use `min/max` of actual card values
+- Chain lay-off bug — `findLayOffs` was called once; after laying off card A extending a run, card B could now fit but was never checked; fixed with re-find loop after each successful lay-off
+- Post-contract discard strategy was still using pre-contract relevance scoring; added dedicated post-contract path that dumps highest-point cards and keeps near-layable cards
+- Suit concentration penalty added for run-focused rounds — cards in non-focus suits penalized -20 in discard scoring
+- Decision logging silently failed — `logDecision` had no error checking
+
 **What's in progress:**
-- AI training: Round 3 tuning (2 runs of 3) — first pure-run contract
+- Round 3 tuning — baseline established, tier separation emerging
 - Mobile portrait layout refinements
 
-**Which surface should act next:** Tune Round 3 (2 runs) — pure runs have wider lay-off surface (any adjacent suit card), should favor Unfair's feed strategy and card memory significantly more than sets-only Round 1
+**Which surface should act next:** Tune Round 3 further — Normal still dominant at 39%, need to close gap. Unfair passing Hard is good; explore whether tighter speculative thresholds or round-profile adjustments can push Unfair higher.

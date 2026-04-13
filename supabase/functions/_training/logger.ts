@@ -124,7 +124,7 @@ export async function logDecision(
   phase: string,
   decision: Record<string, unknown>
 ): Promise<void> {
-  await sb
+  const { error } = await sb
     .from('training_decisions')
     .insert({
       game_id: gameId,
@@ -135,6 +135,10 @@ export async function logDecision(
       phase,
       decision,
     });
+
+  if (error) {
+    console.error(`[logDecision] Failed: ${error.message} | game=${gameId} round=${roundId} turn=${turnNumber} seat=${seat} tier=${aiTier} phase=${phase}`);
+  }
 }
 
 // ── Compute run summary from training_games ──

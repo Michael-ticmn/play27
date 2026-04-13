@@ -134,25 +134,30 @@ serve(async (req) => {
     const topDiscard: CardId | null = topDiscardRow?.card_id || null;
 
     // Get all melds on table
-    const { data: meldsData } = await supabase
-      .from('melds')
-      .select('id, player_id, meld_type')
-      .eq('round_id', round_id);
+    async function fetchMelds() {
+      const { data: meldsData } = await supabase
+        .from('melds')
+        .select('id, player_id, meld_type')
+        .eq('round_id', round_id);
 
-    const melds: { id: string; meld_type: string; cards: CardId[] }[] = [];
-    for (const m of (meldsData || [])) {
-      const { data: meldCards } = await supabase
-        .from('round_cards')
-        .select('card_id')
-        .eq('round_id', round_id)
-        .eq('meld_id', m.id)
-        .order('position');
-      melds.push({
-        id: m.id,
-        meld_type: m.meld_type,
-        cards: (meldCards || []).map(c => c.card_id)
-      });
+      const result: { id: string; meld_type: string; cards: CardId[] }[] = [];
+      for (const m of (meldsData || [])) {
+        const { data: meldCards } = await supabase
+          .from('round_cards')
+          .select('card_id')
+          .eq('round_id', round_id)
+          .eq('meld_id', m.id)
+          .order('position');
+        result.push({
+          id: m.id,
+          meld_type: m.meld_type,
+          cards: (meldCards || []).map(c => c.card_id)
+        });
+      }
+      return result;
     }
+
+    const melds = await fetchMelds();
 
     // Get contract info
     const { data: contract } = await supabase
@@ -399,31 +404,44 @@ serve(async (req) => {
         );
       }
     } else {
-      // Contract already met — try lay-offs
-      const layoffs = findLayOffs(currentHand, melds);
-      const filteredLayoffs = filterLayOffs(ep, layoffs);
-
+      // Contract already met — chain lay-offs
+      // Re-find lay-offs after each success so chain extensions work
+      // (e.g., run 5-6-7 → lay off 4 → now 3 fits too)
       let handAfterLayoffs = [...currentHand];
-      for (const lo of filteredLayoffs) {
-        if (!handAfterLayoffs.includes(lo.card)) continue;
-        try {
-          await rpc('lay_off_card', {
-            p_round_id: round_id,
-            p_meld_id: lo.meld_id,
-            p_card: lo.card,
-            p_acting_as: ai_player_id
-          });
-          handAfterLayoffs = handAfterLayoffs.filter(c => c !== lo.card);
-          console.log(`[AI ${profile.ai_name}] Laid off ${lo.card}`);
-        } catch (e) {
-          console.log(`[AI ${profile.ai_name}] Lay-off failed: ${e.message}`);
+      let currentMelds = melds;
+      let madeProgress = true;
+      while (madeProgress && handAfterLayoffs.length > 0) {
+        madeProgress = false;
+        const layoffs = findLayOffs(handAfterLayoffs, currentMelds);
+        const filteredLayoffs = filterLayOffs(ep, layoffs);
+
+        for (const lo of filteredLayoffs) {
+          if (!handAfterLayoffs.includes(lo.card)) continue;
+          try {
+            await rpc('lay_off_card', {
+              p_round_id: round_id,
+              p_meld_id: lo.meld_id,
+              p_card: lo.card,
+              p_acting_as: ai_player_id
+            });
+            handAfterLayoffs = handAfterLayoffs.filter(c => c !== lo.card);
+            madeProgress = true;
+            console.log(`[AI ${profile.ai_name}] Laid off ${lo.card}`);
+          } catch (e) {
+            console.log(`[AI ${profile.ai_name}] Lay-off failed: ${e.message}`);
+          }
+
+          if (handAfterLayoffs.length === 0) {
+            return new Response(
+              JSON.stringify({ status: 'completed', action: 'won_round' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
         }
 
-        if (handAfterLayoffs.length === 0) {
-          return new Response(
-            JSON.stringify({ status: 'completed', action: 'won_round' }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+        // Re-read melds if we laid anything off (runs may have extended)
+        if (madeProgress && handAfterLayoffs.length > 0) {
+          currentMelds = await fetchMelds();
         }
       }
 
