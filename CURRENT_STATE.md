@@ -98,7 +98,7 @@
 - Feed strategy (opponent model) more impactful in run-heavy rounds with wider lay-off surface
 
 **What's in progress:**
-- AI training: Round 2 tuning (2 runs of 3) — first run-focused round
+- AI training: Round 3 tuning (2 runs of 3) — first pure-run contract
 - Mobile portrait layout refinements
 
-**Which surface should act next:** Tune Round 2 (2 runs) — run-heavy rounds should favor Unfair's feed strategy and card memory more than sets-only Round 1
+**Which surface should act next:** Tune Round 3 (2 runs) — pure runs have wider lay-off surface (any adjacent suit card), should favor Unfair's feed strategy and card memory significantly more than sets-only Round 1
