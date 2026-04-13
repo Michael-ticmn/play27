@@ -35,6 +35,7 @@ import {
 import { evaluateBuy } from './buy-evaluator.ts';
 import { logGame, logDecision, type GameResult } from './logger.ts';
 import { buildCardMemory, type CardMemory, type GameAction } from '../ai-turn/card-memory.ts';
+import { type TableModel } from '../ai-turn/opponent-model.ts';
 
 const MAX_TURNS = 500;
 
@@ -217,7 +218,7 @@ export async function runGame(
           // Only pass memory if this tier has card memory
           const buyerTp = getTier(buyTier);
           const mem = buyerTp.cardMemoryDepth > 0 ? buyMemory : undefined;
-          const { shouldBuy, score } = evaluateBuy(buyHand, topDiscard, roundState.roundNumber, buyTier, mem);
+          const { shouldBuy, score } = evaluateBuy(buyHand, topDiscard, roundState.roundNumber, buyTier, mem, config.gameSettings.numDecks * 4);
 
           if (shouldBuy) {
             try {
@@ -259,7 +260,7 @@ export async function runGame(
 
     // ── BUILD TURN CONTEXT ──
     const { ctx, protectedCards, myLastDiscard } =
-      await buildTurnContext(clients.service, roundState, currentPlayerId, currentTier);
+      await buildTurnContext(clients.service, roundState, currentPlayerId, currentTier, config.gameSettings);
 
     // ── DRAW PHASE ──
     if (roundState.turnPhase === 'draw') {
@@ -330,13 +331,15 @@ export async function runGame(
       // ── ACTION PHASE ──
       await executeActionPhase(
         clients, config, gameId, roundState, currentSeat, currentTier,
-        currentPlayerId, currentHand, allProtected, ctx.hasMetContract, turnCount, tp
+        currentPlayerId, currentHand, allProtected, ctx.hasMetContract, turnCount, tp,
+        ctx.cardMemory, ctx.tableModel, config.gameSettings.numDecks * 4
       );
     } else if (roundState.turnPhase === 'action') {
       // Resuming from mid-turn — hand already has drawn card
       await executeActionPhase(
         clients, config, gameId, roundState, currentSeat, currentTier,
-        currentPlayerId, ctx.hand, protectedCards, ctx.hasMetContract, turnCount, tp
+        currentPlayerId, ctx.hand, protectedCards, ctx.hasMetContract, turnCount, tp,
+        ctx.cardMemory, ctx.tableModel, config.gameSettings.numDecks * 4
       );
     }
   }
@@ -391,7 +394,10 @@ async function executeActionPhase(
   protectedCards: CardId[],
   hasMetContract: boolean,
   turnCount: number,
-  tp: ReturnType<typeof getTier>
+  tp: ReturnType<typeof getTier>,
+  cardMemory?: CardMemory,
+  tableModel?: TableModel,
+  totalPerValue = 8
 ): Promise<void> {
   const melds = await getMelds(clients.service, roundState.roundId);
   const tableMelds = tp.checksTableMelds ? melds : [];
@@ -444,7 +450,7 @@ async function executeActionPhase(
       // No lay-offs same turn as contract — just discard
       const discard = (roundState.mustMeldAll
         ? rankDiscardsRound7(handAfterMeld, tableMelds, protectedCards)
-        : rankDiscards(handAfterMeld, roundState.contractSets, roundState.contractRuns, tableMelds, protectedCards, true)
+        : rankDiscards(handAfterMeld, roundState.contractSets, roundState.contractRuns, tableMelds, protectedCards, true, undefined, cardMemory, tableModel, totalPerValue)
       )[0] || handAfterMeld[0];
 
       await callAction('discard_card', {
@@ -465,7 +471,7 @@ async function executeActionPhase(
     // No contract solution — just discard
     const discard = (roundState.mustMeldAll
       ? rankDiscardsRound7(currentHand, tableMelds, protectedCards)
-      : rankDiscards(currentHand, roundState.contractSets, roundState.contractRuns, tableMelds, protectedCards, hasMetContract)
+      : rankDiscards(currentHand, roundState.contractSets, roundState.contractRuns, tableMelds, protectedCards, hasMetContract, undefined, cardMemory, tableModel, totalPerValue)
     )[0] || currentHand[0];
 
     await callAction('discard_card', {
@@ -515,7 +521,7 @@ async function executeActionPhase(
   // Discard
   const discard = (roundState.mustMeldAll
     ? rankDiscardsRound7(handAfterLayoffs, tableMelds, protectedCards)
-    : rankDiscards(handAfterLayoffs, roundState.contractSets, roundState.contractRuns, tableMelds, protectedCards, hasMetContract)
+    : rankDiscards(handAfterLayoffs, roundState.contractSets, roundState.contractRuns, tableMelds, protectedCards, hasMetContract, undefined, cardMemory, tableModel, totalPerValue)
   )[0] || handAfterLayoffs[0];
 
   await callAction('discard_card', {

@@ -77,7 +77,7 @@ export const TIERS: Record<string, TierProfile> = {
     urgentMeldThreshold:     200,
     urgentMistakeRate:       0.15,  // drops from 30% → 15% when score >= 200
 
-    cardMemoryDepth:         10,    // remembers last 10 actions — recent pickups/buys
+    cardMemoryDepth:         5,     // last 5 actions — roughly 1 card per player
     tracksOpponentPickups:   true,  // tracks what opponents grab from discard
   },
 
@@ -116,7 +116,7 @@ export const TIERS: Record<string, TierProfile> = {
     checksTableMelds:        true,
 
     speculativePickups:      true,
-    minSpeculativeMatch:     1,
+    minSpeculativeMatch:     2,      // only pick up discards that complete a set (already hold a pair)
     contractWeaknessAware:   true,
     postContractSpeculation: true,
 

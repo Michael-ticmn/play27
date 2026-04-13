@@ -39,13 +39,19 @@
 - Drawn/bought card protection — hard block on discarding recently acquired cards
 - Table awareness — avoids discarding cards opponents can lay off on (Normal+)
 - Card memory system (card-memory.ts) — tier-gated visible card tracking from game_actions
-  - Normal: last 10 actions, tracks opponent pickups/buys
+  - Normal: last 5 actions, tracks opponent pickups/buys
   - Hard: last 20 actions + opponent tracking, opponent hand model with memory decay
   - Unfair: full round history, perfect opponent hand model, feed strategy for manufacturing lay-offs
 - Opponent hand model (opponent-model.ts) — tracks each opponent's known cards with timestamps
   - Hard forgets cards after N actions; Unfair remembers everything
+  - Wired into rankDiscards — post-contract feedLayOffBonus scores strategic discards
   - Enables strategic discard: feed opponents to trigger melds, then lay off duplicates
+- Game settings awareness — AI reads num_decks, num_jokers, max_buys from game table
+  - Card availability math uses actual totalPerValue (numDecks × 4) instead of hardcoded 4
+  - Dead-path rejection, contract relevance, and buy evaluation all deck-aware
 - Post-contract buy skip — AI no longer buys cards after meeting contract
+- Buy thresholds tuned: Easy 70, Normal 50, Hard 55, Unfair 55
+- Unfair minSpeculativeMatch: 2 — only picks up discards that complete a set (already holding pair)
 - Tier-appropriate timing delays for human-like pacing
 - AI debug panel (host only) — pause/resume, show AI hands, action log
 
@@ -83,9 +89,16 @@
 - SQL: CREATE OR REPLACE functions applied via `supabase db query --linked`
 - Edge Functions deployed via `supabase functions deploy`
 
+**Round 1 Training Results (100-game runs):**
+- Easy 1% / avg 32 — never wins, always melds, stable bottom
+- Normal 54% / avg 8 — dominates through low mistakes and tight hand management
+- Hard 18% / avg 15 — melds fast, speculative pickups sometimes backfire
+- Unfair 26% / avg 19 — feed strategy has narrow impact in sets-only rounds
+- Round 1 tier separation: Easy < Hard/Unfair < Normal (Normal still dominant)
+- Feed strategy (opponent model) more impactful in run-heavy rounds with wider lay-off surface
+
 **What's in progress:**
-- AI training: Round 1 tier tuning — card memory system built, opponent hand model ready, feed strategy designed
-- Wiring opponent-model.ts into game loop for Unfair/Hard strategic discards
+- AI training: Round 2 tuning (2 runs of 3) — first run-focused round
 - Mobile portrait layout refinements
 
-**Which surface should act next:** Wire opponent model into rankDiscards for Unfair feed strategy, then re-run 100-game baseline
+**Which surface should act next:** Tune Round 2 (2 runs) — run-heavy rounds should favor Unfair's feed strategy and card memory more than sets-only Round 1

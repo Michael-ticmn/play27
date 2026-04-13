@@ -7,6 +7,7 @@ import { bestContractSolution, rankDiscards, rankDiscardsRound7, findLayOffs, ev
 import { getTier, randomDelay, preDrawDelay, filterLayOffs } from './tiers.ts';
 import { resolveProfile } from './round-profiles.ts';
 import { buildCardMemory, type CardMemory, type GameAction, EMPTY_MEMORY } from './card-memory.ts';
+import { buildTableModel, type TableModel } from './opponent-model.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -58,6 +59,18 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Get game settings (deck count, jokers, max buys)
+    const { data: gameRow } = await supabase
+      .from('games')
+      .select('num_decks, num_jokers, max_buys_per_round')
+      .eq('id', round.game_id)
+      .single();
+    const gameSettings = {
+      numDecks: gameRow?.num_decks ?? 2,
+      numJokers: gameRow?.num_jokers ?? 0,
+      maxBuys: gameRow?.max_buys_per_round ?? null,
+    };
 
     // Verify it's this AI's turn
     const { data: gp } = await supabase
@@ -144,7 +157,7 @@ serve(async (req) => {
     // Get contract info
     const { data: contract } = await supabase
       .from('contracts')
-      .select('num_sets, num_runs, must_go_out')
+      .select('num_sets, num_runs, must_go_out, cards_dealt')
       .eq('round_number', round.round_number)
       .single();
 
@@ -199,8 +212,9 @@ serve(async (req) => {
       return cards;
     }).filter(c => hand.includes(c));
 
-    // ── Build card memory (tier-gated) ──
+    // ── Build card memory + opponent model (tier-gated) ──
     let cardMemory: CardMemory = EMPTY_MEMORY;
+    let tableModel: TableModel | undefined;
     if (tp.cardMemoryDepth > 0) {
       const { data: actionLog } = await supabase
         .from('game_actions')
@@ -208,12 +222,24 @@ serve(async (req) => {
         .eq('round_id', round_id)
         .order('created_at');
       if (actionLog && actionLog.length > 0) {
+        const actions = actionLog as GameAction[];
         cardMemory = buildCardMemory(
-          actionLog as GameAction[],
+          actions,
           ai_player_id,
           tp.cardMemoryDepth,
           tp.tracksOpponentPickups
         );
+        // Build opponent hand model for Hard/Unfair (memoryDepth >= 20)
+        if (tp.cardMemoryDepth >= 20) {
+          tableModel = buildTableModel(
+            actions,
+            round.game_id,
+            round_id,
+            ai_player_id,
+            contract?.cards_dealt || 10,
+            tp.cardMemoryDepth // Hard=20 (decays), Unfair=Infinity (perfect)
+          );
+        }
       }
     }
 
@@ -288,7 +314,9 @@ serve(async (req) => {
         totalScore,
         mustMeldAll: contract?.must_go_out || false,
         cardMemory,
+        tableModel,
         playerId: ai_player_id,
+        gameSettings,
       });
 
       if (discardBlocked) console.log(`[AI ${profile.ai_name}] Skipping own discard: ${topDiscard}`);
@@ -360,7 +388,7 @@ serve(async (req) => {
         await sleep(randomDelay(tp) * 0.4);
         const discard = (mustMeldAll
           ? rankDiscardsRound7(handAfterMeld, tableMelds, protectedCards)
-          : rankDiscards(handAfterMeld, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, true, roundWeights, cardMemory)
+          : rankDiscards(handAfterMeld, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, true, roundWeights, cardMemory, tableModel, gameSettings.numDecks * 4)
         )[0] || handAfterMeld[0];
         await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
         console.log(`[AI ${profile.ai_name}] Discarded: ${discard}`);
@@ -403,7 +431,7 @@ serve(async (req) => {
       await sleep(randomDelay(tp));
       const discard = (mustMeldAll
         ? rankDiscardsRound7(handAfterLayoffs, tableMelds, protectedCards)
-        : rankDiscards(handAfterLayoffs, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract, roundWeights, cardMemory)
+        : rankDiscards(handAfterLayoffs, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract, roundWeights, cardMemory, tableModel, gameSettings.numDecks * 4)
       )[0] || handAfterLayoffs[0];
       await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
       console.log(`[AI ${profile.ai_name}] Discarded: ${discard}`);
@@ -418,7 +446,7 @@ serve(async (req) => {
     await sleep(randomDelay(tp) * 0.4);
     const discard = (mustMeldAll
       ? rankDiscardsRound7(currentHand, tableMelds, protectedCards)
-      : rankDiscards(currentHand, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract, roundWeights, cardMemory)
+      : rankDiscards(currentHand, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract, roundWeights, cardMemory, tableModel, gameSettings.numDecks * 4)
     )[0] || currentHand[0];
     await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
     console.log(`[AI ${profile.ai_name}] Discarded (no contract): ${discard}`);

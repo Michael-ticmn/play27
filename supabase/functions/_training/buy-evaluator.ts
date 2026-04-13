@@ -8,13 +8,13 @@
 import { CardId, cardValue, isJoker } from '../_shared/types.ts';
 import { groupByValue, groupBySuit, evaluateRound7Buy } from '../ai-turn/hand-analyzer.ts';
 import { getRoundProfile } from '../ai-turn/round-profiles.ts';
-import { type CardMemory, isValueDead, deadCount } from '../ai-turn/card-memory.ts';
+import { type CardMemory, availableCount } from '../ai-turn/card-memory.ts';
 
 const BUY_THRESHOLDS: Record<string, number> = {
   easy: 70,     // only obvious completions
-  normal: 40,   // reasonable threshold
-  hard: 35,     // selective — only clear helpers
-  unfair: 25,   // aggressive but not junk
+  normal: 50,   // pair match alone won't trigger (need pair + run neighbor)
+  hard: 55,     // needs pair + run neighbor or near-completion
+  unfair: 55,   // same selectivity as hard — wins through smarter play, not more buys
 };
 
 function standardBuyScore(hand: CardId[], topDiscard: CardId): number {
@@ -46,12 +46,16 @@ export function evaluateBuy(
   topDiscard: CardId,
   roundNumber: number,
   tier: string,
-  memory?: CardMemory
+  memory?: CardMemory,
+  totalPerValue = 8   // cards per value in full deck (numDecks * 4)
 ): { shouldBuy: boolean; score: number } {
-  // Card memory: skip buying into completely dead set paths (3+ of value in discard)
+  // Card memory: skip buying if not enough of this value remain to complete a set
   if (memory && !isJoker(topDiscard)) {
     const dv = cardValue(topDiscard);
-    if (deadCount(memory, dv) >= 3) {
+    const inHand = hand.filter(c => !isJoker(c) && cardValue(c) === dv).length;
+    const needed = Math.max(0, 2 - inHand); // need 3 for set, already have inHand + buying 1
+    const available = availableCount(memory, dv, totalPerValue) - inHand - 1; // exclude hand + this card
+    if (needed > 0 && available <= 0) {
       return { shouldBuy: false, score: -1 };
     }
   }

@@ -8,6 +8,7 @@ import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { CardId } from '../_shared/types.ts';
 import type { TurnContext } from '../ai-turn/strategy.ts';
 import { buildCardMemory, type CardMemory, type GameAction, EMPTY_MEMORY } from '../ai-turn/card-memory.ts';
+import { buildTableModel, type TableModel } from '../ai-turn/opponent-model.ts';
 import { getTier } from '../ai-turn/tiers.ts';
 
 export interface RoundState {
@@ -247,7 +248,8 @@ export async function buildTurnContext(
   sb: SupabaseClient,
   roundState: RoundState,
   playerId: string,
-  tier: string
+  tier: string,
+  gameSettings?: { numDecks: number; numJokers: number; maxBuys: number | null }
 ): Promise<{ ctx: TurnContext; protectedCards: CardId[]; myLastDiscard: CardId | null }> {
   const [hand, topDiscard, melds, prs, totalScore, myLastDiscard, protectedCards] =
     await Promise.all([
@@ -265,9 +267,10 @@ export async function buildTurnContext(
   // Fetch protected cards now that we have the hand
   const protCards = await getProtectedCards(sb, roundState.roundId, playerId, hand);
 
-  // Build card memory (tier-gated)
+  // Build card memory + opponent model (tier-gated)
   const tp = getTier(tier);
   let cardMemory: CardMemory = EMPTY_MEMORY;
+  let tableModel: TableModel | undefined;
   if (tp.cardMemoryDepth > 0) {
     const { data: actionLog } = await sb
       .from('game_actions')
@@ -275,12 +278,24 @@ export async function buildTurnContext(
       .eq('round_id', roundState.roundId)
       .order('created_at');
     if (actionLog && actionLog.length > 0) {
+      const actions = actionLog as GameAction[];
       cardMemory = buildCardMemory(
-        actionLog as GameAction[],
+        actions,
         playerId,
         tp.cardMemoryDepth,
         tp.tracksOpponentPickups
       );
+      // Build opponent hand model for Hard/Unfair (memoryDepth >= 20)
+      if (tp.cardMemoryDepth >= 20) {
+        tableModel = buildTableModel(
+          actions,
+          roundState.gameId,
+          roundState.roundId,
+          playerId,
+          roundState.cardsDeal || 10,
+          tp.cardMemoryDepth
+        );
+      }
     }
   }
 
@@ -298,7 +313,9 @@ export async function buildTurnContext(
     totalScore,
     mustMeldAll: roundState.mustMeldAll,
     cardMemory,
+    tableModel,
     playerId,
+    gameSettings,
   };
 
   return { ctx, protectedCards: protCards, myLastDiscard };

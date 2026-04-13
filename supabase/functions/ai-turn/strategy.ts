@@ -12,6 +12,7 @@ import {
 import { TierProfile, getTier, shouldMakeMistake, filterLayOffs } from './tiers.ts';
 import { resolveProfile, type EffectiveProfile } from './round-profiles.ts';
 import { type CardMemory, opponentWantsValue } from './card-memory.ts';
+import { type TableModel } from './opponent-model.ts';
 
 export interface TurnDecision {
   drawFrom: 'deck' | 'discard';
@@ -35,7 +36,9 @@ export interface TurnContext {
   totalScore: number;
   mustMeldAll: boolean;
   cardMemory?: CardMemory;
+  tableModel?: TableModel;
   playerId?: string;
+  gameSettings?: { numDecks: number; numJokers: number; maxBuys: number | null };
 }
 
 // ── DRAW DECISION ──
@@ -53,8 +56,9 @@ export function decideDrawSource(ctx: TurnContext): 'deck' | 'discard' {
     return 'deck';
   }
 
+  const totalPerValue = (ctx.gameSettings?.numDecks ?? 2) * 4;
   const eval_ = evaluateDiscardDraw(
-    ctx.hand, ctx.topDiscard, ctx.contractSets, ctx.contractRuns, ctx.cardMemory
+    ctx.hand, ctx.topDiscard, ctx.contractSets, ctx.contractRuns, ctx.cardMemory, totalPerValue
   );
 
   // Non-speculative tiers: only take definitive helps, with mistake chance
@@ -156,7 +160,8 @@ export function decideDiscard(ctx: TurnContext): CardId {
     runWeight: profile.runRelevanceWeight,
     isolationPenalty: profile.isolationPenalty,
   };
-  const ranked = rankDiscards(ctx.hand, ctx.contractSets, ctx.contractRuns, tableMelds, [], false, roundWeights, ctx.cardMemory);
+  const tpv = (ctx.gameSettings?.numDecks ?? 2) * 4;
+  const ranked = rankDiscards(ctx.hand, ctx.contractSets, ctx.contractRuns, tableMelds, [], ctx.hasMetContract, roundWeights, ctx.cardMemory, ctx.tableModel, tpv);
 
   if (ranked.length === 0) return ctx.hand[0]; // fallback
 

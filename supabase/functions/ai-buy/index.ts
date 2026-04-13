@@ -5,7 +5,7 @@ import { CardId, cardPoints, cardValue, isJoker } from '../_shared/types.ts';
 import { groupByValue, groupBySuit, evaluateRound7Buy } from '../ai-turn/hand-analyzer.ts';
 import { getRoundProfile } from '../ai-turn/round-profiles.ts';
 import { getTier } from '../ai-turn/tiers.ts';
-import { buildCardMemory, isValueDead, type GameAction, EMPTY_MEMORY } from '../ai-turn/card-memory.ts';
+import { buildCardMemory, availableCount, type GameAction, EMPTY_MEMORY } from '../ai-turn/card-memory.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -56,6 +56,15 @@ serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Get game settings for deck count
+    const { data: gameRow } = await supabase
+      .from('games')
+      .select('num_decks, num_jokers')
+      .eq('id', round.game_id)
+      .single();
+    const numDecks = gameRow?.num_decks ?? 2;
+    const totalPerValue = numDecks * 4;
 
     if (round.discard_bought) {
       return new Response(
@@ -149,11 +158,13 @@ serve(async (req) => {
         cardMemory = buildCardMemory(actionLog as GameAction[], ai_player_id, tp.cardMemoryDepth, false);
       }
 
-      // Dead-path rejection: if this value can't complete a set, skip buy
+      // Dead-path rejection: if not enough of this value remain to complete a set, skip buy
       const dv = cardValue(topDiscard);
       const sameValue = hand.filter(c => !isJoker(c) && cardValue(c) === dv);
-      if (sameValue.length < 2 && isValueDead(cardMemory, dv, 3 - sameValue.length - 1)) {
-        console.log(`[AI Buy ${profile.ai_name} ${tier}] Skip: value ${dv} dead in discard pile`);
+      const needed = Math.max(0, 2 - sameValue.length); // how many more needed after buying
+      const available = availableCount(cardMemory, dv, totalPerValue) - sameValue.length - 1;
+      if (needed > 0 && available <= 0) {
+        console.log(`[AI Buy ${profile.ai_name} ${tier}] Skip: value ${dv} — not enough remain (${available} available, need ${needed})`);
         return new Response(
           JSON.stringify({ status: 'dead_value_skip', score: -1 }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -202,9 +213,9 @@ serve(async (req) => {
     // Tier-specific thresholds + round adjustment
     const thresholds: Record<string, number> = {
       easy: 70,
-      normal: 40,
-      hard: 35,
-      unfair: 25,
+      normal: 50,
+      hard: 55,
+      unfair: 55,
     };
 
     const threshold = (thresholds[tier] ?? 40) + rp.buyThresholdAdjust;

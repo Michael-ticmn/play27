@@ -147,12 +147,21 @@ GROUP BY tier;
 | `isolationPenalty` | round-profiles.ts | Lone high card discard priority |
 | `buyThresholdAdjust` | round-profiles.ts | Buy aggressiveness per round |
 | `missContractMultiplier` | round-profiles.ts | Contract awareness scaling |
-| `cardMemoryDepth` | tiers.ts | How many actions the AI remembers (0/10/20/∞) |
+| `cardMemoryDepth` | tiers.ts | How many actions the AI remembers (0/5/20/∞) |
 | `tracksOpponentPickups` | tiers.ts | Whether AI tracks what opponents grab |
+| `minSpeculativeMatch` | tiers.ts | Min same-value cards needed before speculative pickup (1 or 2) |
 | `feedLayOffBonus` | opponent-model.ts | Post-contract: feed cards to create lay-off opportunities |
+| `buyThreshold` | buy-evaluator.ts | Per-tier buy score threshold (Easy 70, Normal 50, Hard 55, Unfair 55) |
+| `gameSettings` | strategy.ts | Deck count awareness — totalPerValue = numDecks × 4 |
+
+### Round 1 results (locked in)
+- Easy 1% / avg 32, Normal 54% / avg 8, Hard 18% / avg 15, Unfair 26% / avg 19
+- Normal dominates Round 1 (sets only) — low mistakes + tight hand = fast wins
+- Feed strategy has narrow impact in sets-only rounds (lay-off surface is 1 value per meld)
+- Expect Unfair to separate more in run-heavy rounds where lay-off surface is wider
 
 ### Tuning recipe
-1. Baseline 100 games, all 4 tiers, round 1
+1. Baseline 100 games, all 4 tiers, current round
 2. If tiers don't separate: check `mistakeRate` first
 3. If Easy wins too much: raise `mistakeRate` or enable `canMissContract`
 4. If Hard ≈ Unfair: lower Hard's `layOffDetection`
