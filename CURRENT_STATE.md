@@ -38,6 +38,14 @@
 - Round 7 support — variable-length runs, must-meld-all solver, server enforcement
 - Drawn/bought card protection — hard block on discarding recently acquired cards
 - Table awareness — avoids discarding cards opponents can lay off on (Normal+)
+- Card memory system (card-memory.ts) — tier-gated visible card tracking from game_actions
+  - Normal: last 10 actions, tracks opponent pickups/buys
+  - Hard: last 20 actions + opponent tracking, opponent hand model with memory decay
+  - Unfair: full round history, perfect opponent hand model, feed strategy for manufacturing lay-offs
+- Opponent hand model (opponent-model.ts) — tracks each opponent's known cards with timestamps
+  - Hard forgets cards after N actions; Unfair remembers everything
+  - Enables strategic discard: feed opponents to trigger melds, then lay off duplicates
+- Post-contract buy skip — AI no longer buys cards after meeting contract
 - Tier-appropriate timing delays for human-like pacing
 - AI debug panel (host only) — pause/resume, show AI hands, action log
 
@@ -76,7 +84,8 @@
 - Edge Functions deployed via `supabase functions deploy`
 
 **What's in progress:**
-- AI training: running baseline games per round, tuning tier/round profiles
+- AI training: Round 1 tier tuning — card memory system built, opponent hand model ready, feed strategy designed
+- Wiring opponent-model.ts into game loop for Unfair/Hard strategic discards
 - Mobile portrait layout refinements
 
-**Which surface should act next:** AI training baseline runs
+**Which surface should act next:** Wire opponent model into rankDiscards for Unfair feed strategy, then re-run 100-game baseline

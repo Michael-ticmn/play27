@@ -26,6 +26,10 @@ export interface TierProfile {
   missContractRate: number;   // probability of missing (only if canMissContract)
   urgentMeldThreshold: number; // total score at which urgency kicks in
   urgentMistakeRate: number;  // reduced mistake rate when score >= urgentMeldThreshold
+
+  // ── Card memory ──
+  cardMemoryDepth: number;          // 0=none, 1=last discard per player, 20=recent, Infinity=full
+  tracksOpponentPickups: boolean;   // track what opponents draw from discard / buy
 }
 
 export const TIERS: Record<string, TierProfile> = {
@@ -48,6 +52,9 @@ export const TIERS: Record<string, TierProfile> = {
     missContractRate:        0.2,
     urgentMeldThreshold:     150,
     urgentMistakeRate:       0.5,   // Easy stays Easy even when urgent
+
+    cardMemoryDepth:         0,
+    tracksOpponentPickups:   false,
   },
 
   normal: {
@@ -68,7 +75,10 @@ export const TIERS: Record<string, TierProfile> = {
     canMissContract:         false,
     missContractRate:        0,
     urgentMeldThreshold:     200,
-    urgentMistakeRate:       0.05,  // drops from 30% → 5% when score >= 200
+    urgentMistakeRate:       0.15,  // drops from 30% → 15% when score >= 200
+
+    cardMemoryDepth:         10,    // remembers last 10 actions — recent pickups/buys
+    tracksOpponentPickups:   true,  // tracks what opponents grab from discard
   },
 
   hard: {
@@ -76,7 +86,7 @@ export const TIERS: Record<string, TierProfile> = {
     preDrawDelay:     { min: 4000, max: 7000 },
     buyWindow:        { earliest: 0.05, latest: 0.5 },
 
-    mistakeRate:             0.1,
+    mistakeRate:             0.05,
     layOffDetection:         1.0,
 
     checksTableMelds:        true,
@@ -90,6 +100,9 @@ export const TIERS: Record<string, TierProfile> = {
     missContractRate:        0,
     urgentMeldThreshold:     150,
     urgentMistakeRate:       0.05,  // drops from 10% → 5% when urgent
+
+    cardMemoryDepth:         20,    // last 20 actions — recent context
+    tracksOpponentPickups:   true,
   },
 
   unfair: {
@@ -111,6 +124,9 @@ export const TIERS: Record<string, TierProfile> = {
     missContractRate:        0,
     urgentMeldThreshold:     150,
     urgentMistakeRate:       0.0,   // already perfect
+
+    cardMemoryDepth:         Infinity,  // full round history — sees everything
+    tracksOpponentPickups:   true,
   },
 };
 

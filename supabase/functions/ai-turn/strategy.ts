@@ -11,6 +11,7 @@ import {
 } from './hand-analyzer.ts';
 import { TierProfile, getTier, shouldMakeMistake, filterLayOffs } from './tiers.ts';
 import { resolveProfile, type EffectiveProfile } from './round-profiles.ts';
+import { type CardMemory, opponentWantsValue } from './card-memory.ts';
 
 export interface TurnDecision {
   drawFrom: 'deck' | 'discard';
@@ -33,6 +34,8 @@ export interface TurnContext {
   roundNumber: number;
   totalScore: number;
   mustMeldAll: boolean;
+  cardMemory?: CardMemory;
+  playerId?: string;
 }
 
 // ── DRAW DECISION ──
@@ -51,7 +54,7 @@ export function decideDrawSource(ctx: TurnContext): 'deck' | 'discard' {
   }
 
   const eval_ = evaluateDiscardDraw(
-    ctx.hand, ctx.topDiscard, ctx.contractSets, ctx.contractRuns
+    ctx.hand, ctx.topDiscard, ctx.contractSets, ctx.contractRuns, ctx.cardMemory
   );
 
   // Non-speculative tiers: only take definitive helps, with mistake chance
@@ -153,19 +156,19 @@ export function decideDiscard(ctx: TurnContext): CardId {
     runWeight: profile.runRelevanceWeight,
     isolationPenalty: profile.isolationPenalty,
   };
-  const ranked = rankDiscards(ctx.hand, ctx.contractSets, ctx.contractRuns, tableMelds, [], false, roundWeights);
+  const ranked = rankDiscards(ctx.hand, ctx.contractSets, ctx.contractRuns, tableMelds, [], false, roundWeights, ctx.cardMemory);
 
   if (ranked.length === 0) return ctx.hand[0]; // fallback
 
   // Mistake: pick suboptimal discard
   if (shouldMakeMistake(profile, ctx.totalScore)) {
-    if (profile.mistakeRate >= 0.4) {
-      // High mistake rate (Easy): random from top half
+    if (profile.mistakeRate >= 0.2) {
+      // Moderate+ mistake rate (Easy + Normal): random from top half
       const topHalf = ranked.slice(0, Math.ceil(ranked.length / 2));
       return topHalf[Math.floor(Math.random() * topHalf.length)];
     }
     if (ranked.length > 1) {
-      return ranked[1]; // second-best choice
+      return ranked[1]; // second-best choice (Hard only — 5% rate)
     }
   }
 

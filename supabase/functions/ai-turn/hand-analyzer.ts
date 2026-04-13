@@ -1,4 +1,5 @@
 import { CardId, cardSuit, cardValue, isJoker, cardPoints } from '../_shared/types.ts';
+import { type CardMemory, deadCount, isValueDead, opponentWantsValue, opponentWantsSuitRun } from './card-memory.ts';
 
 // ── Group cards by value (for sets) ──
 export function groupByValue(cards: CardId[]): Map<number, CardId[]> {
@@ -234,7 +235,8 @@ function cardContractRelevance(
   requiredSets: number,
   requiredRuns: number,
   setWeight = 1.0,
-  runWeight = 1.0
+  runWeight = 1.0,
+  memory?: CardMemory
 ): number {
   if (isJoker(card)) return 50; // jokers always valuable
 
@@ -245,8 +247,17 @@ function cardContractRelevance(
   // ── Set relevance (only if contract needs sets) ──
   if (requiredSets > 0) {
     const sameValue = hand.filter(c => !isJoker(c) && cardValue(c) === cv && c !== card);
-    if (sameValue.length >= 2) score += 30 * setWeight; // completes a set
-    else if (sameValue.length === 1) score += 15 * setWeight; // building a pair
+    // Card memory: if most cards of this value are dead, set path is weaker
+    // Only penalize when value is clearly dead (3+ in pile)
+    let setDeadPenalty = 1.0;
+    if (memory && sameValue.length < 2) {
+      const dead = deadCount(memory, cv);
+      if (dead >= 3) setDeadPenalty = 0.1;   // 3+ dead — nearly impossible to complete set
+      else if (dead >= 2) setDeadPenalty = 0.5; // 2 dead — unlikely but possible
+    }
+    if (sameValue.length >= 2) score += 30 * setWeight; // completes a set (no penalty — already have it)
+    else if (sameValue.length === 1) score += 15 * setWeight * setDeadPenalty; // building a pair
+    else score += 5 * setWeight * setDeadPenalty; // singleton — penalize if dead
   }
 
   // ── Run relevance (only if contract needs runs) ──
@@ -288,7 +299,8 @@ export function rankDiscards(
   tableMelds: { id: string; meld_type: string; cards: CardId[] }[] = [],
   protectedCards: CardId[] = [],
   hasMetContract: boolean = false,
-  roundWeights?: { setWeight: number; runWeight: number; isolationPenalty: number }
+  roundWeights?: { setWeight: number; runWeight: number; isolationPenalty: number },
+  memory?: CardMemory
 ): CardId[] {
   const protectedSet = new Set(protectedCards);
   const sw = roundWeights?.setWeight ?? 1.0;
@@ -315,7 +327,7 @@ export function rankDiscards(
     const canStillMeet = solveContract(without, requiredSets, requiredRuns).length > 0;
 
     // Contract-aware relevance (how much does this card help the needed contract?)
-    const relevance = cardContractRelevance(card, hand, requiredSets, requiredRuns, sw, rw);
+    const relevance = cardContractRelevance(card, hand, requiredSets, requiredRuns, sw, rw, memory);
 
     // Higher deadwood points = better to discard (if equally irrelevant)
     const pts = cardPoints(card);
@@ -329,6 +341,20 @@ export function rankDiscards(
       }
     }
 
+    // Card memory: extra penalty if an opponent wants this value/suit
+    // Only apply pre-contract — post-contract priority is dumping hand fast
+    let opponentFeedPenalty = 0;
+    if (memory && !isJoker(card) && !hasMetContract) {
+      const cv = cardValue(card);
+      const cs = cardSuit(card);
+      if (opponentWantsValue(memory, '', cv)) {
+        opponentFeedPenalty += 25; // opponent picked up/bought this value
+      }
+      if (opponentWantsSuitRun(memory, '', cs, cv)) {
+        opponentFeedPenalty += 15; // opponent collecting nearby suit cards
+      }
+    }
+
     // Isolation penalty: lone high cards with no run neighbors (run-heavy rounds)
     let isolationScore = 0;
     if (isolation < 0 && !isJoker(card) && cardValue(card) >= 11) {
@@ -339,13 +365,13 @@ export function rankDiscards(
 
     // Score: lower = better to discard
     // Cards that break contract: strongly keep (1000)
-    // Cards that feed opponent melds: penalize (+40)
+    // Cards that feed opponent melds: penalize (+40 meld, +25/15 memory)
     // Then by contract relevance (0-50)
     // Isolation penalty for lone high cards (negative in run-heavy rounds)
     // Then prefer discarding high-point cards (subtract pts)
     return {
       card,
-      score: (canStillMeet ? 0 : 1000) + feedsPenalty + relevance + isolationScore - pts
+      score: (canStillMeet ? 0 : 1000) + feedsPenalty + opponentFeedPenalty + relevance + isolationScore - pts
     };
   });
 
@@ -658,7 +684,8 @@ export function evaluateDiscardDraw(
   hand: CardId[],
   discardCard: CardId,
   requiredSets: number,
-  requiredRuns: number
+  requiredRuns: number,
+  memory?: CardMemory
 ): { takeDiscard: boolean; reason: string } {
   if (isJoker(discardCard)) {
     return { takeDiscard: true, reason: 'joker' };
@@ -715,7 +742,10 @@ export function evaluateDiscardDraw(
     const sameValue = hand.filter(c => !isJoker(c) && cardValue(c) === dv);
     if (sameValue.length >= 2) return { takeDiscard: true, reason: 'completes_set' };
     if (sameValue.length >= 1) {
-      // Only build this pair if it's among the best paths to needed sets
+      // Card memory: reject only if value is completely dead (3+ in discard pile)
+      if (memory && deadCount(memory, dv) >= 3) {
+        return { takeDiscard: false, reason: 'dead_set_path' };
+      }
       if (isBestPairPath(hand, dv, requiredSets)) {
         return { takeDiscard: true, reason: 'builds_pair' };
       }
@@ -727,6 +757,10 @@ export function evaluateDiscardDraw(
   // ── Mixed contract: evaluate both dimensions ──
   const sameValue = hand.filter(c => !isJoker(c) && cardValue(c) === dv);
   if (sameValue.length >= 2) return { takeDiscard: true, reason: 'completes_set' };
+  // Card memory: reject dead set paths in mixed contracts too (only if completely dead)
+  if (memory && sameValue.length >= 1 && deadCount(memory, dv) >= 3) {
+    // Don't chase this set — but might still help a run, so continue checking
+  }
 
   const sameSuit = hand.filter(c => !isJoker(c) && cardSuit(c) === ds)
     .map(c => cardValue(c)).sort((a, b) => a - b);

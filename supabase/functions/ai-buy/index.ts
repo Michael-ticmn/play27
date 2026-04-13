@@ -4,6 +4,8 @@ import { sleep, BUY_TIMING } from '../_shared/delays.ts';
 import { CardId, cardPoints, cardValue, isJoker } from '../_shared/types.ts';
 import { groupByValue, groupBySuit, evaluateRound7Buy } from '../ai-turn/hand-analyzer.ts';
 import { getRoundProfile } from '../ai-turn/round-profiles.ts';
+import { getTier } from '../ai-turn/tiers.ts';
+import { buildCardMemory, isValueDead, type GameAction, EMPTY_MEMORY } from '../ai-turn/card-memory.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -92,6 +94,21 @@ serve(async (req) => {
       );
     }
 
+    // Skip buying if AI has already met their contract
+    const { data: prs } = await supabase
+      .from('player_round_state')
+      .select('has_met_contract')
+      .eq('round_id', round_id)
+      .eq('player_id', ai_player_id)
+      .single();
+
+    if (prs?.has_met_contract) {
+      return new Response(
+        JSON.stringify({ status: 'post_contract_skip' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Get AI's hand and the top discard
     const { data: handCards } = await supabase
       .from('round_cards')
@@ -117,6 +134,31 @@ serve(async (req) => {
         JSON.stringify({ status: 'no_discard' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // ── Build card memory for dead-path rejection (tier-gated) ──
+    const tp = getTier(tier);
+    let cardMemory = EMPTY_MEMORY;
+    if (tp.cardMemoryDepth > 0 && !isJoker(topDiscard)) {
+      const { data: actionLog } = await supabase
+        .from('game_actions')
+        .select('action_type, player_id, details')
+        .eq('round_id', round_id)
+        .order('created_at');
+      if (actionLog && actionLog.length > 0) {
+        cardMemory = buildCardMemory(actionLog as GameAction[], ai_player_id, tp.cardMemoryDepth, false);
+      }
+
+      // Dead-path rejection: if this value can't complete a set, skip buy
+      const dv = cardValue(topDiscard);
+      const sameValue = hand.filter(c => !isJoker(c) && cardValue(c) === dv);
+      if (sameValue.length < 2 && isValueDead(cardMemory, dv, 3 - sameValue.length - 1)) {
+        console.log(`[AI Buy ${profile.ai_name} ${tier}] Skip: value ${dv} dead in discard pile`);
+        return new Response(
+          JSON.stringify({ status: 'dead_value_skip', score: -1 }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // ── EVALUATE: should the AI buy this card? ──
@@ -161,8 +203,8 @@ serve(async (req) => {
     const thresholds: Record<string, number> = {
       easy: 70,
       normal: 40,
-      hard: 25,
-      unfair: 10,
+      hard: 35,
+      unfair: 25,
     };
 
     const threshold = (thresholds[tier] ?? 40) + rp.buyThresholdAdjust;

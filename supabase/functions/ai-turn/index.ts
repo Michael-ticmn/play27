@@ -6,6 +6,7 @@ import { planTurn } from './strategy.ts';
 import { bestContractSolution, rankDiscards, rankDiscardsRound7, findLayOffs, evaluatePostContractDraw } from './hand-analyzer.ts';
 import { getTier, randomDelay, preDrawDelay, filterLayOffs } from './tiers.ts';
 import { resolveProfile } from './round-profiles.ts';
+import { buildCardMemory, type CardMemory, type GameAction, EMPTY_MEMORY } from './card-memory.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -198,7 +199,25 @@ serve(async (req) => {
       return cards;
     }).filter(c => hand.includes(c));
 
-    console.log(`[AI ${profile.ai_name} ${tier}] Turn start: ${hand.length} cards, contract: ${contract?.num_sets}S/${contract?.num_runs}R, met: ${hasMetContract}, protected: ${boughtCards.length} bought`);
+    // ── Build card memory (tier-gated) ──
+    let cardMemory: CardMemory = EMPTY_MEMORY;
+    if (tp.cardMemoryDepth > 0) {
+      const { data: actionLog } = await supabase
+        .from('game_actions')
+        .select('action_type, player_id, details')
+        .eq('round_id', round_id)
+        .order('created_at');
+      if (actionLog && actionLog.length > 0) {
+        cardMemory = buildCardMemory(
+          actionLog as GameAction[],
+          ai_player_id,
+          tp.cardMemoryDepth,
+          tp.tracksOpponentPickups
+        );
+      }
+    }
+
+    console.log(`[AI ${profile.ai_name} ${tier}] Turn start: ${hand.length} cards, contract: ${contract?.num_sets}S/${contract?.num_runs}R, met: ${hasMetContract}, protected: ${boughtCards.length} bought, memory: ${cardMemory.visibleCards.size} visible`);
 
     let currentHand = [...hand];
     let protectedCards: CardId[] = [...boughtCards];
@@ -268,6 +287,8 @@ serve(async (req) => {
         roundNumber: round.round_number,
         totalScore,
         mustMeldAll: contract?.must_go_out || false,
+        cardMemory,
+        playerId: ai_player_id,
       });
 
       if (discardBlocked) console.log(`[AI ${profile.ai_name}] Skipping own discard: ${topDiscard}`);
@@ -339,7 +360,7 @@ serve(async (req) => {
         await sleep(randomDelay(tp) * 0.4);
         const discard = (mustMeldAll
           ? rankDiscardsRound7(handAfterMeld, tableMelds, protectedCards)
-          : rankDiscards(handAfterMeld, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, true, roundWeights)
+          : rankDiscards(handAfterMeld, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, true, roundWeights, cardMemory)
         )[0] || handAfterMeld[0];
         await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
         console.log(`[AI ${profile.ai_name}] Discarded: ${discard}`);
@@ -382,7 +403,7 @@ serve(async (req) => {
       await sleep(randomDelay(tp));
       const discard = (mustMeldAll
         ? rankDiscardsRound7(handAfterLayoffs, tableMelds, protectedCards)
-        : rankDiscards(handAfterLayoffs, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract, roundWeights)
+        : rankDiscards(handAfterLayoffs, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract, roundWeights, cardMemory)
       )[0] || handAfterLayoffs[0];
       await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
       console.log(`[AI ${profile.ai_name}] Discarded: ${discard}`);
@@ -397,7 +418,7 @@ serve(async (req) => {
     await sleep(randomDelay(tp) * 0.4);
     const discard = (mustMeldAll
       ? rankDiscardsRound7(currentHand, tableMelds, protectedCards)
-      : rankDiscards(currentHand, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract, roundWeights)
+      : rankDiscards(currentHand, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract, roundWeights, cardMemory)
     )[0] || currentHand[0];
     await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
     console.log(`[AI ${profile.ai_name}] Discarded (no contract): ${discard}`);

@@ -7,6 +7,8 @@
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { CardId } from '../_shared/types.ts';
 import type { TurnContext } from '../ai-turn/strategy.ts';
+import { buildCardMemory, type CardMemory, type GameAction, EMPTY_MEMORY } from '../ai-turn/card-memory.ts';
+import { getTier } from '../ai-turn/tiers.ts';
 
 export interface RoundState {
   roundId: string;
@@ -263,6 +265,25 @@ export async function buildTurnContext(
   // Fetch protected cards now that we have the hand
   const protCards = await getProtectedCards(sb, roundState.roundId, playerId, hand);
 
+  // Build card memory (tier-gated)
+  const tp = getTier(tier);
+  let cardMemory: CardMemory = EMPTY_MEMORY;
+  if (tp.cardMemoryDepth > 0) {
+    const { data: actionLog } = await sb
+      .from('game_actions')
+      .select('action_type, player_id, details')
+      .eq('round_id', roundState.roundId)
+      .order('created_at');
+    if (actionLog && actionLog.length > 0) {
+      cardMemory = buildCardMemory(
+        actionLog as GameAction[],
+        playerId,
+        tp.cardMemoryDepth,
+        tp.tracksOpponentPickups
+      );
+    }
+  }
+
   const ctx: TurnContext = {
     hand,
     topDiscard,
@@ -276,6 +297,8 @@ export async function buildTurnContext(
     roundNumber: roundState.roundNumber,
     totalScore,
     mustMeldAll: roundState.mustMeldAll,
+    cardMemory,
+    playerId,
   };
 
   return { ctx, protectedCards: protCards, myLastDiscard };

@@ -34,6 +34,7 @@ import {
 } from './state-reader.ts';
 import { evaluateBuy } from './buy-evaluator.ts';
 import { logGame, logDecision, type GameResult } from './logger.ts';
+import { buildCardMemory, type CardMemory, type GameAction } from '../ai-turn/card-memory.ts';
 
 const MAX_TURNS = 500;
 
@@ -186,12 +187,37 @@ export async function runGame(
       if (topDiscard) {
         let anyBuyRequested = false;
 
+        // Build shared card memory for buy decisions (dead-value check is global)
+        let buyMemory: CardMemory | undefined;
+        if (tp.cardMemoryDepth > 0) {
+          const { data: actionLog } = await clients.service
+            .from('game_actions')
+            .select('action_type, player_id, details')
+            .eq('round_id', roundState.roundId)
+            .order('created_at');
+          if (actionLog && actionLog.length > 0) {
+            buyMemory = buildCardMemory(
+              actionLog as GameAction[],
+              currentPlayerId,
+              Infinity, // full history for dead-value accuracy
+              false     // don't need opponent tracking for buys
+            );
+          }
+        }
+
         for (const player of players) {
           if (player.seat === currentSeat) continue; // active player can't buy
 
+          // Skip buying if player has already met their contract
+          const buyerState = await getPlayerRoundState(clients.service, roundState.roundId, player.playerId);
+          if (buyerState.hasMetContract) continue;
+
           const buyHand = await getHand(clients.service, roundState.roundId, player.playerId);
           const buyTier = getTierForSeat(player.seat);
-          const { shouldBuy, score } = evaluateBuy(buyHand, topDiscard, roundState.roundNumber, buyTier);
+          // Only pass memory if this tier has card memory
+          const buyerTp = getTier(buyTier);
+          const mem = buyerTp.cardMemoryDepth > 0 ? buyMemory : undefined;
+          const { shouldBuy, score } = evaluateBuy(buyHand, topDiscard, roundState.roundNumber, buyTier, mem);
 
           if (shouldBuy) {
             try {

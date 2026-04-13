@@ -80,6 +80,12 @@ supabase/functions/_training/
   .env              — Hosted Supabase keys (gitignored)
 ```
 
+```
+supabase/functions/ai-turn/
+  card-memory.ts    — Tier-gated visible card tracking from game_actions
+  opponent-model.ts — Per-opponent hand model with memory decay (Hard/Unfair)
+```
+
 **Key design rule:** Zero new game logic. The harness uses the same RPCs as the real game client. If it's not in the existing SQL functions, it doesn't exist in training.
 
 ## Training Tables
@@ -141,6 +147,9 @@ GROUP BY tier;
 | `isolationPenalty` | round-profiles.ts | Lone high card discard priority |
 | `buyThresholdAdjust` | round-profiles.ts | Buy aggressiveness per round |
 | `missContractMultiplier` | round-profiles.ts | Contract awareness scaling |
+| `cardMemoryDepth` | tiers.ts | How many actions the AI remembers (0/10/20/∞) |
+| `tracksOpponentPickups` | tiers.ts | Whether AI tracks what opponents grab |
+| `feedLayOffBonus` | opponent-model.ts | Post-contract: feed cards to create lay-off opportunities |
 
 ### Tuning recipe
 1. Baseline 100 games, all 4 tiers, round 1
