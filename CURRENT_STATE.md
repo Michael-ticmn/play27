@@ -1,6 +1,6 @@
 # Contract Rummy — CURRENT_STATE.md
 
-## As of 2026-04-12 (v0.13.9)
+## As of 2026-04-12 (v0.14.0)
 
 **What exists and works:**
 - index.html — landing page with game directory, copyright footer
@@ -28,6 +28,9 @@
 - Supabase Edge Functions: ai-turn (full turn logic), ai-buy (buy decisions)
 - Host client triggers AI turns — edge function reads state, decides, calls same RPCs as humans
 - Centralized tier profiles (tiers.ts) — all behavior per tier in one file
+- Round-specific strategy profiles (round-profiles.ts) — per-round modifiers on top of tiers
+  - Set/run relevance weights, isolation penalty, speculative thresholds, buy adjustments
+  - Resolver merges tier + round into effective profile for each decision
 - Contract solver with backtracking — finds optimal meld combinations
 - Speculative pickups with quality gates and contract weakness bias
 - Multi-meld progress tracking for mixed contracts (e.g., 2S+1R tracks top-2 value groups)
@@ -56,14 +59,24 @@
 - Ding on turn: Web Audio tone when it becomes your turn (settings toggle)
 - AI error recovery: auto-retry on errors, triggers on action phase for mid-turn crashes
 
+**AI Training Harness:**
+- Local Deno script that creates real games via existing RPCs — zero new game logic
+- Imports strategy/hand-analyzer modules directly — same decisions as production, no delays
+- Runs against local Supabase (Docker) for ~10s per game (vs ~200s hosted)
+- Training tables: training_runs, training_games, training_decisions
+- CLI: `train.ts --games 100 --seats "LuVerne:easy,Jeanne:hard" --round 1`
+- Logs win rates, scores, turns per game; optional per-decision logging
+- See TRAINING.md for setup and tuning workflow
+
 **Infrastructure:**
 - Supabase: PostgreSQL DB, Realtime subscriptions, Edge Functions, Auth
 - GitHub Pages: static frontend hosting
+- Local Supabase: Docker-based dev environment for training harness
 - SQL: CREATE OR REPLACE functions applied via `supabase db query --linked`
 - Edge Functions deployed via `supabase functions deploy`
 
 **What's in progress:**
-- Playtesting AI tier behavior and tuning decision quality per round
+- AI training: running baseline games per round, tuning tier/round profiles
 - Mobile portrait layout refinements
 
-**Which surface should act next:** Playtesting
+**Which surface should act next:** AI training baseline runs

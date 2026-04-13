@@ -232,7 +232,9 @@ function cardContractRelevance(
   card: CardId,
   hand: CardId[],
   requiredSets: number,
-  requiredRuns: number
+  requiredRuns: number,
+  setWeight = 1.0,
+  runWeight = 1.0
 ): number {
   if (isJoker(card)) return 50; // jokers always valuable
 
@@ -243,8 +245,8 @@ function cardContractRelevance(
   // ── Set relevance (only if contract needs sets) ──
   if (requiredSets > 0) {
     const sameValue = hand.filter(c => !isJoker(c) && cardValue(c) === cv && c !== card);
-    if (sameValue.length >= 2) score += 30; // completes a set
-    else if (sameValue.length === 1) score += 15; // building a pair
+    if (sameValue.length >= 2) score += 30 * setWeight; // completes a set
+    else if (sameValue.length === 1) score += 15 * setWeight; // building a pair
   }
 
   // ── Run relevance (only if contract needs runs) ──
@@ -268,8 +270,8 @@ function cardContractRelevance(
       adjCount += 0.3;
     }
 
-    if (adjCount >= 2) score += 30; // part of a 3+ card sequence
-    else if (adjCount >= 1) score += 15; // connected pair in suit
+    if (adjCount >= 2) score += 30 * runWeight; // part of a 3+ card sequence
+    else if (adjCount >= 1) score += 15 * runWeight; // connected pair in suit
   }
 
   return score;
@@ -285,9 +287,13 @@ export function rankDiscards(
   requiredRuns: number,
   tableMelds: { id: string; meld_type: string; cards: CardId[] }[] = [],
   protectedCards: CardId[] = [],
-  hasMetContract: boolean = false
+  hasMetContract: boolean = false,
+  roundWeights?: { setWeight: number; runWeight: number; isolationPenalty: number }
 ): CardId[] {
   const protectedSet = new Set(protectedCards);
+  const sw = roundWeights?.setWeight ?? 1.0;
+  const rw = roundWeights?.runWeight ?? 1.0;
+  const isolation = roundWeights?.isolationPenalty ?? 0;
 
   // Hard-filter: protected cards (drawn/bought this turn) are ineligible
   let candidates = hand.filter(c => !protectedSet.has(c));
@@ -309,7 +315,7 @@ export function rankDiscards(
     const canStillMeet = solveContract(without, requiredSets, requiredRuns).length > 0;
 
     // Contract-aware relevance (how much does this card help the needed contract?)
-    const relevance = cardContractRelevance(card, hand, requiredSets, requiredRuns);
+    const relevance = cardContractRelevance(card, hand, requiredSets, requiredRuns, sw, rw);
 
     // Higher deadwood points = better to discard (if equally irrelevant)
     const pts = cardPoints(card);
@@ -323,14 +329,23 @@ export function rankDiscards(
       }
     }
 
+    // Isolation penalty: lone high cards with no run neighbors (run-heavy rounds)
+    let isolationScore = 0;
+    if (isolation < 0 && !isJoker(card) && cardValue(card) >= 11) {
+      if (!hasRunNeighbors(card, hand)) {
+        isolationScore = isolation; // negative = easier to discard
+      }
+    }
+
     // Score: lower = better to discard
     // Cards that break contract: strongly keep (1000)
     // Cards that feed opponent melds: penalize (+40)
     // Then by contract relevance (0-50)
+    // Isolation penalty for lone high cards (negative in run-heavy rounds)
     // Then prefer discarding high-point cards (subtract pts)
     return {
       card,
-      score: (canStillMeet ? 0 : 1000) + feedsPenalty + relevance - pts
+      score: (canStillMeet ? 0 : 1000) + feedsPenalty + relevance + isolationScore - pts
     };
   });
 

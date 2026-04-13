@@ -5,6 +5,7 @@ import { CardId, cardValue, isJoker } from '../_shared/types.ts';
 import { planTurn } from './strategy.ts';
 import { bestContractSolution, rankDiscards, rankDiscardsRound7, findLayOffs, evaluatePostContractDraw } from './hand-analyzer.ts';
 import { getTier, randomDelay, preDrawDelay, filterLayOffs } from './tiers.ts';
+import { resolveProfile } from './round-profiles.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -201,7 +202,13 @@ serve(async (req) => {
 
     let currentHand = [...hand];
     let protectedCards: CardId[] = [...boughtCards];
-    const tableMelds = tp.checksTableMelds ? melds : [];
+    const ep = resolveProfile(tp, round.round_number);
+    const tableMelds = ep.checksTableMelds ? melds : [];
+    const roundWeights = {
+      setWeight: ep.setRelevanceWeight,
+      runWeight: ep.runRelevanceWeight,
+      isolationPenalty: ep.isolationPenalty,
+    };
 
     if (!resumingFromAction) {
       // ── PRE-DRAW PAUSE — let humans see the last discard ──
@@ -302,11 +309,11 @@ serve(async (req) => {
         mustMeldAll
       );
 
-      // Can this tier miss the contract?
-      const urgent = totalScore >= tp.urgentMeldThreshold;
+      // Can this tier miss the contract? (ep.missContractRate is round-scaled)
+      const urgent = totalScore >= ep.urgentMeldThreshold;
       let shouldMeld = !!solution;
-      if (solution && tp.canMissContract && !urgent) {
-        shouldMeld = Math.random() > tp.missContractRate;
+      if (solution && ep.canMissContract && !urgent) {
+        shouldMeld = Math.random() > ep.missContractRate;
       }
 
       if (shouldMeld && solution) {
@@ -332,7 +339,7 @@ serve(async (req) => {
         await sleep(randomDelay(tp) * 0.4);
         const discard = (mustMeldAll
           ? rankDiscardsRound7(handAfterMeld, tableMelds, protectedCards)
-          : rankDiscards(handAfterMeld, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, true)
+          : rankDiscards(handAfterMeld, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, true, roundWeights)
         )[0] || handAfterMeld[0];
         await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
         console.log(`[AI ${profile.ai_name}] Discarded: ${discard}`);
@@ -345,7 +352,7 @@ serve(async (req) => {
     } else {
       // Contract already met — try lay-offs
       const layoffs = findLayOffs(currentHand, melds);
-      const filteredLayoffs = filterLayOffs(tp, layoffs);
+      const filteredLayoffs = filterLayOffs(ep, layoffs);
 
       let handAfterLayoffs = [...currentHand];
       for (const lo of filteredLayoffs) {
@@ -375,7 +382,7 @@ serve(async (req) => {
       await sleep(randomDelay(tp));
       const discard = (mustMeldAll
         ? rankDiscardsRound7(handAfterLayoffs, tableMelds, protectedCards)
-        : rankDiscards(handAfterLayoffs, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract)
+        : rankDiscards(handAfterLayoffs, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract, roundWeights)
       )[0] || handAfterLayoffs[0];
       await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
       console.log(`[AI ${profile.ai_name}] Discarded: ${discard}`);
@@ -390,7 +397,7 @@ serve(async (req) => {
     await sleep(randomDelay(tp) * 0.4);
     const discard = (mustMeldAll
       ? rankDiscardsRound7(currentHand, tableMelds, protectedCards)
-      : rankDiscards(currentHand, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract)
+      : rankDiscards(currentHand, contract?.num_sets || 0, contract?.num_runs || 0, tableMelds, protectedCards, hasMetContract, roundWeights)
     )[0] || currentHand[0];
     await rpc('discard_card', { p_round_id: round_id, p_card: discard, p_acting_as: ai_player_id });
     console.log(`[AI ${profile.ai_name}] Discarded (no contract): ${discard}`);

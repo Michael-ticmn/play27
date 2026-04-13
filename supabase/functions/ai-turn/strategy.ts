@@ -10,6 +10,7 @@ import {
   MeldCandidate
 } from './hand-analyzer.ts';
 import { TierProfile, getTier, shouldMakeMistake, filterLayOffs } from './tiers.ts';
+import { resolveProfile, type EffectiveProfile } from './round-profiles.ts';
 
 export interface TurnDecision {
   drawFrom: 'deck' | 'discard';
@@ -38,7 +39,7 @@ export interface TurnContext {
 export function decideDrawSource(ctx: TurnContext): 'deck' | 'discard' {
   if (ctx.discardBought || !ctx.topDiscard) return 'deck';
 
-  const profile = getTier(ctx.tier);
+  const profile = resolveProfile(getTier(ctx.tier), ctx.roundNumber);
 
   // Round 7: adjacency-based speculative pickups (all tiers)
   if (ctx.mustMeldAll) {
@@ -105,6 +106,14 @@ export function decideDrawSource(ctx: TurnContext): 'deck' | 'discard' {
     return 'discard';
   }
 
+  // Run-heavy round fallback: use R7-style gap-fill draw logic for R3/R6
+  if (profile.useGapFillDraw && ctx.topDiscard) {
+    const r7 = evaluateRound7Draw(ctx.hand, ctx.topDiscard);
+    if (r7.takeDiscard) {
+      return shouldMakeMistake(profile, ctx.totalScore) ? 'deck' : 'discard';
+    }
+  }
+
   return 'deck';
 }
 
@@ -115,8 +124,9 @@ export function decideMelds(ctx: TurnContext): MeldCandidate[] | null {
   const solution = bestContractSolution(ctx.hand, ctx.contractSets, ctx.contractRuns, 3, ctx.mustMeldAll);
   if (!solution) return null;
 
-  const profile = getTier(ctx.tier);
-  if (profile.canMissContract && Math.random() < profile.missContractRate && ctx.roundNumber < 6) {
+  const profile = resolveProfile(getTier(ctx.tier), ctx.roundNumber);
+  // missContractRate is already scaled by round (missContractMultiplier in resolveProfile)
+  if (profile.canMissContract && Math.random() < profile.missContractRate) {
     return null; // "Didn't notice" they could meet contract
   }
 
@@ -130,14 +140,20 @@ export function decideLayOffs(ctx: TurnContext): { card: CardId; meld_id: string
   const opportunities = findLayOffs(ctx.hand, ctx.melds);
   if (opportunities.length === 0) return [];
 
-  return filterLayOffs(getTier(ctx.tier), opportunities);
+  const profile = resolveProfile(getTier(ctx.tier), ctx.roundNumber);
+  return filterLayOffs(profile, opportunities);
 }
 
 // ── DISCARD DECISION ──
 export function decideDiscard(ctx: TurnContext): CardId {
-  const profile = getTier(ctx.tier);
+  const profile = resolveProfile(getTier(ctx.tier), ctx.roundNumber);
   const tableMelds = profile.checksTableMelds ? ctx.melds : [];
-  const ranked = rankDiscards(ctx.hand, ctx.contractSets, ctx.contractRuns, tableMelds);
+  const roundWeights = {
+    setWeight: profile.setRelevanceWeight,
+    runWeight: profile.runRelevanceWeight,
+    isolationPenalty: profile.isolationPenalty,
+  };
+  const ranked = rankDiscards(ctx.hand, ctx.contractSets, ctx.contractRuns, tableMelds, [], false, roundWeights);
 
   if (ranked.length === 0) return ctx.hand[0]; // fallback
 

@@ -3,6 +3,7 @@ import { supabase, rpc } from '../_shared/supabase.ts';
 import { sleep, BUY_TIMING } from '../_shared/delays.ts';
 import { CardId, cardPoints, cardValue, isJoker } from '../_shared/types.ts';
 import { groupByValue, groupBySuit, evaluateRound7Buy } from '../ai-turn/hand-analyzer.ts';
+import { getRoundProfile } from '../ai-turn/round-profiles.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -120,9 +121,10 @@ serve(async (req) => {
 
     // ── EVALUATE: should the AI buy this card? ──
     let buyScore = 0;
+    const rp = getRoundProfile(round.round_number);
 
     if (round.round_number === 7) {
-      // Round 7: aggressive connector buying — penalty card is just next turn's discard
+      // Round 7: aggressive connector buying
       buyScore = evaluateRound7Buy(hand, topDiscard);
     } else {
       const dv = cardValue(topDiscard);
@@ -148,17 +150,22 @@ serve(async (req) => {
 
       // Penalty: buying costs an extra card from deck
       buyScore -= 15;
+
+      // Run-heavy rounds (3, 6): also check R7-style gap-fill scoring, use best
+      if (rp.useGapFillDraw) {
+        buyScore = Math.max(buyScore, evaluateRound7Buy(hand, topDiscard));
+      }
     }
 
-    // Tier-specific thresholds
+    // Tier-specific thresholds + round adjustment
     const thresholds: Record<string, number> = {
-      easy: 70,    // only buys obvious completions
-      normal: 40,  // reasonable threshold
-      hard: 25,    // more aggressive
-      unfair: 10,  // buys almost anything useful, even buy-blocks
+      easy: 70,
+      normal: 40,
+      hard: 25,
+      unfair: 10,
     };
 
-    const threshold = thresholds[tier] ?? 40;
+    const threshold = (thresholds[tier] ?? 40) + rp.buyThresholdAdjust;
     const shouldBuy = buyScore >= threshold;
 
     console.log(`[AI Buy ${profile.ai_name} ${tier}] Card: ${topDiscard}, Score: ${buyScore}, Threshold: ${threshold}, Buy: ${shouldBuy}`);
