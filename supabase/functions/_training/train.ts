@@ -139,6 +139,45 @@ console.log(`  Run ID: ${runId}`);
 console.log('  Query: SELECT * FROM training_games WHERE run_id = \'...\' ORDER BY game_number;');
 console.log('');
 
+// ── Discord webhook notification ──
+const webhookUrl = Deno.env.get('DISCORD_WEBHOOK_URL');
+if (webhookUrl) {
+  const mins = Math.floor(parseFloat(totalElapsed) / 60);
+  const secs = Math.round(parseFloat(totalElapsed) % 60);
+  const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+
+  let tierLines = '';
+  for (const tier of ['easy', 'normal', 'hard', 'unfair']) {
+    const s = tierStats[tier];
+    if (!s) continue;
+    const winPct = (parseFloat(s.winRate) * 100).toFixed(1);
+    tierLines += `  ${tier.padEnd(8)} ${String(s.wins).padStart(4)} wins  ${winPct.padStart(5)}%  avg ${s.avgScore}\n`;
+  }
+
+  const msg = [
+    `**play27 Training Complete**`,
+    ``,
+    `**${config.label}** — Round ${config.roundNumber}`,
+    `Games: ${completed}/${config.numGames}  |  Failed: ${failed}  |  Time: ${timeStr}`,
+    `Avg turns: ${(summary as any).avgTurns || '?'}`,
+    `\`\`\``,
+    `${tierLines.trimEnd()}`,
+    `\`\`\``,
+    `Run ID: \`${runId}\``,
+  ].join('\n');
+
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: msg }),
+    });
+    console.log('  Discord notification sent');
+  } catch (e) {
+    console.error(`  Discord notification failed: ${(e as Error).message}`);
+  }
+}
+
 // Sign out trainer
 await hostClient.auth.signOut();
 Deno.exit(0);
