@@ -876,6 +876,118 @@ export function evaluateDiscardDraw(
   return { takeDiscard: false, reason: 'not_useful' };
 }
 
+// ── Deck draw probability calculator (Unfair tier) ──
+// Given full knowledge of visible cards, compute the probability that a
+// random deck draw improves our contract position.  Returns 0.0–1.0.
+export function deckDrawProbability(
+  hand: CardId[],
+  requiredSets: number,
+  requiredRuns: number,
+  visibleCards: Set<CardId>,
+  numDecks: number,
+): number {
+  const totalCards = numDecks * 52; // excluding jokers (handled separately)
+
+  // Union of all cards whose location is known
+  const known = new Set<CardId>();
+  for (const c of hand) known.add(c);
+  for (const c of visibleCards) known.add(c);
+
+  const unseenCount = totalCards - known.size;
+  if (unseenCount <= 0) return 0;
+
+  const helpfulCards = new Set<CardId>();
+
+  // ── Sets: unseen cards matching our best value groups ──
+  if (requiredSets > 0) {
+    const byValue = groupByValue(hand);
+    const groups = [...byValue.entries()].sort((a, b) => b[1].length - a[1].length);
+    // Check top groups (at least requiredSets, plus 1 backup path)
+    const topGroups = groups.slice(0, requiredSets + 1);
+
+    for (const [value, cards] of topGroups) {
+      if (cards.length >= 3) continue; // already complete
+      for (let d = 0; d < numDecks; d++) {
+        for (let s = 0; s < 4; s++) {
+          const cid = `${d}${s}${value}`;
+          if (!known.has(cid)) helpfulCards.add(cid);
+        }
+      }
+    }
+  }
+
+  // ── Runs: unseen cards that extend or fill our best suit sequences ──
+  if (requiredRuns > 0) {
+    const bySuit = groupBySuit(hand);
+    const suitScored: { suit: number; chainLen: number; helpValues: number[] }[] = [];
+
+    for (const [suit, cards] of bySuit) {
+      const vals = [...new Set(cards.map(c => cardValue(c)))].sort((a, b) => a - b);
+
+      // Find longest consecutive chain
+      let bestLen = 1, bestStart = vals[0], curLen = 1, curStart = vals[0];
+      for (let i = 1; i < vals.length; i++) {
+        if (vals[i] === vals[i - 1] + 1) {
+          curLen++;
+          if (curLen > bestLen) { bestLen = curLen; bestStart = curStart; }
+        } else if (vals[i] !== vals[i - 1]) {
+          curStart = vals[i]; curLen = 1;
+        }
+      }
+      // Ace-low: check A-2-3... chains
+      if (vals.includes(14) && vals.includes(2)) {
+        const lowVals = vals.map(v => v === 14 ? 1 : v).sort((a, b) => a - b);
+        let lc = 1;
+        for (let i = 1; i < lowVals.length; i++) {
+          if (lowVals[i] === lowVals[i - 1] + 1) { lc++; bestLen = Math.max(bestLen, lc); }
+          else if (lowVals[i] !== lowVals[i - 1]) lc = 1;
+        }
+      }
+
+      // Enumerate values that would extend any chain in this suit
+      const helpValues: number[] = [];
+      const valSet = new Set(vals);
+
+      // Extend each endpoint and fill gaps
+      for (let i = 0; i < vals.length; i++) {
+        const lo = vals[i] - 1;
+        const hi = vals[i] + 1;
+        if (lo >= 2 && !valSet.has(lo)) helpValues.push(lo);
+        if (hi <= 14 && !valSet.has(hi)) helpValues.push(hi);
+        // Ace-low adjacency
+        if (vals[i] === 2 && !valSet.has(14)) helpValues.push(14);
+        if (vals[i] === 14 && !valSet.has(2)) helpValues.push(2);
+      }
+      // Gap fills (distance of 2 between existing cards)
+      for (let i = 0; i < vals.length - 1; i++) {
+        if (vals[i + 1] - vals[i] === 2) {
+          const gap = vals[i] + 1;
+          if (!valSet.has(gap)) helpValues.push(gap);
+        }
+      }
+
+      // Deduplicate
+      const unique = [...new Set(helpValues)];
+      suitScored.push({ suit, chainLen: bestLen + cards.length * 0.1, helpValues: unique });
+    }
+
+    // Pick top N suits by chain quality
+    suitScored.sort((a, b) => b.chainLen - a.chainLen);
+    const topSuits = suitScored.slice(0, requiredRuns + 1);
+
+    for (const { suit, helpValues } of topSuits) {
+      for (const value of helpValues) {
+        for (let d = 0; d < numDecks; d++) {
+          const cid = `${d}${suit}${value}`;
+          if (!known.has(cid)) helpfulCards.add(cid);
+        }
+      }
+    }
+  }
+
+  return helpfulCards.size / unseenCount;
+}
+
 // ── Find lay-off opportunities ──
 export function findLayOffs(
   hand: CardId[],

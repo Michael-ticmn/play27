@@ -141,6 +141,56 @@ export async function logDecision(
   }
 }
 
+// ── Helper: standard deviation ──
+function stdDev(values: number[]): number {
+  if (values.length < 2) return 0;
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const sq = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (values.length - 1);
+  return Math.round(Math.sqrt(sq) * 10) / 10;
+}
+
+// ── Helper: safe ratio (returns null if denominator is 0) ──
+function safeRate(num: number, den: number): number | null {
+  return den > 0 ? parseFloat((num / den).toFixed(3)) : null;
+}
+
+// ── Per-tier diagnostic accumulator ──
+interface TierAccum {
+  scores: number[];
+  contractsMet: number;
+  // Diagnostic sums (only populated when diagnostics are enabled)
+  decisions_total: number;
+  decisions_diverged: number;
+  speculative_pickups: number;
+  speculative_pickups_used: number;
+  post_contract_pickups: number;
+  post_contract_pickups_used: number;
+  feed_attempts: number;
+  feed_payoffs: number;
+  table_awareness_deadwood_cost: number;
+  turns_to_contract: number[];
+  turns_post_contract: number[];
+  max_hand_sizes: number[];
+  layoff_opportunities_total: number;
+  layoff_opportunities_taken: number;
+  shed_rates: number[];  // non-null values only
+}
+
+function emptyAccum(): TierAccum {
+  return {
+    scores: [], contractsMet: 0,
+    decisions_total: 0, decisions_diverged: 0,
+    speculative_pickups: 0, speculative_pickups_used: 0,
+    post_contract_pickups: 0, post_contract_pickups_used: 0,
+    feed_attempts: 0, feed_payoffs: 0,
+    table_awareness_deadwood_cost: 0,
+    turns_to_contract: [], turns_post_contract: [],
+    max_hand_sizes: [],
+    layoff_opportunities_total: 0, layoff_opportunities_taken: 0,
+    shed_rates: [],
+  };
+}
+
 // ── Compute run summary from training_games ──
 export async function computeSummary(
   sb: SupabaseClient,
@@ -155,10 +205,8 @@ export async function computeSummary(
     return { error: 'No completed games' };
   }
 
-  // Win rates by tier
   const winsByTier: Record<string, number> = {};
-  const gamesByTier: Record<string, number> = {};
-  const scoresByTier: Record<string, number[]> = {};
+  const accum: Record<string, TierAccum> = {};
   let totalTurns = 0;
 
   for (const game of games) {
@@ -170,28 +218,76 @@ export async function computeSummary(
 
     for (const seat of (game.player_seats as any[])) {
       const tier = seat.ai_tier;
-      gamesByTier[tier] = (gamesByTier[tier] || 0) + 1;
-      if (!scoresByTier[tier]) scoresByTier[tier] = [];
-      scoresByTier[tier].push(seat.final_score);
+      if (!accum[tier]) accum[tier] = emptyAccum();
+      const a = accum[tier];
+
+      a.scores.push(seat.final_score);
+      if (seat.met_contract) a.contractsMet++;
+
+      // Aggregate diagnostic counters (present when --diagnostics is enabled)
+      if (seat.decisions_total !== undefined) {
+        a.decisions_total += seat.decisions_total || 0;
+        a.decisions_diverged += seat.decisions_diverged || 0;
+        a.speculative_pickups += seat.speculative_pickups || 0;
+        a.speculative_pickups_used += seat.speculative_pickups_used || 0;
+        a.post_contract_pickups += seat.post_contract_pickups || 0;
+        a.post_contract_pickups_used += seat.post_contract_pickups_used || 0;
+        a.feed_attempts += seat.feed_attempts || 0;
+        a.feed_payoffs += seat.feed_payoffs || 0;
+        a.table_awareness_deadwood_cost += seat.table_awareness_deadwood_cost || 0;
+        a.layoff_opportunities_total += seat.layoff_opportunities_total || 0;
+        a.layoff_opportunities_taken += seat.layoff_opportunities_taken || 0;
+        if (seat.turns_to_contract > 0) a.turns_to_contract.push(seat.turns_to_contract);
+        if (seat.turns_post_contract > 0) a.turns_post_contract.push(seat.turns_post_contract);
+        if (seat.max_hand_size > 0) a.max_hand_sizes.push(seat.max_hand_size);
+        if (seat.post_contract_shed_rate !== null && seat.post_contract_shed_rate !== undefined) {
+          a.shed_rates.push(seat.post_contract_shed_rate);
+        }
+      }
     }
   }
 
   const tierStats: Record<string, unknown> = {};
-  for (const tier of Object.keys(gamesByTier)) {
-    const scores = scoresByTier[tier] || [];
-    const avgScore = scores.length > 0
-      ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-      : 0;
-    const contractRate = scores.length > 0
-      ? 0  // Would need decision data for this
-      : 0;
+  for (const tier of Object.keys(accum)) {
+    const a = accum[tier];
+    const scores = a.scores;
+    const n = scores.length;
+    const avgScore = n > 0 ? Math.round(scores.reduce((x, y) => x + y, 0) / n) : 0;
+    const avg = (arr: number[]) => arr.length > 0
+      ? parseFloat((arr.reduce((x, y) => x + y, 0) / arr.length).toFixed(1))
+      : null;
 
-    tierStats[tier] = {
+    const stat: Record<string, unknown> = {
       wins: winsByTier[tier] || 0,
-      games: gamesByTier[tier] || 0,
-      winRate: gamesByTier[tier] ? ((winsByTier[tier] || 0) / games.length).toFixed(3) : '0',
+      games: n,
+      winRate: n ? ((winsByTier[tier] || 0) / games.length).toFixed(3) : '0',
       avgScore,
+      stdDev: stdDev(scores),
+      minScore: n > 0 ? Math.min(...scores) : 0,
+      maxScore: n > 0 ? Math.max(...scores) : 0,
+      contractMetRate: safeRate(a.contractsMet, n),
     };
+
+    // Add diagnostic aggregates if available
+    if (a.decisions_total > 0) {
+      stat.divergenceRate = safeRate(a.decisions_diverged, a.decisions_total);
+      stat.specPickups = a.speculative_pickups;
+      stat.specHitRate = safeRate(a.speculative_pickups_used, a.speculative_pickups);
+      stat.feedAttempts = a.feed_attempts;
+      stat.feedPayoffRate = safeRate(a.feed_payoffs, a.feed_attempts);
+      stat.avgTableAwarenessCost = n > 0
+        ? parseFloat((a.table_awareness_deadwood_cost / n).toFixed(1))
+        : 0;
+      stat.avgTurnsToContract = avg(a.turns_to_contract);
+      stat.avgTurnsPostContract = avg(a.turns_post_contract);
+      stat.avgMaxHandSize = avg(a.max_hand_sizes);
+      stat.layoffDetectionRate = safeRate(a.layoff_opportunities_taken, a.layoff_opportunities_total);
+      stat.avgShedRate = a.shed_rates.length > 0
+        ? parseFloat((a.shed_rates.reduce((x, y) => x + y, 0) / a.shed_rates.length).toFixed(2))
+        : null;
+    }
+
+    tierStats[tier] = stat;
   }
 
   return {

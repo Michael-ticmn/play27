@@ -36,6 +36,19 @@ export interface RoundProfile {
 
   // Use R7-style gap-fill draw logic for run-heavy rounds
   useGapFillDraw: boolean;          // when true, applies evaluateRound7Draw-style adjacency for draw
+
+  // Disable post-contract speculation in run-heavy rounds
+  // When true, overrides tier's postContractSpeculation to false for this round
+  disablePostContractSpec: boolean;
+
+  // Disable deck probability gate for speculative pickups in run-heavy rounds
+  // P(helpful) is naturally high with 2-deck runs, making the gate counterproductive
+  disableDeckProbabilityGate: boolean;
+
+  // Minimum same-suit adjacent cards required for run speculation (0 = use tier default)
+  // Set to 2 for run-heavy rounds to prevent low-quality speculative pickups
+  // that cost tempo without completing runs
+  minSpeculativeRunMatch: number;
 }
 
 // ── Effective profile: tier + round merged ──
@@ -46,6 +59,9 @@ export interface EffectiveProfile extends TierProfile {
   runGapFillBonus: number;
   buyThresholdAdjust: number;
   useGapFillDraw: boolean;
+  disablePostContractSpec: boolean;
+  disableDeckProbabilityGate: boolean;
+  minSpeculativeRunMatch: number;
 }
 
 // ── Round profiles ──
@@ -64,6 +80,9 @@ export const ROUND_PROFILES: Record<number, RoundProfile> = {
     layOffDetectionBoost: 0,
     urgentMeldScale: 1.0,
     useGapFillDraw: false,
+    disablePostContractSpec: false,
+    disableDeckProbabilityGate: false,
+    minSpeculativeRunMatch: 0,
   },
 
   2: {
@@ -78,6 +97,9 @@ export const ROUND_PROFILES: Record<number, RoundProfile> = {
     layOffDetectionBoost: 0,
     urgentMeldScale: 1.0,
     useGapFillDraw: false,
+    disablePostContractSpec: false,
+    disableDeckProbabilityGate: false,
+    minSpeculativeRunMatch: 0,
   },
 
   3: {
@@ -87,11 +109,14 @@ export const ROUND_PROFILES: Record<number, RoundProfile> = {
     isolationPenalty: -25,
     speculativeThresholdAdjust: -1,
     runGapFillBonus: 20,
-    missContractMultiplier: 1.0,
+    missContractMultiplier: 1.3,
     buyThresholdAdjust: -10,
-    layOffDetectionBoost: 0.05,
+    layOffDetectionBoost: 0.0,
     urgentMeldScale: 0.95,
     useGapFillDraw: true,
+    disablePostContractSpec: true,
+    disableDeckProbabilityGate: true,
+    minSpeculativeRunMatch: 2,
   },
 
   4: {
@@ -106,6 +131,9 @@ export const ROUND_PROFILES: Record<number, RoundProfile> = {
     layOffDetectionBoost: 0.1,
     urgentMeldScale: 0.9,
     useGapFillDraw: false,
+    disablePostContractSpec: false,
+    disableDeckProbabilityGate: false,
+    minSpeculativeRunMatch: 0,
   },
 
   5: {
@@ -120,6 +148,9 @@ export const ROUND_PROFILES: Record<number, RoundProfile> = {
     layOffDetectionBoost: 0.15,
     urgentMeldScale: 0.85,
     useGapFillDraw: false,
+    disablePostContractSpec: false,
+    disableDeckProbabilityGate: false,
+    minSpeculativeRunMatch: 0,
   },
 
   6: {
@@ -134,6 +165,9 @@ export const ROUND_PROFILES: Record<number, RoundProfile> = {
     layOffDetectionBoost: 0.2,
     urgentMeldScale: 0.8,
     useGapFillDraw: true,
+    disablePostContractSpec: true,
+    disableDeckProbabilityGate: true,
+    minSpeculativeRunMatch: 2,
   },
 
   7: {
@@ -148,6 +182,9 @@ export const ROUND_PROFILES: Record<number, RoundProfile> = {
     layOffDetectionBoost: 0.3,
     urgentMeldScale: 0.75,
     useGapFillDraw: true,
+    disablePostContractSpec: true,
+    disableDeckProbabilityGate: true,
+    minSpeculativeRunMatch: 2,
   },
 };
 
@@ -165,6 +202,9 @@ export function resolveProfile(tier: TierProfile, roundNumber: number): Effectiv
       runGapFillBonus: 0,
       buyThresholdAdjust: 0,
       useGapFillDraw: false,
+      disablePostContractSpec: false,
+      disableDeckProbabilityGate: false,
+      minSpeculativeRunMatch: 0,
     };
   }
 
@@ -185,6 +225,11 @@ export function resolveProfile(tier: TierProfile, roundNumber: number): Effectiv
     // Scale urgentMeldThreshold
     urgentMeldThreshold: Math.round(tier.urgentMeldThreshold * rp.urgentMeldScale),
 
+    // Override postContractSpeculation if round disables it
+    postContractSpeculation: rp.disablePostContractSpec
+      ? false
+      : tier.postContractSpeculation,
+
     // Round-specific pass-through values
     setRelevanceWeight: rp.setRelevanceWeight,
     runRelevanceWeight: rp.runRelevanceWeight,
@@ -192,6 +237,9 @@ export function resolveProfile(tier: TierProfile, roundNumber: number): Effectiv
     runGapFillBonus: rp.runGapFillBonus,
     buyThresholdAdjust: rp.buyThresholdAdjust,
     useGapFillDraw: rp.useGapFillDraw,
+    disablePostContractSpec: rp.disablePostContractSpec,
+    disableDeckProbabilityGate: rp.disableDeckProbabilityGate,
+    minSpeculativeRunMatch: rp.minSpeculativeRunMatch,
   };
 }
 

@@ -19,6 +19,7 @@ export interface TrainingConfig {
     numJokers: number;
   };
   logDecisions: boolean;
+  diagnostics: boolean;
 }
 
 const AI_NAMES = ['LuVerne', 'Jeanne', 'Ron', 'Sue'];
@@ -42,6 +43,7 @@ export function parseArgs(args: string[]): TrainingConfig {
       numJokers: 0,
     },
     logDecisions: false,
+    diagnostics: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -74,6 +76,8 @@ export function parseArgs(args: string[]): TrainingConfig {
       i++;
     } else if (arg === '--log-decisions') {
       config.logDecisions = true;
+    } else if (arg === '--diagnostics') {
+      config.diagnostics = true;
     } else if (arg === '--help') {
       printUsage();
       Deno.exit(0);
@@ -119,6 +123,7 @@ Options:
   --jokers <n>         Jokers per deck (default: 0)
   --max-buys <n|none>  Max buys per player per round (default: 3)
   --log-decisions      Log every decision to training_decisions table
+  --diagnostics        Enable enriched decision logging (memory impact tracking)
   --help               Show this help
 
 Seat config examples:

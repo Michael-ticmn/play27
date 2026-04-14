@@ -14,6 +14,8 @@ import {
   failRun,
   computeSummary,
 } from './logger.ts';
+import { resolveProfile } from '../ai-turn/round-profiles.ts';
+import { getTier } from '../ai-turn/tiers.ts';
 
 // ── Load env ──
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -65,8 +67,17 @@ console.log(`  Round:    ${config.roundNumber}`);
 console.log(`  Seats:    ${config.seats.map(s => `${s.aiName}:${s.aiTier}`).join(', ')}`);
 console.log(`  Jokers:   ${config.gameSettings.numJokers}`);
 console.log(`  Max Buys: ${config.gameSettings.maxBuys ?? 'unlimited'}`);
-console.log(`  Logging:  ${config.logDecisions ? 'decisions + games' : 'games only'}`);
+console.log(`  Logging:  ${config.logDecisions ? 'decisions + games' : 'games only'}${config.diagnostics ? ' + diagnostics' : ''}`);
 console.log('');
+
+// ── Snapshot resolved profiles into config for reproducibility ──
+const profiles: Record<string, unknown> = {};
+for (const seat of config.seats) {
+  if (!profiles[seat.aiTier]) {
+    profiles[seat.aiTier] = resolveProfile(getTier(seat.aiTier), config.roundNumber);
+  }
+}
+(config as any).profiles = profiles;
 
 // ── Create training run ──
 const runId = await createRun(serviceClient, config);
@@ -123,15 +134,46 @@ console.log(`  Avg turns: ${(summary as any).avgTurns || '?'}`);
 console.log('');
 
 const tierStats = (summary as any).tierStats || {};
-console.log('  Tier        Wins   Win%    Avg Score');
-console.log('  ─────────── ────── ──────  ─────────');
+console.log('  Tier        Wins   Win%    Avg   StdD  Min   Max   Contract%');
+console.log('  ─────────── ────── ──────  ────  ────  ────  ────  ─────────');
 for (const tier of ['easy', 'normal', 'hard', 'unfair']) {
   const s = tierStats[tier];
   if (!s) continue;
   const winPct = (parseFloat(s.winRate) * 100).toFixed(1);
+  const contractPct = s.contractMetRate !== null
+    ? (s.contractMetRate * 100).toFixed(0) + '%'
+    : '?';
   console.log(
-    `  ${tier.padEnd(12)} ${String(s.wins).padStart(4)}   ${winPct.padStart(5)}%  ${String(s.avgScore).padStart(7)}`
+    `  ${tier.padEnd(12)} ${String(s.wins).padStart(4)}   ${winPct.padStart(5)}%  ` +
+    `${String(s.avgScore).padStart(4)}  ${String(s.stdDev ?? '?').padStart(4)}  ` +
+    `${String(s.minScore ?? '?').padStart(4)}  ${String(s.maxScore ?? '?').padStart(4)}  ` +
+    `${contractPct.padStart(7)}`
   );
+}
+
+// Print diagnostic aggregates if available
+const firstTierStats = tierStats[Object.keys(tierStats)[0]];
+if (firstTierStats?.divergenceRate !== undefined) {
+  console.log('');
+  console.log('  ── Diagnostics ──');
+  console.log('  Tier        Diverg%  Spec   SpecHit%  Feed  FeedHit%  TblCost  AvgTTC  AvgTPC  ShedRate  MaxHand  LayOff%');
+  console.log('  ─────────── ──────── ─────  ────────  ────  ────────  ───────  ──────  ──────  ────────  ───────  ───────');
+  for (const tier of ['easy', 'normal', 'hard', 'unfair']) {
+    const s = tierStats[tier];
+    if (!s || s.divergenceRate === undefined) continue;
+    const pct = (v: number | null) => v !== null && v !== undefined ? (v * 100).toFixed(1) + '%' : '—';
+    const num = (v: number | null) => v !== null && v !== undefined ? String(v) : '—';
+    console.log(
+      `  ${tier.padEnd(12)} ${pct(s.divergenceRate).padStart(7)}  ` +
+      `${String(s.specPickups ?? 0).padStart(5)}  ${pct(s.specHitRate).padStart(8)}  ` +
+      `${String(s.feedAttempts ?? 0).padStart(4)}  ${pct(s.feedPayoffRate).padStart(8)}  ` +
+      `${num(s.avgTableAwarenessCost).padStart(7)}  ` +
+      `${num(s.avgTurnsToContract).padStart(6)}  ${num(s.avgTurnsPostContract).padStart(6)}  ` +
+      `${num(s.avgShedRate).padStart(8)}  ` +
+      `${num(s.avgMaxHandSize).padStart(7)}  ` +
+      `${pct(s.layoffDetectionRate).padStart(7)}`
+    );
+  }
 }
 
 console.log('');

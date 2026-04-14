@@ -139,9 +139,12 @@ GROUP BY tier;
 | Knob | File | Effect |
 |------|------|--------|
 | `mistakeRate` | tiers.ts | Biggest lever on win rate |
+| `speculativePickups` + gates | tiers.ts | Controls risk-taking quality |
+| `disablePostContractSpec` | round-profiles.ts | Stops post-contract speculative pickups — prevents hand bloat |
+| `disableDeckProbabilityGate` | round-profiles.ts | Removes P(helpful) check for speculation — prevents silent feature kill |
+| `minSpeculativeRunMatch` | round-profiles.ts | Separate selectivity gate for run vs set speculation |
 | `urgentMistakeRate` | tiers.ts | Comeback ability when behind |
 | `layOffDetection` | tiers.ts | How fast they shed cards after contract |
-| `speculativePickups` | tiers.ts | Draw quality |
 | `setRelevanceWeight` | round-profiles.ts | Set vs run focus per round |
 | `runRelevanceWeight` | round-profiles.ts | Set vs run focus per round |
 | `isolationPenalty` | round-profiles.ts | Lone high card discard priority |
@@ -160,18 +163,65 @@ GROUP BY tier;
 - Feed strategy has narrow impact in sets-only rounds (lay-off surface is 1 value per meld)
 - Expect Unfair to separate more in run-heavy rounds where lay-off surface is wider
 
-### Round 3 baseline (2 runs of 3)
-- Easy 0% / avg 40, Normal 39% / avg 15, Hard 28% / avg 16, Unfair 33% / avg 19
-- Unfair passes Hard (33% vs 28%) — feed strategy + card memory pay off with wider run lay-off surface
-- Normal drops from 54% → 39% — smarter tiers close the gap in runs
-- Avg 54 turns (vs 38 in R1) — runs take longer to shed post-contract
-- Critical bug fixes required: `canLayOff` ordering, chain lay-offs, `--round N` flag, post-contract discard strategy
+### Round 3 tuning progression
 
-### Tuning recipe
-1. Baseline 100 games, all 4 tiers, current round
-2. If tiers don't separate: check `mistakeRate` first
-3. If Easy wins too much: raise `mistakeRate` or enable `canMissContract`
-4. If Hard ≈ Unfair: lower Hard's `layOffDetection`
-5. After each tweak: 200-game run to verify
-6. Repeat for rounds 2-7 adjusting round profiles
-7. Final validation: 1000-game run per round
+**Baseline (100 games)**
+- Easy 0% / avg 40, Normal 39% / avg 15, Hard 28% / avg 16, Unfair 33% / avg 19
+- Critical bugs fixed: canLayOff ordering, chain lay-offs, --round N flag, post-contract discard
+
+**Step 1 — revert spec threshold (100 games)**
+- Easy 0% / 37, Normal 46% / 13, Hard 24% / 18, Unfair 30% / 14
+- Mixed: Hard regressed, Normal pulled away
+
+**Step 2 — disable postContractSpec + add diagnostics (200 games)**
+- Easy 0.5% / 42, Normal 41% / 14, Hard 29.5% / 22, Unfair 28.5% / 17
+- Confirmed post-contract speculation was causing bloat (post_contract_pickups: 0)
+- Divergence rates 44-53% — memory changing ~half of all decisions
+- Table awareness costing 20-30 pts/game across all tiers
+
+**Step 3 — disableDeckProbabilityGate (200 games)**
+- Easy 1% / 38, Normal 44.5% / 14, Hard 25% / 19, Unfair 29% / 18
+- Unfair speculation recovered: 12 → 294 pickups, 31% hit rate
+- Feed strategy: 38% payoff rate over 266 attempts (viable)
+- But Unfair meets contract slowest (23.3 turns vs Normal's 20.8)
+- Diagnosis: speculation costs tempo — 69% dead pickups = wasted turns
+
+**Step 4 — minSpeculativeRunMatch: 2 (200 games)**
+- Easy 0% / 41, Normal 42.5% / 14, Hard 31% / 17, Unfair 26.5% / 16
+- Spec hit rates soared: Unfair 31→56%, Hard 31→50%, Normal 29→39%
+- Contract speed fixed: Unfair AvgTTC 23.3→20.6 (matches Normal's 20.5)
+- Unfair lowest stdDev (21.2) — most consistent player
+- But Normal still dominates at 42.5%. Gate tightened all tiers equally.
+
+**Current order: Normal (42.5) > Hard (31) > Unfair (26.5) > Easy (0)**
+**Target order: Unfair > Hard > Normal > Easy**
+
+### R3 key findings (cumulative)
+
+1. Conservative play beats clever play in runs — Normal wins by not overthinking
+2. Post-contract speculation causes hand bloat — disabled via `disablePostContractSpec`
+3. Deck probability gate silently killed Unfair speculation — disabled via `disableDeckProbabilityGate`
+4. Speculation volume without selectivity costs tempo — Unfair speculates most but meets contract slowest
+5. Feed strategy works at 36-41% payoff rate — viable feature, not the bottleneck
+6. Table awareness costs 22-34 pts/game — significant but not the current lever
+7. Contract speed, not shedding speed, determines winners in run rounds
+8. `minSpeculativeRunMatch: 2` fixed contract speed but tightened all tiers equally — need tier-specific approach
+
+### R3 next step
+
+Normal's 30% mistake rate may be accidentally optimal for run building. Explore tier-specific speculation gates or investigate whether Normal's discard diversity (from mistakes) creates an advantage that can't be matched by perfect play.
+
+### Tuning recipe (revised with diagnostic workflow)
+1. Baseline 200 games with --diagnostics, all 4 tiers
+2. Check diagnostic questions BEFORE changing knobs:
+   - Divergence rate per tier (< 5% = features aren't influencing, > 50% = dominant)
+   - Speculation hit rate (< 30% = net negative)
+   - Contract speed (AvgTTC) — if smart tier is slower, speculation costs tempo
+   - Table awareness cost (> 20% of avg score = defense too expensive)
+   - Shedding rate (higher = better, but meaningless if contract speed is slow)
+3. Change ONE knob based on diagnostic findings
+4. Run 200 games with --diagnostics
+5. Compare in tracking table (win rate + avg score + diagnostic metrics)
+6. Verify the intended metric moved, check for regressions
+7. When round category is tuned, transfer profile to same-category rounds with 50-game sanity check
+8. Final validation: 100-200 full 7-round games

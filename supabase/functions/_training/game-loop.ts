@@ -13,8 +13,10 @@ import {
   rankDiscardsRound7,
   findLayOffs,
   evaluatePostContractDraw,
+  evaluateDiscardDraw,
 } from '../ai-turn/hand-analyzer.ts';
 import { getTier, shouldMakeMistake, filterLayOffs } from '../ai-turn/tiers.ts';
+import { resolveProfile } from '../ai-turn/round-profiles.ts';
 import type { TrainingConfig, SeatConfig } from './config.ts';
 import {
   getCurrentRound,
@@ -35,7 +37,20 @@ import {
 import { evaluateBuy } from './buy-evaluator.ts';
 import { logGame, logDecision, type GameResult } from './logger.ts';
 import { buildCardMemory, type CardMemory, type GameAction } from '../ai-turn/card-memory.ts';
-import { type TableModel } from '../ai-turn/opponent-model.ts';
+import { type TableModel, feedLayOffBonus } from '../ai-turn/opponent-model.ts';
+import {
+  initGameDiagnostics,
+  baselineDrawDecision,
+  baselineDiscardDecision,
+  measureTableAwarenessCost,
+  trackSpecPickup,
+  trackFeedAttempt,
+  trackHandSize,
+  checkFeedPayoff,
+  checkSpecUsed,
+  getDiagnosticsSummary,
+  type GameDiagnostics,
+} from './diagnostics.ts';
 
 const MAX_TURNS = 500;
 
@@ -139,6 +154,14 @@ export async function runGame(
   function isSeat0(seat: number): boolean {
     return seat === 0;
   }
+
+  // ── DIAGNOSTICS INIT ──
+  const diag = config.diagnostics
+    ? initGameDiagnostics(players.map(p => ({
+        seat: p.seat,
+        tier: p.seat === 0 ? seat0Tier : (p.tier || 'normal'),
+      })))
+    : null;
 
   // Helper: call RPC as appropriate client
   async function callRpc(
@@ -276,7 +299,8 @@ export async function runGame(
       if (ctx.hasMetContract && ctx.topDiscard && !isJoker(ctx.topDiscard)) {
         const melds = await getMelds(clients.service, roundState.roundId);
         const isLayOff = evaluatePostContractDraw(ctx.topDiscard, melds);
-        if (tp.postContractSpeculation) {
+        const ep = resolveProfile(tp, ctx.roundNumber);
+        if (ep.postContractSpeculation) {
           const dv = cardValue(ctx.topDiscard);
           const sameValCount = ctx.hand.filter(c => !isJoker(c) && cardValue(c) === dv).length;
           postContractBlock = !isLayOff && sameValCount < 2;
@@ -313,6 +337,43 @@ export async function runGame(
         }) as string;
       }
 
+      // ── DIAGNOSTICS: draw phase ──
+      if (diag && ctx.topDiscard && !discardBlocked && !postContractBlock) {
+        const dp = diag.players.get(currentSeat);
+        if (dp) {
+          dp.decisions_total++;
+          trackHandSize(diag, currentSeat, ctx.hand.length);
+
+          // Baseline: what would have happened without memory?
+          if (tp.cardMemoryDepth > 0 && !ctx.hasMetContract) {
+            const tpv = (ctx.gameSettings?.numDecks ?? 2) * 4;
+            const baseline = baselineDrawDecision(
+              ctx.hand, ctx.topDiscard, roundState.contractSets, roundState.contractRuns, tpv
+            );
+            const actual = shouldDrawDiscard ? 'discard' : 'deck';
+            if (baseline !== actual) dp.decisions_diverged++;
+          }
+
+          // Track speculative pickups
+          if (shouldDrawDiscard && plan.drawFrom === 'discard') {
+            const reason = plan.drawFrom; // simplified — we track any discard pickup
+            if (ctx.hasMetContract) {
+              trackSpecPickup(diag, currentSeat, ctx.topDiscard, turnCount, true);
+            } else {
+              // Check if this was speculative (not a contract completion)
+              const eval_ = evaluateDiscardDraw(
+                ctx.hand, ctx.topDiscard, roundState.contractSets, roundState.contractRuns,
+                ctx.cardMemory, (ctx.gameSettings?.numDecks ?? 2) * 4
+              );
+              if (eval_.reason === 'builds_pair' || eval_.reason === 'extends_run' ||
+                  eval_.reason === 'weaker_pair_path' || eval_.reason === 'weaker_run_path') {
+                trackSpecPickup(diag, currentSeat, ctx.topDiscard, turnCount, false);
+              }
+            }
+          }
+        }
+      }
+
       if (config.logDecisions) {
         await logDecision(
           clients.service, gameId, roundState.roundId,
@@ -335,14 +396,14 @@ export async function runGame(
       await executeActionPhase(
         clients, config, gameId, roundState, currentSeat, currentTier,
         currentPlayerId, currentHand, allProtected, ctx.hasMetContract, turnCount, tp,
-        ctx.cardMemory, ctx.tableModel, config.gameSettings.numDecks * 4
+        ctx.cardMemory, ctx.tableModel, config.gameSettings.numDecks * 4, diag
       );
     } else if (roundState.turnPhase === 'action') {
       // Resuming from mid-turn — hand already has drawn card
       await executeActionPhase(
         clients, config, gameId, roundState, currentSeat, currentTier,
         currentPlayerId, ctx.hand, protectedCards, ctx.hasMetContract, turnCount, tp,
-        ctx.cardMemory, ctx.tableModel, config.gameSettings.numDecks * 4
+        ctx.cardMemory, ctx.tableModel, config.gameSettings.numDecks * 4, diag
       );
     }
   }
@@ -358,13 +419,25 @@ export async function runGame(
 
   const playerSeats = players.map(p => {
     const score = finalScores.find(s => s.playerId === p.playerId);
-    return {
+    const base = {
       seat: p.seat,
       ai_name: p.seat === 0 ? config.seats[0].aiName : p.aiName,
       ai_tier: getTierForSeat(p.seat),
       final_score: score?.score ?? -1,
       met_contract: score?.hasMetContract ?? false,
     };
+    // Append diagnostics summary if enabled
+    if (diag) {
+      const dp = diag.players.get(p.seat);
+      if (dp) {
+        // Compute turns_post_contract from contract timing
+        if (dp.turns_to_contract > 0) {
+          dp.turns_post_contract = Math.max(0, turnCount - dp.turns_to_contract);
+        }
+      }
+      return { ...base, ...getDiagnosticsSummary(diag, p.seat) };
+    }
+    return base;
   });
 
   const result: GameResult = {
@@ -400,7 +473,8 @@ async function executeActionPhase(
   tp: ReturnType<typeof getTier>,
   cardMemory?: CardMemory,
   tableModel?: TableModel,
-  totalPerValue = 8
+  totalPerValue = 8,
+  diag?: GameDiagnostics | null,
 ): Promise<void> {
   const melds = await getMelds(clients.service, roundState.roundId);
   const tableMelds = tp.checksTableMelds ? melds : [];
@@ -448,6 +522,16 @@ async function executeActionPhase(
       const usedCards = new Set(solution.flatMap(m => m.cards));
       const handAfterMeld = currentHand.filter(c => !usedCards.has(c));
 
+      // Diagnostics: contract timing + mark spec pickups used
+      if (diag) {
+        const dp = diag.players.get(currentSeat);
+        if (dp) {
+          dp.turns_to_contract = turnCount;
+          dp.hand_size_at_contract = handAfterMeld.length;
+        }
+        checkSpecUsed(diag, currentSeat, usedCards);
+      }
+
       if (handAfterMeld.length === 0) return; // Won!
 
       // No lay-offs same turn as contract — just discard
@@ -477,6 +561,34 @@ async function executeActionPhase(
       : rankDiscards(currentHand, roundState.contractSets, roundState.contractRuns, tableMelds, protectedCards, hasMetContract, undefined, cardMemory, tableModel, totalPerValue)
     )[0] || currentHand[0];
 
+    // Diagnostics: pre-contract discard
+    if (diag) {
+      const dp = diag.players.get(currentSeat);
+      if (dp) {
+        dp.decisions_total++;
+        trackHandSize(diag, currentSeat, currentHand.length);
+
+        if (tp.cardMemoryDepth > 0) {
+          const baselineCard = baselineDiscardDecision(
+            currentHand, roundState.contractSets, roundState.contractRuns, false, totalPerValue
+          );
+          if (baselineCard !== discard) dp.decisions_diverged++;
+        }
+
+        if (tp.checksTableMelds && tableMelds.length > 0) {
+          const ep = resolveProfile(tp, roundState.roundNumber);
+          const cost = measureTableAwarenessCost(
+            currentHand, roundState.contractSets, roundState.contractRuns,
+            tableMelds, false, cardMemory, tableModel,
+            { setWeight: ep.setRelevanceWeight, runWeight: ep.runRelevanceWeight, isolationPenalty: ep.isolationPenalty },
+            totalPerValue
+          );
+          dp.table_awareness_holds += cost.holds;
+          dp.table_awareness_deadwood_cost += cost.deadwoodCost;
+        }
+      }
+    }
+
     await callAction('discard_card', {
       p_round_id: roundState.roundId,
       p_card: discard,
@@ -493,15 +605,27 @@ async function executeActionPhase(
   }
 
   // ── CONTRACT ALREADY MET — CHAIN LAY-OFFS THEN DISCARD ──
-  // Re-read melds after each lay-off so chain extensions are found
-  // (e.g., run 5-6-7 → lay off 4 → now 3 fits too)
   let handAfterLayoffs = [...currentHand];
   let currentMelds = melds;
   let madeProgress = true;
+
+  // Diagnostics: track hand size post-contract
+  if (diag) trackHandSize(diag, currentSeat, currentHand.length);
+
   while (madeProgress && handAfterLayoffs.length > 0) {
     madeProgress = false;
-    const layoffs = findLayOffs(handAfterLayoffs, currentMelds);
-    const filteredLayoffs = filterLayOffs(tp, layoffs);
+    const allLayoffs = findLayOffs(handAfterLayoffs, currentMelds);
+    const filteredLayoffs = filterLayOffs(tp, allLayoffs);
+
+    // Diagnostics: lay-off detection tracking
+    if (diag) {
+      const dp = diag.players.get(currentSeat);
+      if (dp) {
+        dp.layoff_opportunities_total += allLayoffs.length;
+        dp.layoff_opportunities_taken += filteredLayoffs.length;
+        dp.layoff_opportunities_missed += (allLayoffs.length - filteredLayoffs.length);
+      }
+    }
 
     for (const lo of filteredLayoffs) {
       if (!handAfterLayoffs.includes(lo.card)) continue;
@@ -513,6 +637,12 @@ async function executeActionPhase(
         });
         handAfterLayoffs = handAfterLayoffs.filter(c => c !== lo.card);
         madeProgress = true;
+
+        // Diagnostics: check if this lay-off was a feed payoff + mark spec used
+        if (diag) {
+          checkFeedPayoff(diag, currentSeat, lo.card, currentMelds.find(m => m.id === lo.meld_id)?.cards || []);
+          checkSpecUsed(diag, currentSeat, new Set([lo.card]));
+        }
 
         if (config.logDecisions) {
           await logDecision(
@@ -540,6 +670,44 @@ async function executeActionPhase(
     : rankDiscards(handAfterLayoffs, roundState.contractSets, roundState.contractRuns, tableMelds, protectedCards, hasMetContract, undefined, cardMemory, tableModel, totalPerValue)
   )[0] || handAfterLayoffs[0];
 
+  // Diagnostics: discard phase (post-contract)
+  if (diag && hasMetContract) {
+    const dp = diag.players.get(currentSeat);
+    if (dp) {
+      dp.decisions_total++;
+      trackHandSize(diag, currentSeat, handAfterLayoffs.length);
+
+      // Baseline comparison
+      if (tp.cardMemoryDepth > 0) {
+        const baselineCard = baselineDiscardDecision(
+          handAfterLayoffs, roundState.contractSets, roundState.contractRuns, true, totalPerValue
+        );
+        if (baselineCard !== discard) dp.decisions_diverged++;
+      }
+
+      // Table awareness cost
+      if (tp.checksTableMelds && tableMelds.length > 0) {
+        const ep = resolveProfile(tp, roundState.roundNumber);
+        const cost = measureTableAwarenessCost(
+          handAfterLayoffs, roundState.contractSets, roundState.contractRuns,
+          tableMelds, true, cardMemory, tableModel,
+          { setWeight: ep.setRelevanceWeight, runWeight: ep.runRelevanceWeight, isolationPenalty: ep.isolationPenalty },
+          totalPerValue
+        );
+        dp.table_awareness_holds += cost.holds;
+        dp.table_awareness_deadwood_cost += cost.deadwoodCost;
+      }
+
+      // Feed tracking: check if this discard has a feed bonus
+      if (tableModel && tableModel.myPlayerId && !isJoker(discard)) {
+        const bonus = feedLayOffBonus(discard, handAfterLayoffs, tableModel, tableModel.myPlayerId);
+        if (bonus > 0) {
+          trackFeedAttempt(diag, currentSeat, discard, turnCount);
+        }
+      }
+    }
+  }
+
   await callAction('discard_card', {
     p_round_id: roundState.roundId,
     p_card: discard,
@@ -549,7 +717,7 @@ async function executeActionPhase(
     await logDecision(
       clients.service, gameId, roundState.roundId,
       turnCount, currentSeat, currentTier, 'discard',
-      { action: 'discard', card: discard, hand_size: handAfterLayoffs.length, after_layoffs: filteredLayoffs.length }
+      { action: 'discard', card: discard, hand_size: handAfterLayoffs.length }
     );
   }
 }

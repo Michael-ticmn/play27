@@ -1,6 +1,9 @@
 -- Allow start_game to begin at any round (for training harness).
 -- Default is 1, so production behavior is unchanged.
 
+-- Drop the old 1-param overload so PostgREST doesn't get confused
+DROP FUNCTION IF EXISTS "public"."start_game"("uuid");
+
 CREATE OR REPLACE FUNCTION "public"."start_game"(
   "p_game_id" "uuid",
   "p_start_round" integer DEFAULT 1

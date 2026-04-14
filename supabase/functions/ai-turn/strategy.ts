@@ -5,6 +5,7 @@ import {
   rankDiscardsRound7,
   evaluateDiscardDraw,
   evaluateRound7Draw,
+  deckDrawProbability,
   findLayOffs,
   helpsWeakerContract,
   MeldCandidate
@@ -90,6 +91,17 @@ export function decideDrawSource(ctx: TurnContext): 'deck' | 'discard' {
       }
     }
 
+    // Run-specific speculation gate: require N adjacent same-suit cards for run pickups
+    // Prevents tempo-losing speculative pickups in run-heavy rounds
+    if (profile.minSpeculativeRunMatch > 0 && eval_.reason === 'extends_run' && ctx.topDiscard) {
+      const ds = cardSuit(ctx.topDiscard);
+      const dv = cardValue(ctx.topDiscard);
+      const sameSuitAdj = ctx.hand.filter(c =>
+        !isJoker(c) && cardSuit(c) === ds && Math.abs(cardValue(c) - dv) <= 1
+      ).length;
+      if (sameSuitAdj < profile.minSpeculativeRunMatch) return 'deck';
+    }
+
     // Contract weakness gate: for mixed contracts, reject speculative pickups
     // that advance the stronger dimension while the weaker one is lagging
     if (profile.contractWeaknessAware && ctx.topDiscard &&
@@ -99,16 +111,50 @@ export function decideDrawSource(ctx: TurnContext): 'deck' | 'discard' {
       }
     }
 
+    // Deck probability gate (Unfair): if the deck is rich with helpful cards,
+    // skip marginal speculative pickups and draw from deck instead.
+    // Disabled for run-heavy rounds where P(helpful) is naturally high with 2-deck runs.
+    if (!profile.disableDeckProbabilityGate &&
+        profile.cardMemoryDepth === Infinity && ctx.cardMemory &&
+        (eval_.reason === 'builds_pair' || eval_.reason === 'extends_run')) {
+      const numDecks = ctx.gameSettings?.numDecks ?? 2;
+      const pDeck = deckDrawProbability(
+        ctx.hand, ctx.contractSets, ctx.contractRuns,
+        ctx.cardMemory.visibleCards, numDecks
+      );
+      // >25% of unseen cards help → deck is very rich, skip marginal pickup
+      if (pDeck > 0.25) return 'deck';
+    }
+
     return 'discard';
   }
 
   // Speculative pickups for weaker paths (builds_pair / extends_run that failed quality gate)
   if (eval_.reason === 'weaker_pair_path' || eval_.reason === 'weaker_run_path') {
+    // Run-specific gate for weaker paths too
+    if (profile.minSpeculativeRunMatch > 0 && eval_.reason === 'weaker_run_path' && ctx.topDiscard) {
+      const ds = cardSuit(ctx.topDiscard);
+      const dv = cardValue(ctx.topDiscard);
+      const sameSuitAdj = ctx.hand.filter(c =>
+        !isJoker(c) && cardSuit(c) === ds && Math.abs(cardValue(c) - dv) <= 1
+      ).length;
+      if (sameSuitAdj < profile.minSpeculativeRunMatch) return 'deck';
+    }
     // Contract-weakness aware: only speculate if it helps the weaker dimension
     if (profile.contractWeaknessAware && ctx.topDiscard) {
       if (!helpsWeakerContract(ctx.hand, ctx.topDiscard, ctx.contractSets, ctx.contractRuns)) {
         return 'deck';
       }
+    }
+    // Deck probability gate (Unfair): weaker paths need even less deck richness to skip
+    if (!profile.disableDeckProbabilityGate &&
+        profile.cardMemoryDepth === Infinity && ctx.cardMemory) {
+      const numDecks = ctx.gameSettings?.numDecks ?? 2;
+      const pDeck = deckDrawProbability(
+        ctx.hand, ctx.contractSets, ctx.contractRuns,
+        ctx.cardMemory.visibleCards, numDecks
+      );
+      if (pDeck > 0.18) return 'deck';
     }
     return 'discard';
   }

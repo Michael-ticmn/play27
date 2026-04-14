@@ -289,7 +289,7 @@ serve(async (req) => {
       let postContractForceDiscard = false;
       if (hasMetContract && topDiscard && !isJoker(topDiscard)) {
         const isLayOff = evaluatePostContractDraw(topDiscard, melds);
-        if (tp.postContractSpeculation) {
+        if (ep.postContractSpeculation) {
           // Hard/Unfair: also allow if it completes a set (2+ same value in hand)
           const dv = cardValue(topDiscard);
           const sameValCount = hand.filter(c => !isJoker(c) && cardValue(c) === dv).length;
