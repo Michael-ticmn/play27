@@ -1,5 +1,5 @@
-import { sb, rpc, ensureProfile, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.1';
-import { initTheme } from './theme.js?v=0.15.1';
+import { sb, rpc, ensureProfile, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.2';
+import { initTheme } from './theme.js?v=0.15.2';
 
 // ─────────────────────────────────────────────
 // AUTH STATE
@@ -70,21 +70,34 @@ async function handleSignup(e) {
 
   errEl.classList.remove('show');
   successEl.classList.remove('show');
+
+  const fail = (msg) => {
+    btn.disabled = false;
+    btn.textContent = 'Create Account';
+    errEl.textContent = msg;
+    errEl.classList.add('show');
+  };
+
+  if (!inviteCode) { fail('Enter your invite code.'); return; }
+
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Creating account...';
 
-  // Create the account first
+  // Check the invite code before creating anything (no sign-in needed)
+  const inviteCheck = await checkInviteCode(inviteCode);
+  if (inviteCheck) { fail(inviteCheck); return; }
+
+  // The code travels with the sign-up so the database can verify it and record the redemption
   const { data, error } = await sb.auth.signUp({
     email,
     password,
-    options: { data: { display_name: name } }
+    options: { data: { display_name: name, invite_code: inviteCode.toUpperCase() } }
   });
 
   if (error) {
-    btn.disabled = false;
-    btn.textContent = 'Create Account';
-    errEl.textContent = error.message;
-    errEl.classList.add('show');
+    fail(/database error saving new user/i.test(error.message)
+      ? 'That invite code is no longer valid. Ask for a new one.'
+      : error.message);
     return;
   }
 
@@ -130,6 +143,22 @@ async function handleSignup(e) {
     }
   }
 };
+
+/** Returns null when the invite code is valid, otherwise the message to show. */
+async function checkInviteCode(code) {
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/check_invite_code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ p_code: code })
+    });
+    if (resp.ok) return null;
+    const body = await resp.json().catch(() => null);
+    return (body && body.message) || 'Could not check the invite code. Try again.';
+  } catch (e) {
+    return 'Could not reach the server to check the invite code. Try again.';
+  }
+}
 
 // ─────────────────────────────────────────────
 // UI SWITCHING

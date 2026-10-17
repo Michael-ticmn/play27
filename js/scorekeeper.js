@@ -9,7 +9,7 @@ import {
   colorOf, cellv, totalsMap, ranked, missing, anyScores, dealerOf, firstOf,
   cTitle, cLong, cCode, cMin, rulesLine, meldsHTML, qrSVG, createScoreSheet, client, APP_VERSION,
   canSpeak, speak, unlockSpeech, speechFor, currentSession, signIn, signOut
-} from './score-common.js?v=0.15.1';
+} from './score-common.js?v=0.15.2';
 
 const HOST_KEY = 'p27sk.host';     // { code, token } for the table this device hosts
 const PREFS_KEY = 'p27sk.prefs';   // last contracts, rules, card values, notes and player names
