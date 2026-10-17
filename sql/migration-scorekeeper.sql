@@ -31,6 +31,7 @@ create table if not exists public.score_tables (
   announce      text check (announce in ('standings', 'hand', 'both')),
   announce_seq  int  not null default 0,
   announce_at   timestamptz,
+  created_by    uuid,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),
   ended_at      timestamptz
@@ -82,6 +83,9 @@ create table if not exists public.score_secrets (
   created_at  timestamptz not null default now()
 );
 create index if not exists score_secrets_table_idx on public.score_secrets(table_id);
+
+-- Added after the first release: keeps a re-run working on databases created before these columns.
+alter table public.score_tables add column if not exists created_by uuid;
 
 -- ── ROW LEVEL SECURITY ──
 
@@ -286,7 +290,8 @@ end $$;
 -- CLIENT FUNCTIONS
 -- ============================================================
 
--- Host: open a new table. Returns the join code and the host key.
+-- Host: open a new table. Needs a signed-in play27 account (same bar as creating an online
+-- game); players never need one. Returns the join code and the host key.
 create or replace function public.score_create_table(
   p_contracts jsonb default null, p_rules jsonb default null,
   p_card_values jsonb default null, p_notes text default '', p_players text[] default null)
@@ -297,7 +302,12 @@ declare
   v_alpha constant text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   v_name text;
   v_token text;
+  v_user uuid := auth.uid();
 begin
+  if v_user is null then
+    raise exception 'Sign in with your play27 account to start a table';
+  end if;
+
   delete from public.score_tables where updated_at < now() - interval '24 hours';
 
   loop
@@ -308,8 +318,8 @@ begin
     exit when not exists (select 1 from public.score_tables where code = v_code);
   end loop;
 
-  insert into public.score_tables (code, contracts, rules, card_values, notes)
-  values (v_code,
+  insert into public.score_tables (code, created_by, contracts, rules, card_values, notes)
+  values (v_code, v_user,
           public.score_clean_contracts(coalesce(p_contracts, public.score_default_contracts())),
           public.score_clean_rules(p_rules),
           public.score_clean_values(p_card_values),
@@ -577,7 +587,8 @@ end $$;
 
 -- ── FUNCTION GRANTS ──
 -- Named explicitly: the online game's score_cards() shares the prefix and must not be touched.
--- Helpers are internal only; the client functions are open to anon and authenticated.
+-- Helpers are internal only; opening a table needs a signed-in account; everything else is
+-- open to anon and authenticated (the per-device keys do the checking).
 
 do $$
 declare
@@ -586,7 +597,8 @@ declare
     'score_clean_contracts', 'score_clean_rules', 'score_clean_values', 'score_table_by_code',
     'score_auth_host', 'score_auth_player', 'score_touch', 'score_check_hand', 'score_put',
     'score_seat_player', 'score_issue'];
-  v_client text[] := array['score_create_table', 'score_whoami', 'score_join', 'score_claim', 'score_submit',
+  v_signed_in text[] := array['score_create_table'];
+  v_client text[] := array['score_whoami', 'score_join', 'score_claim', 'score_submit',
     'score_rename_self', 'score_leave', 'score_host_set_score', 'score_host_update',
     'score_host_add_player', 'score_host_rename_player', 'score_host_remove_player',
     'score_host_release_player', 'score_host_set_seats', 'score_host_finish',
@@ -595,11 +607,13 @@ begin
   for f in
     select p.oid::regprocedure as sig, p.proname
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = any (v_helpers || v_client)
+    where n.nspname = 'public' and p.proname = any (v_helpers || v_signed_in || v_client)
   loop
     execute format('revoke all on function %s from public, anon, authenticated', f.sig);
     if f.proname = any (v_client) then
       execute format('grant execute on function %s to anon, authenticated', f.sig);
+    elsif f.proname = any (v_signed_in) then
+      execute format('grant execute on function %s to authenticated', f.sig);
     end if;
   end loop;
 end $$;

@@ -8,8 +8,8 @@ import {
   call, watchTable, linkSuffix, $, esc, clampInt, store, fmtDate, listNames, toast, syncLabel,
   colorOf, cellv, totalsMap, ranked, missing, anyScores, dealerOf, firstOf,
   cTitle, cLong, cCode, cMin, rulesLine, meldsHTML, qrSVG, createScoreSheet, client, APP_VERSION,
-  canSpeak, speak, unlockSpeech, speechFor
-} from './score-common.js?v=0.15.0';
+  canSpeak, speak, unlockSpeech, speechFor, currentSession, signIn, signOut
+} from './score-common.js?v=0.15.1';
 
 const HOST_KEY = 'p27sk.host';     // { code, token } for the table this device hosts
 const PREFS_KEY = 'p27sk.prefs';   // last contracts, rules, card values, notes and player names
@@ -23,6 +23,7 @@ let view = 'board', editHand = null, armed = null, armTimer = null, lastHeroHand
 let pastGames = [], landingNote = '', overlay = null, creating = false;
 let wake = null, wantWake = false;
 let speakerOn = canSpeak && store(SPEAKER_KEY) === true, lastSeq = null;
+let session = undefined, authBusy = false, authError = '', authEmail = ''; // undefined = still checking
 
 const sheet = createScoreSheet($('#modal-root'), {
   getGame: () => game,
@@ -74,6 +75,7 @@ function forgetTable(note) {
   host = null; game = null; overlay = null; loaded = true; landingNote = note || '';
   store(HOST_KEY, null);
   render();
+  currentSession().then(s => { session = s; render(); });
 }
 
 function savePrefs() {
@@ -126,20 +128,42 @@ async function createTable() {
   const prefs = store(PREFS_KEY) || {};
   const seatPrev = !!($('#seat-prev') && $('#seat-prev').checked);
   try {
+    session = await currentSession();
+    if (!session) { authError = 'Sign in again to start a table.'; return; }
     const r = await call('score_create_table', {
       p_contracts: prefs.contracts || null, p_rules: prefs.rules || null, p_card_values: prefs.values || null,
       p_notes: prefs.notes || '', p_players: seatPrev && prefs.players && prefs.players.length ? prefs.players : null
-    });
+    }, session.access_token);
     host = { code: r.code, token: r.host_token };
     store(HOST_KEY, host);
     landingNote = ''; loaded = false; lastHeroHand = null; editHand = null;
     setView('board');
     startWatch();
   } catch (e) {
-    toast(e.message);
+    if (e.status === 401 || /jwt|sign in/i.test(e.message)) {
+      // Expired or missing play27 session: show the sign-in form again.
+      await signOut(); session = null;
+      authError = 'Your play27 sign-in has expired. Sign in again to start a table.';
+    } else toast(e.message);
   } finally {
     creating = false; render();
   }
+}
+
+async function doSignIn() {
+  const email = ($('#si-email') || {}).value || '', password = ($('#si-pass') || {}).value || '';
+  if (!email.trim() || !password) { authError = 'Enter your play27 email and password.'; render(); return; }
+  authEmail = email.trim();
+  authBusy = true; authError = ''; render();
+  try { session = await signIn(authEmail, password); }
+  catch (e) { authError = e.message; }
+  authBusy = false; render();
+}
+
+function hostName() {
+  const u = session && session.user;
+  if (!u) return '';
+  return (u.user_metadata && u.user_metadata.display_name) || u.email || 'your play27 account';
 }
 
 /* ---------- rendering ---------- */
@@ -209,9 +233,25 @@ function landingHTML() {
     '<h1>Contract Rummy scorekeeper</h1>' +
     '<p>Play with real cards. This screen shows each hand\'s contract and the standings. Players scan a code with their phone to join and enter their own scores.</p>' +
     (landingNote ? '<p class="note">' + esc(landingNote) + '</p>' : '') +
-    (prev.length ? '<label class="check" for="seat-prev"><input type="checkbox" id="seat-prev" checked><span>Seat last game\'s players: ' + listNames(prev.map(n => ({ name: n }))) + '. They tap their name after scanning.</span></label>' : '') +
-    '<button class="btn primary big" type="button" data-act="create"' + (creating ? ' disabled' : '') + '>' + (creating ? 'Opening the table' : 'Start a table') + '</button>' +
+    (session === undefined ? '<p class="eyebrow">Checking your sign-in</p>' : session ? signedInHTML(prev) : signInHTML()) +
     '<p class="version">v' + esc(APP_VERSION) + '</p></section>';
+}
+
+function signedInHTML(prev) {
+  return '<p class="note">Hosting as <b>' + esc(hostName()) + '</b> &middot; <button type="button" class="link" data-act="signout">Sign out</button></p>' +
+    (authError ? '<p class="err" role="alert">' + esc(authError) + '</p>' : '') +
+    (prev.length ? '<label class="check" for="seat-prev"><input type="checkbox" id="seat-prev" checked><span>Seat last game\'s players: ' + listNames(prev.map(n => ({ name: n }))) + '. They tap their name after scanning.</span></label>' : '') +
+    '<button class="btn primary big" type="button" data-act="create"' + (creating ? ' disabled' : '') + '>' + (creating ? 'Opening the table' : 'Start a table') + '</button>';
+}
+
+function signInHTML() {
+  return '<form class="join-form signin" data-form="signin" aria-labelledby="si-t">' +
+    '<p class="eyebrow" id="si-t">Sign in with your play27 account to host</p>' +
+    '<label class="sr" for="si-email">Email</label><input class="txt" id="si-email" type="email" autocomplete="username" placeholder="Email" value="' + esc(authEmail) + '" required>' +
+    '<label class="sr" for="si-pass">Password</label><input class="txt" id="si-pass" type="password" autocomplete="current-password" placeholder="Password" required>' +
+    (authError ? '<p class="err" role="alert">' + esc(authError) + '</p>' : '') +
+    '<button class="btn primary big" type="submit"' + (authBusy ? ' disabled' : '') + '>' + (authBusy ? 'Signing in' : 'Sign in') + '</button>' +
+    '<p class="hint">New to play27? <a class="link" href="login.html">Sign up with an invite code</a>. Players don\'t need an account; they just scan the code on the table.</p></form>';
 }
 
 function joinPanel(big) {
@@ -701,6 +741,10 @@ document.addEventListener('webkitfullscreenchange', renderTop);
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-act]'); if (!t || t.disabled) return;
   const fn = ACT[t.dataset.act]; if (!fn) return;
+  if (t.dataset.act === 'signout') {
+    signOut().then(() => { session = null; authError = ''; render(); });
+    return;
+  }
   if (!game && ['create', 'wake', 'fullscreen'].indexOf(t.dataset.act) < 0) return;
   fn(t.dataset.arg, t, e);
 });
@@ -711,6 +755,7 @@ document.addEventListener('change', e => {
 document.addEventListener('submit', e => {
   const f = e.target.closest('[data-form]'); if (!f) return;
   e.preventDefault();
+  if (f.dataset.form === 'signin') { doSignIn(); return; }
   if (f.dataset.form === 'add-player' && game) {
     const input = $('#new-player'), name = input.value.trim();
     if (!name) { input.focus(); return; }
@@ -736,7 +781,12 @@ document.addEventListener('keydown', e => {
   const saved = store(VIEW_KEY);
   view = saved === 'board' || saved === 'scores' || saved === 'setup' ? saved
     : window.matchMedia('(min-width: 900px)').matches ? 'board' : 'scores';
-  if (!host) { loaded = true; render(); return; }
+  if (!host) {
+    loaded = true; render();
+    session = await currentSession();
+    render();
+    return;
+  }
   render();
   try {
     const who = await call('score_whoami', { p_code: host.code, p_token: host.token });

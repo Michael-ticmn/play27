@@ -6,7 +6,7 @@
 // ============================================================
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { SUPABASE_URL, SUPABASE_ANON_KEY, APP_VERSION } from './supabase.js?v=0.15.0';
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, APP_VERSION } from './supabase.js?v=0.15.1';
 
 export { APP_VERSION };
 
@@ -25,21 +25,62 @@ export const client = createClient(API_URL, API_KEY, {
 /** Extra query string to carry local test mode into links and QR codes. */
 export const linkSuffix = LOCAL ? '&sb=local' : '';
 
-/** Call a score_* database function with the public key. Throws Error(message) on failure. */
-export async function call(fn, params = {}) {
+/* ---------- host sign-in (play27 accounts) ---------- */
+
+// Hosts sign in with their play27 account. On the live site this is play27's own client, so a
+// play27 login on the same device carries over. Players never sign in.
+const AUTH_STORAGE_KEY = LOCAL ? 'p27-score-local-auth' : 'sb-' + new URL(SUPABASE_URL).hostname.split('.')[0] + '-auth-token';
+export const authClient = LOCAL
+  ? createClient(API_URL, API_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: AUTH_STORAGE_KEY } })
+  : sb;
+
+function withTimeout(p, ms) {
+  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+}
+
+/** The signed-in host's session, or null. Falls back to the stored session if the client stalls. */
+export async function currentSession() {
+  try {
+    const r = await withTimeout(authClient.auth.getSession(), 5000);
+    return (r && r.data && r.data.session) || null;
+  } catch (e) {
+    try { const raw = localStorage.getItem(AUTH_STORAGE_KEY); const s = raw ? JSON.parse(raw) : null; return s && s.access_token ? s : null; }
+    catch (e2) { return null; }
+  }
+}
+
+export async function signIn(email, password) {
+  let r;
+  try { r = await withTimeout(authClient.auth.signInWithPassword({ email, password }), 15000); }
+  catch (e) { throw new Error("Can't reach play27 to sign in. Check the connection and try again."); }
+  if (r.error) throw new Error(/invalid login/i.test(r.error.message) ? "That email and password don't match a play27 account." : r.error.message);
+  return r.data.session;
+}
+
+export async function signOut() {
+  try { await withTimeout(authClient.auth.signOut(), 5000); } catch (e) { /* clear locally below */ }
+  try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch (e) { }
+}
+
+/** Call a score_* database function. Uses the public key unless a signed-in access token is given. Throws Error(message). */
+export async function call(fn, params = {}, accessToken) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 15000);
   try {
     const resp = await fetch(`${API_URL}/rest/v1/rpc/${fn}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: API_KEY, Authorization: `Bearer ${API_KEY}` },
+      headers: { 'Content-Type': 'application/json', apikey: API_KEY, Authorization: `Bearer ${accessToken || API_KEY}` },
       body: JSON.stringify(params),
       signal: ctrl.signal
     });
     const text = await resp.text();
     let data = null;
     if (text) { try { data = JSON.parse(text); } catch (e) { data = text; } }
-    if (!resp.ok) throw new Error((data && data.message) || 'Something went wrong. Try again.');
+    if (!resp.ok) {
+      const err = new Error((data && data.message) || 'Something went wrong. Try again.');
+      err.status = resp.status;
+      throw err;
+    }
     return data;
   } catch (err) {
     if (err.name === 'AbortError') throw new Error('The connection timed out. Try again.');
@@ -112,12 +153,14 @@ export function watchTable(code, onState, onStatus) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'score_tables', filter: 'id=eq.' + tableId }, schedule)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'score_players', filter: 'table_id=eq.' + tableId }, schedule)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'score_entries', filter: 'table_id=eq.' + tableId }, schedule)
+      // "SUBSCRIBED" can arrive before the database feed is flowing; catch up again once it is.
+      .on('system', {}, payload => { if (payload && payload.extension === 'postgres_changes') schedule(); })
       .subscribe(status => {
         if (status === 'SUBSCRIBED') { onStatus('live'); schedule(); }
         else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') onStatus('polling');
       });
   }
-  const poll = setInterval(load, 15000);
+  const poll = setInterval(load, 10000);
   const onVis = () => { if (document.visibilityState === 'visible') load(); };
   document.addEventListener('visibilitychange', onVis);
   window.addEventListener('online', load);

@@ -428,3 +428,5 @@ table.scores{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nu
   body.v-board .join-qr{width:min(200px,24vh)}
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+.signin{width:min(400px,100%);text-align:left}
+.signin .hint{text-align:left}
