@@ -23,6 +23,19 @@
 - Ready check at round start — all players confirm before play begins
 - Late join / spectator system — spectator view, host approval, deal-in next round
 
+**Scorekeeper: in-person Contract Rummy with real cards (v0.15.0 to v0.15.2, 2026-10-16):**
+- scorekeeper.html: host table display for an iPad or laptop. Current contract with example melds, dealer and first player, standings and a score sheet; landscape fills the screen. Starting a table requires a play27 sign-in.
+- scorecard.html?t=CODE: player page for phones. Scan the join QR, enter a name or claim a seat the host added, then enter your own score with the card keypad. No account needed.
+- Host controls: add players without a phone, enter or fix any score, seat order and first dealer, deal, finish, rematch, free a seat, and a host QR that makes another device a host (no sign-in on that device).
+- Read aloud: any host device can have host devices with Speaker on read the standings and/or the current hand (browser speech).
+- Backend: sql/migration-scorekeeper.sql. score_* tables, SECURITY DEFINER functions, a secret key per device (stored hashed), anon read access, realtime. Defaults come from the contracts table. Tables idle for 24 hours are removed; finished games stay in score_history.
+- Local testing: add ?sb=local to point both pages at the local Supabase stack.
+
+**Invite-first sign-up (v0.15.2):**
+- login.js checks the code with check_invite_code() before calling signUp and sends it in the sign-up metadata. Previously the account was created first, and with email confirmation on the code was never checked.
+- sql/migration-invite-signup.sql: a BEFORE INSERT trigger on auth.users rejects accounts without a valid, unexpired code; an AFTER INSERT trigger records the redemption.
+- The dashboard "Add user" is now refused; the admin API needs user_metadata.invite_code. Accounts created before the fix may have no recorded redemption.
+
 **AI System:**
 - 4 AI players (LuVerne, Jeanne, Ron, Sue) × 4 tiers (Easy, Normal, Hard, Unfair)
 - Supabase Edge Functions: ai-turn (full turn logic), ai-buy (buy decisions)
