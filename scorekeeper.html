@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<title>play27 Scorekeeper</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=0.15.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Instrument+Sans:wght@400;500;600&family=Libre+Caslon+Text:wght@700&display=swap">
+<link rel="stylesheet" href="css/scorekeeper.css?v=0.15.0">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-in gutter">
+    <a class="brand" href="index.html"><span class="p27">play27</span><span class="game">Contract Rummy</span><span class="suits" aria-hidden="true">&#x2660;&#xFE0E;&#x2665;&#xFE0E;&#x2663;&#xFE0E;&#x2666;&#xFE0E;</span></a>
+    <nav class="tabs" id="tabs" aria-label="View" hidden>
+      <button class="tab" type="button" data-act="view" data-arg="board">Board</button>
+      <button class="tab" type="button" data-act="view" data-arg="scores">Scores</button>
+      <button class="tab" type="button" data-act="view" data-arg="setup">Setup</button>
+    </nav>
+    <div class="tools">
+      <span class="sync" id="sync" hidden><span class="dot"></span><span class="sync-t">Connecting</span></span>
+      <button class="tool code-chip" type="button" id="join-chip" data-act="show-join" title="Show the join code" hidden></button>
+      <button class="tool read-btn" type="button" id="read-btn" data-act="show-read" aria-label="Read aloud" aria-pressed="false" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="wave" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/></svg><span class="read-label">Read</span></button>
+      <button class="tool wide" type="button" id="wake-btn" data-act="wake" aria-pressed="false" hidden>Keep screen on</button>
+      <button class="tool wide" type="button" id="fs-btn" data-act="fullscreen" hidden>Full screen</button>
+    </div>
+  </div>
+</header>
+<main id="main" class="gutter">
+  <section class="empty"><p class="eyebrow">Opening the table</p></section>
+</main>
+<div id="modal-root"></div>
+<div id="overlay-root"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script type="module" src="js/scorekeeper.js?v=0.15.0"></script>
+</body>
+</html>
