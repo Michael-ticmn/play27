@@ -7,7 +7,7 @@
 import {
   call, watchTable, $, esc, store, listNames, toast, syncLabel, colorOf, cellv, totalsMap, ranked,
   missing, anyScores, dealerOf, firstOf, cTitle, cLong, cMin, rulesLine, meldsHTML, createScoreSheet, APP_VERSION
-} from './score-common.js?v=0.15.2';
+} from './score-common.js?v=0.15.3';
 
 const code = (new URLSearchParams(location.search).get('t') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
 const ME_KEY = 'p27sc.' + code;
