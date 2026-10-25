@@ -9,8 +9,8 @@ import {
   colorOf, cellv, totalsMap, ranked, missing, wentOut, allInAt, anyScores, dealerOf, firstOf,
   cTitle, cLong, cCode, cMin, rulesLine, meldsHTML, qrSVG, createScoreSheet, client, APP_VERSION,
   canSpeak, speak, unlockSpeech, speechFor, currentSession, signIn, signOut
-} from './score-common.js?v=0.15.13';
-import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.13';
+} from './score-common.js?v=0.15.14';
+import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.14';
 
 const HOST_KEY = 'p27sk.host';     // { code, token } for the table this device hosts
 const PREFS_KEY = 'p27sk.prefs';   // last contracts, rules, card values, notes and player names
@@ -830,7 +830,9 @@ function checkHand() {
   const span = revealDuration(revealSnap(g, h)) + HOLD_MS;
   const start = sawOpen.has(key) ? Date.now() : allInAt(g, h);
   if (!start || Date.now() - start > span + LATE_MS) return;
-  auto = { key, h, start, deadline: start + span, show: true };
+  // The last hand ends on the final standings: no countdown, and it stays up until the host moves on.
+  const final = h >= g.contracts.length - 1;
+  auto = { key, h, start, deadline: final ? null : start + span, final, show: true };
   if (!sheet.isOpen) showReveal();
 }
 
@@ -863,9 +865,9 @@ function contestHTML() {
 
 function showReveal() {
   auto.show = false;
-  const snap = revealSnap(game, auto.h), now = Date.now();
-  if (now - auto.start < revealDuration(snap)) reveal.play(snap, { deadline: auto.deadline });
-  else if (now < auto.deadline) reveal.hold(snap, { deadline: auto.deadline });
+  const snap = revealSnap(game, auto.h), now = Date.now(), run = revealDuration(snap);
+  if (now - auto.start < run) reveal.play(snap, { deadline: auto.deadline });
+  else if (auto.final ? now - auto.start < run + HOLD_MS : now < auto.deadline) reveal.hold(snap, { deadline: auto.deadline });
 }
 
 function dealNext(h, toBoard) {
@@ -878,7 +880,7 @@ function dealNext(h, toBoard) {
 
 // Countdowns on the page, and the automatic deal when the hold runs out.
 setInterval(() => {
-  if (!auto || !game) return;
+  if (!auto || !game || !auto.deadline) return;
   const left = auto.deadline - Date.now();
   document.querySelectorAll('[data-cd]').forEach(el => { el.textContent = clock(left); });
   if (left > 0) return;
