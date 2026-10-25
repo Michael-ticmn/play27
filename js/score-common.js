@@ -6,7 +6,7 @@
 // ============================================================
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, APP_VERSION } from './supabase.js?v=0.15.3';
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, APP_VERSION } from './supabase.js?v=0.15.4';
 
 export { APP_VERSION };
 
@@ -95,10 +95,11 @@ export async function call(fn, params = {}, accessToken) {
 
 function normalize(t, players, entries) {
   const contracts = Array.isArray(t.contracts) && t.contracts.length ? t.contracts : [{ sets: 2, runs: 0, deal: 10, all: false }];
-  const scores = {};
+  const scores = {}, times = {};
   entries.forEach(e => {
     if (typeof e.score !== 'number') return;
     (scores['h' + e.hand] = scores['h' + e.hand] || {})[e.player_id] = e.score;
+    (times['h' + e.hand] = times['h' + e.hand] || {})[e.player_id] = Date.parse(e.updated_at) || 0;
   });
   return {
     id: t.id, code: t.code, status: t.status, gameNo: t.game_no,
@@ -113,7 +114,7 @@ function normalize(t, players, entries) {
     players: players.filter(p => !p.removed)
       .sort((a, b) => (a.seat - b.seat) || String(a.created_at).localeCompare(String(b.created_at)))
       .map(p => ({ id: p.id, name: p.name, c: p.color, hasDevice: p.has_device })),
-    scores
+    scores, times
   };
 }
 
@@ -134,7 +135,7 @@ export function watchTable(code, onState, onStatus) {
     if (t.id !== tableId) { tableId = t.id; subscribe(); }
     const [pl, en] = await Promise.all([
       client.from('score_players').select('id,name,seat,color,has_device,removed,created_at').eq('table_id', t.id),
-      client.from('score_entries').select('player_id,hand,score').eq('table_id', t.id).eq('game_no', t.game_no)
+      client.from('score_entries').select('player_id,hand,score,updated_at').eq('table_id', t.id).eq('game_no', t.game_no)
     ]);
     if (stopped || my !== gen) return;
     if (pl.error || en.error) { onStatus('offline'); return; }
@@ -239,6 +240,13 @@ export function ranked(g) {
   return rows;
 }
 export function missing(g, h) { return g.players.filter(p => cellv(g, h, p.id) === null); }
+/** When the last score for hand h was saved (ms, server clock), or null if none are in. */
+export function allInAt(g, h) {
+  const row = g.times['h' + h] || {};
+  let t = null;
+  g.players.forEach(p => { const v = row[p.id]; if (v && (t === null || v > t)) t = v; });
+  return t;
+}
 export function anyScores(g) { return Object.keys(g.scores).some(k => Object.keys(g.scores[k]).length); }
 function seatAt(g, h, off) { const n = g.players.length; return n ? g.players[(g.firstDealer + h + off) % n] : null; }
 export function dealerOf(g, h) { return seatAt(g, h, 0); }

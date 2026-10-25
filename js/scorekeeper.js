@@ -6,16 +6,19 @@
 
 import {
   call, watchTable, linkSuffix, $, esc, clampInt, store, fmtDate, listNames, toast, syncLabel,
-  colorOf, cellv, totalsMap, ranked, missing, anyScores, dealerOf, firstOf,
+  colorOf, cellv, totalsMap, ranked, missing, allInAt, anyScores, dealerOf, firstOf,
   cTitle, cLong, cCode, cMin, rulesLine, meldsHTML, qrSVG, createScoreSheet, client, APP_VERSION,
   canSpeak, speak, unlockSpeech, speechFor, currentSession, signIn, signOut
-} from './score-common.js?v=0.15.3';
+} from './score-common.js?v=0.15.4';
+import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.4';
 
 const HOST_KEY = 'p27sk.host';     // { code, token } for the table this device hosts
 const PREFS_KEY = 'p27sk.prefs';   // last contracts, rules, card values, notes and player names
 const TABLES_KEY = 'p27sk.tables'; // table ids this device has hosted, for past games
 const VIEW_KEY = 'p27sk.view';
 const SPEAKER_KEY = 'p27sk.speaker'; // true when this device reads announcements aloud
+const REMARKS_KEY = 'p27sk.remarks'; // false turns off the funny lines in the hand reveal
+const LATE_MS = 60000; // a device that was away still deals if it is back this soon after the countdown ends
 
 let host = store(HOST_KEY);
 let game = null, loaded = false, watcher = null, syncState = 'connecting';
@@ -24,6 +27,10 @@ let pastGames = [], landingNote = '', overlay = null, creating = false;
 let wake = null, wantWake = false;
 let speakerOn = canSpeak && store(SPEAKER_KEY) === true, lastSeq = null;
 let session = undefined, authBusy = false, authError = '', authEmail = ''; // undefined = still checking
+let remarksOn = store(REMARKS_KEY) !== false;
+let auto = null;           // { key, h, start, deadline, show } once the current hand is fully scored
+const sawOpen = new Set(); // hands this device watched with scores still missing
+const handled = new Set(); // fully scored hands this device has already timed
 
 const sheet = createScoreSheet($('#modal-root'), {
   getGame: () => game,
@@ -37,7 +44,14 @@ const sheet = createScoreSheet($('#modal-root'), {
     }
     return null;
   },
-  onClose: () => render()
+  onClose: () => { checkHand(); render(); }
+});
+
+const reveal = createReveal($('#reveal-root'), {
+  remarks: () => remarksOn,
+  onDeal: () => { if (auto) dealNext(auto.h, true); },
+  onFinish: () => { reveal.close(); ACT.finish(); },
+  onBoard: () => { reveal.close(); setView('board'); }
 });
 
 /* ---------- table lifecycle ---------- */
@@ -65,6 +79,7 @@ function startWatch() {
       if (speakerOn && age < 120000) speak(speechFor(g, g.announce.what));
     }
     savePrefs();
+    checkHand();
     render();
   }, s => { syncState = s; renderTop(); });
 }
@@ -72,6 +87,7 @@ function startWatch() {
 function forgetTable(note) {
   if (watcher) { watcher.stop(); watcher = null; }
   sheet.close();
+  reveal.close(); auto = null;
   host = null; game = null; overlay = null; loaded = true; landingNote = note || '';
   store(HOST_KEY, null);
   render();
@@ -291,9 +307,10 @@ function advanceHTML(where) {
     msg = 'Scores in: ' + (n - miss.length) + ' of ' + n + '. Waiting on ' + listNames(miss) + '.';
     if (where === 'board') btn = '<button class="btn primary" type="button" data-act="view" data-arg="scores">Enter scores</button>';
   } else if (h < last) {
-    const d = dealerOf(g, h + 1);
-    msg = 'Hand ' + (h + 1) + ' is scored. Next: ' + esc(cTitle(C[h + 1])) + ', ' + esc(d ? d.name : '') + ' deals.';
-    btn = '<button class="btn primary" type="button" data-act="next">Deal hand ' + (h + 2) + '</button>';
+    const d = dealerOf(g, h + 1), timed = auto && auto.key === handKey(g, h);
+    msg = 'Hand ' + (h + 1) + ' is scored. Next: ' + esc(cTitle(C[h + 1])) + ', ' + esc(d ? d.name : '') + ' deals.' +
+      (timed ? ' Moves on by itself in <span data-cd>' + clock(auto.deadline - Date.now()) + '</span>.' : '');
+    btn = '<button class="btn primary" type="button" data-act="next">Deal hand ' + (h + 2) + (timed ? ' now' : '') + '</button>';
   } else {
     msg = 'Every hand is scored.';
     btn = '<button class="btn primary" type="button" data-act="finish">Finish game</button>';
@@ -479,6 +496,12 @@ function setupHTML() {
     armBtn('close-table:', 'Close the table', 'Tap again to close it for everyone', 'danger') + '</div>' +
     '<p class="hint">Closing ends the table for every phone. Finished games stay in Past games.</p></section>';
 
+  html += '<section class="panel" aria-labelledby="h-reveal"><div class="panel-head"><h2 class="panel-title" id="h-reveal">Hand reveal</h2>' +
+    '<p class="hint">When the last score for a hand comes in, host screens show the hand\'s scores low to high, the next deal, then the standings high to low. ' +
+    'Two minutes later the next hand starts by itself and the board comes back. "Deal now" skips the wait.</p></div>' +
+    '<label class="check" for="remarks-on"><input type="checkbox" id="remarks-on" data-field="remarks"' + (remarksOn ? ' checked' : '') + '>' +
+    '<span>Funny remarks on the scores (this device)</span></label></section>';
+
   html += '<section class="panel" aria-labelledby="h-host"><div class="panel-head"><h2 class="panel-title" id="h-host">Run it from another device</h2>' +
     '<p class="hint">Shows a code that makes another phone or tablet a host too, with full control of this table. Only show it to someone you trust.</p></div>' +
     '<div class="btn-row"><button type="button" class="btn" data-act="show-host">Show host code</button></div></section>';
@@ -598,12 +621,8 @@ const ACT = {
     editHand = null; update({ status: 'playing', hand: 0 });
   },
   next: () => {
-    const h = game.hand;
-    if (missing(game, h).length) { toast('Enter every score for this hand first.'); return; }
-    if (h >= game.contracts.length - 1) return;
-    editHand = null; game.hand = h + 1;
-    update({ hand: h + 1 });
-    setView('board');
+    if (missing(game, game.hand).length) { toast('Enter every score for this hand first.'); return; }
+    dealNext(game.hand, true);
   },
   finish: () => {
     if (missing(game, game.contracts.length - 1).length) { toast('Enter every score for the last hand first.'); return; }
@@ -702,8 +721,86 @@ const FIELD = {
   'r-run': el => update({ rules: { runLen: clampInt(el.value, 2, 13, game.rules.runLen) } }),
   'r-buys': el => update({ rules: { buys: el.value === '' ? null : clampInt(el.value, 1, 10, null) } }),
   notes: el => { if (el.value !== game.notes) update({ notes: el.value.slice(0, 400) }); },
-  speaker: el => setSpeaker(el.checked)
+  speaker: el => setSpeaker(el.checked),
+  remarks: el => { remarksOn = !!el.checked; store(REMARKS_KEY, remarksOn); }
 };
+
+/* ---------- hand reveal and automatic deal ---------- */
+
+function handKey(g, h) { return g.id + ':' + g.gameNo + ':' + h; }
+
+function revealSnap(g, h) {
+  const C = g.contracts, seat = {};
+  g.players.forEach((p, i) => { seat[p.id] = i; });
+  const hand = g.players.map(p => ({ id: p.id, name: p.name, color: colorOf(p), score: cellv(g, h, p.id) }))
+    .sort((a, b) => (a.score - b.score) || (seat[a.id] - seat[b.id]));
+  let next = null;
+  if (h < C.length - 1) {
+    const c = C[h + 1], d = dealerOf(g, h + 1), f = firstOf(g, h + 1);
+    next = { handNo: h + 2, hands: C.length, title: cTitle(c), deal: c.deal, dealer: d ? d.name : '', first: f ? f.name : '', all: !!c.all };
+  }
+  const totals = ranked(g).map(r => ({ id: r.p.id, name: r.p.name, color: colorOf(r.p), total: r.total, rank: r.rank, gap: r.gap }));
+  return { key: handKey(g, h), handNo: h + 1, hands: C.length, title: cTitle(C[h]), final: !next, hand, next, totals };
+}
+
+// Runs on every state change. When the last score of the current hand comes in, sets when the
+// next hand starts (the same moment on every host device) and shows the reveal.
+function checkHand() {
+  const g = game;
+  const h = g ? g.hand : 0, key = g ? handKey(g, h) : null;
+  const scored = !!g && g.status === 'playing' && g.players.length > 1 && !missing(g, h).length;
+  if (reveal.isOpen && (!scored || reveal.key !== key)) {
+    const moved = reveal.key !== key;
+    reveal.close();
+    if (moved && view !== 'board') setView('board');
+  }
+  if (!scored) {
+    if (g && g.status === 'playing') { sawOpen.add(key); handled.delete(key); }
+    auto = null;
+    return;
+  }
+  if (auto && auto.key === key) {
+    if (auto.show && !sheet.isOpen) showReveal();
+    else reveal.update(revealSnap(g, h));
+    return;
+  }
+  // Timed once per hand. A hand set back from Setup, or one finished long ago, keeps the Deal button.
+  if (handled.has(key)) return;
+  handled.add(key);
+  const span = revealDuration(revealSnap(g, h)) + HOLD_MS;
+  const start = sawOpen.has(key) ? Date.now() : allInAt(g, h);
+  if (!start || Date.now() - start > span + LATE_MS) return;
+  auto = { key, h, start, deadline: start + span, show: true };
+  if (!sheet.isOpen) showReveal();
+}
+
+function showReveal() {
+  auto.show = false;
+  const snap = revealSnap(game, auto.h), now = Date.now();
+  if (now - auto.start < revealDuration(snap)) reveal.play(snap, { deadline: auto.deadline });
+  else if (now < auto.deadline) reveal.hold(snap, { deadline: auto.deadline });
+}
+
+function dealNext(h, toBoard) {
+  if (!game || game.hand !== h || h >= game.contracts.length - 1 || missing(game, h).length) return;
+  editHand = null; game.hand = h + 1;
+  update({ hand: h + 1 });
+  checkHand();
+  if (toBoard) setView('board'); else render();
+}
+
+// Countdowns on the page, and the automatic deal when the hold runs out.
+setInterval(() => {
+  if (!auto || !game) return;
+  const left = auto.deadline - Date.now();
+  document.querySelectorAll('[data-cd]').forEach(el => { el.textContent = clock(left); });
+  if (left > 0) return;
+  const { h } = auto, wasOpen = reveal.isOpen;
+  auto = null;
+  if (game.hand !== h || game.status !== 'playing' || missing(game, h).length) return;
+  if (h < game.contracts.length - 1) dealNext(h, wasOpen);
+  else { reveal.close(); if (wasOpen) setView('board'); else render(); }
+}, 1000);
 
 /* ---------- device helpers ---------- */
 

@@ -28,6 +28,7 @@
 - scorecard.html?t=CODE: player page for phones. Scan the join QR, enter a name or claim a seat the host added, then enter your own score with the card keypad. No account needed.
 - Host controls: add players without a phone, enter or fix any score, seat order and first dealer, deal, finish, rematch, free a seat, and a host QR that makes another device a host (no sign-in on that device).
 - Read aloud: any host device can have host devices with Speaker on read the standings and/or the current hand (browser speech).
+- Hand reveal (v0.15.4, js/score-reveal.js): when the last score of a hand comes in, host screens show the hand's scores low to high (optional funny remarks, toggle in Setup), the next deal, then the standings high to low, each flown to a side stack. A 2-minute countdown follows; then the next hand starts by itself and the board returns. "Deal now" skips the wait. The final hand reveals final standings and leaves Finish to the host. Every host device works out the same deal time from the last score's save time, so any one of them can deal; a hand set back from Setup is never auto-dealt.
 - Backend: sql/migration-scorekeeper.sql. score_* tables, SECURITY DEFINER functions, a secret key per device (stored hashed), anon read access, realtime. Defaults come from the contracts table. Tables idle for 24 hours are removed; finished games stay in score_history.
 - Local testing: add ?sb=local to point both pages at the local Supabase stack.
 

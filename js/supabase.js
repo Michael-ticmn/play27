@@ -5,7 +5,7 @@
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-export const APP_VERSION = '0.15.3';
+export const APP_VERSION = '0.15.4';
 
 /** Debug logging — auto-enabled on localhost, silent in production */
 export const DEBUG = location.hostname === 'localhost' || location.hostname === '127.0.0.1';

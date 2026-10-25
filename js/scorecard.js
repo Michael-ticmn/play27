@@ -7,7 +7,7 @@
 import {
   call, watchTable, $, esc, store, listNames, toast, syncLabel, colorOf, cellv, totalsMap, ranked,
   missing, anyScores, dealerOf, firstOf, cTitle, cLong, cMin, rulesLine, meldsHTML, createScoreSheet, APP_VERSION
-} from './score-common.js?v=0.15.3';
+} from './score-common.js?v=0.15.4';
 
 const code = (new URLSearchParams(location.search).get('t') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
 const ME_KEY = 'p27sc.' + code;
@@ -173,7 +173,10 @@ function seatedHTML() {
     let status;
     if (h !== g.hand) status = 'You are changing hand ' + (h + 1) + '. Play is on hand ' + (g.hand + 1) + '. <button type="button" class="link" data-act="pick-hand" data-arg="' + g.hand + '">Back to hand ' + (g.hand + 1) + '</button>';
     else if (miss.length) status = 'Scores in: ' + (n - miss.length) + ' of ' + n + '. Waiting on ' + listNames(miss) + '.';
-    else status = h < C.length - 1 ? 'All scores are in. Waiting for the host to deal hand ' + (h + 2) + '.' : 'All scores are in. Waiting for the host to finish the game.';
+    else if (h < C.length - 1) {
+      const nd = dealerOf(g, h + 1);
+      status = 'All scores are in. Next is hand ' + (h + 2) + ': ' + (nd && nd.id === mine.id ? '<span class="youdeal">you deal</span>' : esc(nd ? nd.name : '') + ' deals') + ' ' + C[h + 1].deal + ' cards.';
+    } else status = 'All scores are in. Waiting for the host to finish the game.';
     html += '<section class="myscore" aria-labelledby="ms"><p class="eyebrow" id="ms">Your score for hand ' + (h + 1) + '</p>' +
       '<div class="row"><span class="mynum">' + (v === null ? '&ndash;' : v) + '</span>' +
       '<button type="button" class="btn primary big" data-act="enter">' + (v === null ? 'Enter my score' : 'Change') + '</button></div>' +
