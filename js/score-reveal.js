@@ -54,6 +54,7 @@ export function clock(ms) {
   const s = Math.max(0, Math.ceil(ms / 1000));
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
+const timeOfDay = () => new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 const dot = c => '<span class="pdot" style="--pc:' + esc(c) + '"></span>';
 
 /* ---------- pieces ---------- */
@@ -121,7 +122,8 @@ export function createReveal(root, opts) {
       '<ol class="rv-list" data-list="hand">' + s.hand.map(r => handRow(r, true)).join('') + '</ol></section>' +
       '<div class="rv-center"><div class="rv-next" data-slot="next">' + (s.next ? nextCard(s.next, true) : '') + '</div>' +
       '<div class="rv-holdtop" data-slot="holdtop">' + holdTop(s) + '</div>' +
-      '<div class="rv-holdbtns" data-slot="holdbtns">' + holdBtns(s) + '</div></div>' +
+      '<div class="rv-holdbtns" data-slot="holdbtns">' + holdBtns(s) + '</div>' +
+      '<p class="rv-now" data-rv-now aria-label="Time now">' + timeOfDay() + '</p></div>' +
       '<section class="rv-col rv-tot"><p class="eyebrow rv-head" data-head="tot">' + (s.final ? 'Final standings' : 'Standings after hand ' + s.handNo) + '</p>' +
       '<ol class="rv-list" data-list="tot">' + s.totals.map(r => totRow(r, true)).join('') + '</ol></section></div>' +
       '<div class="rv-stage" data-slot="stage" aria-live="polite"></div>' +
@@ -248,6 +250,8 @@ export function createReveal(root, opts) {
     ticker = setInterval(() => {
       const n = el && el.querySelector('[data-rv-cd]');
       if (n && deadline) n.textContent = clock(deadline - Date.now());
+      const now = el && el.querySelector('[data-rv-now]');
+      if (now) now.textContent = timeOfDay();
     }, 500);
     if (straightToHold) { renderStatic(s); toHold(); }
     else { phase = 'reveal'; sequence(run); }

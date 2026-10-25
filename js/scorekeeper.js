@@ -9,8 +9,8 @@ import {
   colorOf, cellv, totalsMap, ranked, missing, allInAt, anyScores, dealerOf, firstOf,
   cTitle, cLong, cCode, cMin, rulesLine, meldsHTML, qrSVG, createScoreSheet, client, APP_VERSION,
   canSpeak, speak, unlockSpeech, speechFor, currentSession, signIn, signOut
-} from './score-common.js?v=0.15.10';
-import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.10';
+} from './score-common.js?v=0.15.11';
+import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.11';
 
 const HOST_KEY = 'p27sk.host';     // { code, token } for the table this device hosts
 const PREFS_KEY = 'p27sk.prefs';   // last contracts, rules, card values, notes and player names
