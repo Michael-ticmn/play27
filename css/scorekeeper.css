@@ -193,6 +193,9 @@ main{max-width:1600px;margin:0 auto}
 .final .ctitle{color:var(--brass)}
 .final-actions{display:flex;gap:10px;flex-wrap:wrap}
 .side{display:flex;flex-direction:column;gap:16px;min-width:0}
+/* Narrow layouts stack standings and the score sheet; only the wide board takes turns (see below) */
+.rot-tabs{display:none}
+.side-rot{display:contents}
 .stand,.sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;min-width:0}
 .sheet-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px 16px;flex-wrap:wrap;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
 .sheet-title{font-family:var(--f-display);font-weight:800;font-size:26px;text-transform:uppercase;letter-spacing:.03em;line-height:1}
@@ -442,6 +445,25 @@ body.v-landing .join-form .txt{min-height:clamp(44px,6.5vh,52px)}
   body.v-board .scores td.name,body.v-board .scores td.hcell{font-size:clamp(13px,1.9vh,16px);min-width:0}
   body.v-board .scores td.tot{font-size:clamp(16px,2.6vh,22px);padding-right:12px}
   body.v-board .scores thead .hn{font-size:clamp(14px,2.2vh,18px)}
+  /* Once play starts, standings and the score sheet take turns in one spot, rows sized to fill it */
+  body.v-board .rot-tabs{display:flex;align-self:flex-start;background:var(--shade);border:1px solid var(--line);border-radius:999px;padding:3px}
+  body.v-board .rot-tab{appearance:none;border:0;background:transparent;color:var(--ink-dim);font-weight:600;font-size:13px;line-height:1;padding:8px 14px;border-radius:999px;cursor:pointer}
+  body.v-board .rot-tab[aria-pressed="true"]{background:var(--ink);color:var(--felt-deep)}
+  body.v-board .side > .side-rot{flex:1 1 0;min-height:0;display:grid;grid-template:minmax(0,1fr)/minmax(0,1fr);container-type:size;
+    --rh:min(calc((100cqh - 58px) / var(--rows)),120px);--rh2:min(calc((100cqh - 110px) / var(--rows)),96px)}
+  body.v-board .side-rot > *{grid-area:1/1;align-self:start;max-height:100%;transition:opacity .45s ease,visibility .45s}
+  body.v-board .side-rot[data-show="stand"] > .sheet,body.v-board .side-rot[data-show="sheet"] > .stand{opacity:0;visibility:hidden}
+  @supports (height:1cqh){
+    body.v-board .side-rot .stand-list{display:grid;grid-auto-rows:var(--rh)}
+    body.v-board .side-rot .stand-list li{padding-block:0}
+    body.v-board .side-rot .stand-list .rk{font-size:clamp(18px,calc(var(--rh) * .42),44px)}
+    body.v-board .side-rot .stand-list .pn{font-size:clamp(16px,calc(var(--rh) * .32),34px)}
+    body.v-board .side-rot .stand-list .tot{font-size:clamp(24px,calc(var(--rh) * .6),64px)}
+    body.v-board .side-rot .scores tbody tr{height:var(--rh2)}
+    body.v-board .side-rot .scores tbody td{padding-block:0}
+    body.v-board .side-rot .scores td.name,body.v-board .side-rot .scores td.hcell{font-size:clamp(13px,min(calc(var(--rh2) * .34),calc(100cqi / 27)),24px)}
+    body.v-board .side-rot .scores td.tot{font-size:clamp(16px,min(calc(var(--rh2) * .48),calc(100cqi / 15)),40px)}
+  }
   body.v-board .final .ctitle{font-size:clamp(56px,min(9vw,17vh),180px)}
   body.v-board .join-qr{width:min(200px,24vh)}
 }

@@ -30,6 +30,7 @@
 - Read aloud: any host device can have host devices with Speaker on read the standings and/or the current hand (browser speech).
 - Hand reveal (v0.15.4, layout v0.15.7, js/score-reveal.js): when the last score of a hand comes in, host screens show the hand's scores low to high (optional funny remarks, toggle in Setup), the next deal, then the standings high to low, each flown into a reserved slot of a centered stack; the next hand sits under the countdown. A 2-minute countdown follows; then the next hand starts by itself and the board returns. "Deal now" skips the wait. The final hand reveals final standings and leaves Finish to the host. Every host device works out the same deal time from the last score's save time, so any one of them can deal; a hand set back from Setup is never auto-dealt.
 - Backend: sql/migration-scorekeeper.sql. score_* tables, SECURITY DEFINER functions, a secret key per device (stored hashed), anon read access, realtime. Defaults come from the contracts table. Tables idle for 24 hours are removed; finished games stay in score_history.
+- Board right side (v0.15.8): once play starts, the wide board shows standings and the score sheet one at a time, switching every 30 seconds (tabs switch by hand and restart the timer). Rows size to the space for the number of players. The current hand's melds also size to the height left, so the Start / Deal bar never needs a scroll (v0.15.6).
 - Local testing: add ?sb=local to point both pages at the local Supabase stack.
 
 **Invite-first sign-up (v0.15.2):**

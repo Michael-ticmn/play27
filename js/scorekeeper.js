@@ -9,8 +9,8 @@ import {
   colorOf, cellv, totalsMap, ranked, missing, allInAt, anyScores, dealerOf, firstOf,
   cTitle, cLong, cCode, cMin, rulesLine, meldsHTML, qrSVG, createScoreSheet, client, APP_VERSION,
   canSpeak, speak, unlockSpeech, speechFor, currentSession, signIn, signOut
-} from './score-common.js?v=0.15.7';
-import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.7';
+} from './score-common.js?v=0.15.8';
+import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.8';
 
 const HOST_KEY = 'p27sk.host';     // { code, token } for the table this device hosts
 const PREFS_KEY = 'p27sk.prefs';   // last contracts, rules, card values, notes and player names
@@ -28,6 +28,7 @@ let wake = null, wantWake = false;
 let speakerOn = canSpeak && store(SPEAKER_KEY) === true, lastSeq = null;
 let session = undefined, authBusy = false, authError = '', authEmail = ''; // undefined = still checking
 let remarksOn = store(REMARKS_KEY) !== false;
+let sideView = 'stand', sideTimer = null; // which of standings / score sheet the board's right side shows
 let auto = null;           // { key, h, start, deadline, show } once the current hand is fully scored
 const sawOpen = new Set(); // hands this device watched with scores still missing
 const handled = new Set(); // fully scored hands this device has already timed
@@ -319,10 +320,18 @@ function advanceHTML(where) {
   return '<div class="advance"><p>' + msg + '</p>' + btn + '</div>';
 }
 
+// On the wide board, standings and the score sheet share one spot and take turns.
+function sideRotation() {
+  const tabs = [['stand', 'Standings'], ['sheet', 'Score sheet']].map(([k, label]) =>
+    '<button type="button" class="rot-tab" data-act="side" data-arg="' + k + '" aria-pressed="' + (sideView === k) + '">' + label + '</button>').join('');
+  return '<div class="rot-tabs" role="group" aria-label="Show">' + tabs + '</div>' +
+    '<div class="side-rot" data-show="' + sideView + '" style="--rows:' + Math.max(game.players.length, 1) + '">' + standingsBig() + scoreSheetHTML() + '</div>';
+}
+
 function boardHTML() {
   const side = game.status === 'setup'
     ? joinPanel(true) + (game.players.length ? standingsBig() : '')
-    : standingsBig() + scoreSheetHTML() + joinMini();
+    : sideRotation() + joinMini();
   return '<div class="board">' + (game.status === 'done' ? finalHero() : contractHero()) +
     '<aside class="side" aria-label="Scores">' + side + '</aside></div>';
 }
@@ -691,9 +700,27 @@ const ACT = {
     const C = JSON.parse(JSON.stringify(game.contracts)); C.pop();
     update({ contracts: C });
   },
+  side: a => { setSide(a); rotateSide(); },
   wake: () => toggleWake(),
   fullscreen: () => toggleFullscreen()
 };
+
+/* ---------- board right side: standings and score sheet take turns ---------- */
+
+const ROTATE_MS = 30000;
+function setSide(v) {
+  if (v !== 'stand' && v !== 'sheet') return;
+  sideView = v;
+  const rot = document.querySelector('.side-rot');
+  if (rot) rot.dataset.show = v;
+  document.querySelectorAll('[data-act="side"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.arg === v)));
+}
+// Starts (or restarts, after a tap) the 30-second turns. Only the wide board layout shows one at a time.
+function rotateSide() {
+  clearInterval(sideTimer);
+  sideTimer = setInterval(() => setSide(sideView === 'stand' ? 'sheet' : 'stand'), ROTATE_MS);
+}
+rotateSide();
 
 const FIELD = {
   'player-name': el => {
