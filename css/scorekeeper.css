@@ -499,6 +499,11 @@ body.fs .rv-grid{padding-top:max(56px,3vh)}
 .rv.held .rv-holdtop,.rv.held .rv-holdbtns{animation:rvfade .4s ease-out both}
 .rv-holdbtns .btn-row{justify-content:center}
 .rv-row.ph,.rv-nextcard.ph{visibility:hidden}
+/* Wide screens: next hand at the top, the countdown in the middle of the screen, buttons just under it */
+@media (orientation:landscape) and (min-width:820px){
+  .rv-center{display:grid;grid-template-rows:1fr auto 1fr;justify-items:center;align-items:start}
+  .rv-center .rv-holdtop{align-self:center}
+}
 .rv .eyebrow{font-size:clamp(12px,1.9vh,17px)}
 .rv-head{opacity:0;transition:opacity .4s}
 .rv-head.on{opacity:1}
