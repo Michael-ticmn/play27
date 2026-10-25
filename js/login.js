@@ -1,5 +1,5 @@
-import { sb, rpc, ensureProfile, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.4';
-import { initTheme } from './theme.js?v=0.15.4';
+import { sb, rpc, ensureProfile, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.5';
+import { initTheme } from './theme.js?v=0.15.5';
 
 // ─────────────────────────────────────────────
 // AUTH STATE
@@ -8,7 +8,23 @@ let currentUser = null;
 const urlParams = new URLSearchParams(window.location.search);
 const gameCodeFromUrl = urlParams.get('game');
 
+// Password reset: the emailed link comes back here with a recovery session (or an error) in the
+// URL hash. Read it now, before the Supabase client clears the hash.
+const hashParams = new URLSearchParams(location.hash.slice(1));
+let recovering = hashParams.get('type') === 'recovery';
+let recoveryToken = hashParams.get('access_token');
+const resetLinkFailed = !!hashParams.get('error_code');
+const resetFrom = urlParams.get('reset'); // 'scorekeeper' when Scorekeeper's sign-in sent the user here
+const RESET_RETURN_KEY = 'p27-reset-return';
+
 sb.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'PASSWORD_RECOVERY') recovering = true;
+  if (session && recovering) {
+    currentUser = session.user;
+    recoveryToken = session.access_token;
+    showNewPassword();
+    return;
+  }
   if (session) {
     currentUser = session.user;
     await showLobby();
@@ -144,6 +160,96 @@ async function handleSignup(e) {
   }
 };
 
+// Direct fetch, like rpc(): the client's own auth calls can hang on a stale stored token.
+async function handleReset(e) {
+  e.preventDefault();
+  const email = document.getElementById('resetEmail').value.trim();
+  const btn = document.getElementById('resetBtn');
+  const errEl = document.getElementById('resetError');
+  const okEl = document.getElementById('resetSuccess');
+
+  errEl.classList.remove('show');
+  okEl.classList.remove('show');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Sending...';
+
+  if (resetFrom === 'scorekeeper') localStorage.setItem(RESET_RETURN_KEY, 'scorekeeper.html');
+  else localStorage.removeItem(RESET_RETURN_KEY);
+
+  const back = new URL('login.html', location.href).href;
+  let resp = null, body = null;
+  try {
+    resp = await fetch(`${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(back)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ email })
+    });
+    body = await resp.json().catch(() => null);
+  } catch (err) { /* reported below */ }
+
+  btn.disabled = false;
+  btn.textContent = 'Email Me a Reset Link';
+
+  if (!resp || !resp.ok) {
+    errEl.textContent = !resp ? 'Could not reach the server. Try again.'
+      : resp.status === 429 ? 'Too many reset emails were sent. Wait a few minutes, then try again.'
+      : (body && (body.msg || body.message)) || 'Could not send the reset email. Try again.';
+    errEl.classList.add('show');
+    return;
+  }
+  okEl.textContent = 'If a play27 account uses that email, a reset link is on its way. Open it on the device you want to sign in on.';
+  okEl.classList.add('show');
+}
+
+async function handleNewPassword(e) {
+  e.preventDefault();
+  const pw = document.getElementById('newPassword').value;
+  const pw2 = document.getElementById('newPassword2').value;
+  const btn = document.getElementById('newPassBtn');
+  const errEl = document.getElementById('newPassError');
+
+  errEl.classList.remove('show');
+  const fail = (msg) => {
+    btn.disabled = false;
+    btn.textContent = 'Save New Password';
+    errEl.textContent = msg;
+    errEl.classList.add('show');
+  };
+
+  if (pw !== pw2) { fail("The two passwords don't match."); return; }
+  const token = recoveryToken || getTokenFromStorage();
+  if (!token) { fail('This reset link has run out. Send yourself a new one.'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Saving...';
+
+  let resp = null, body = null;
+  try {
+    resp = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ password: pw })
+    });
+    body = await resp.json().catch(() => null);
+  } catch (err) { fail('Could not reach the server. Try again.'); return; }
+
+  if (!resp.ok) {
+    const code = body && (body.error_code || body.code);
+    fail(code === 'same_password' ? 'That is already your password. Sign in with it, or choose a different one.'
+      : (body && (body.msg || body.message)) || 'Could not save the new password. Try again.');
+    return;
+  }
+
+  recovering = false;
+  history.replaceState(null, '', location.pathname);
+  document.getElementById('authSection').dataset.mode = '';
+  const next = localStorage.getItem(RESET_RETURN_KEY);
+  localStorage.removeItem(RESET_RETURN_KEY);
+  if (next) { window.location.href = next; return; }
+  switchTab('login');
+  await showLobby();
+}
+
 /** Returns null when the invite code is valid, otherwise the message to show. */
 async function checkInviteCode(code) {
   try {
@@ -179,6 +285,28 @@ function switchTab(tab) {
 function showAuth() {
   document.getElementById('authSection').style.display = '';
   document.getElementById('lobbyPanel').classList.remove('active');
+}
+
+function showReset(message) {
+  switchTab('login');
+  document.getElementById('loginPanel').classList.remove('active');
+  document.getElementById('resetPanel').classList.add('active');
+  const emailEl = document.getElementById('resetEmail');
+  if (!emailEl.value) emailEl.value = document.getElementById('loginEmail').value.trim();
+  const errEl = document.getElementById('resetError');
+  errEl.textContent = message || '';
+  errEl.classList.toggle('show', !!message);
+  document.getElementById('resetSuccess').classList.remove('show');
+}
+
+function showNewPassword() {
+  const section = document.getElementById('authSection');
+  section.style.display = '';
+  section.dataset.mode = 'newpass';
+  document.getElementById('lobbyPanel').classList.remove('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('newPassPanel').classList.add('active');
+  document.getElementById('newPassUser').value = (currentUser && currentUser.email) || '';
 }
 
 async function showLobby() {
@@ -435,6 +563,18 @@ document.getElementById('signupForm').addEventListener('submit', handleSignup);
 
 document.getElementById('tabLogin').addEventListener('click', () => switchTab('login'));
 document.getElementById('tabSignup').addEventListener('click', () => switchTab('signup'));
+
+// Password reset
+document.getElementById('forgotLink').addEventListener('click', () => showReset());
+document.getElementById('resetBack').addEventListener('click', () => switchTab('login'));
+document.getElementById('resetForm').addEventListener('submit', handleReset);
+document.getElementById('newPassForm').addEventListener('submit', handleNewPassword);
+if (resetLinkFailed) {
+  history.replaceState(null, '', location.pathname);
+  showReset('That reset link has expired or was already used. Send yourself a new one.');
+} else if (resetFrom && !recovering) {
+  showReset();
+}
 
 const newGameEl = document.getElementById('newGameCard');
 const joinGameEl = document.getElementById('joinGameCard');

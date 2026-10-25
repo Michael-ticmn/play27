@@ -6,15 +6,15 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <title>play27 — Contract Rummy</title>
-<link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=0.15.4">
-<link rel="stylesheet" href="css/shared.css?v=0.15.4">
-<link rel="stylesheet" href="css/login.css?v=0.15.4">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=0.15.5">
+<link rel="stylesheet" href="css/shared.css?v=0.15.5">
+<link rel="stylesheet" href="css/login.css?v=0.15.5">
 </head>
 <body>
 
   <!-- ── LOGO ── -->
   <div class="logo">
-    <a href="index.html" class="logo-link"><img src="assets/logo-horizontal.svg?v=0.15.4" alt="play27"></a>
+    <a href="index.html" class="logo-link"><img src="assets/logo-horizontal.svg?v=0.15.5" alt="play27"></a>
     <h1>Contract <span>Rummy</span></h1>
     <p>your table, your rules</p>
   </div>
@@ -32,13 +32,47 @@
       <form id="loginForm">
         <div class="field">
           <label for="loginEmail">Email</label>
-          <input type="email" id="loginEmail" placeholder="you@example.com" required>
+          <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="username" required>
         </div>
         <div class="field">
           <label for="loginPassword">Password</label>
-          <input type="password" id="loginPassword" placeholder="Your password" required>
+          <input type="password" id="loginPassword" placeholder="Your password" autocomplete="current-password" required>
         </div>
         <button type="submit" class="btn-primary" id="loginBtn">Sign In</button>
+      </form>
+      <button type="button" class="link-btn" id="forgotLink">Forgot your password?</button>
+    </div>
+
+    <!-- RESET: email a reset link -->
+    <div class="panel" id="resetPanel">
+      <h2>Reset your password</h2>
+      <div class="error-msg" id="resetError"></div>
+      <div class="success-msg" id="resetSuccess"></div>
+      <form id="resetForm">
+        <div class="field">
+          <label for="resetEmail">Email</label>
+          <input type="email" id="resetEmail" placeholder="you@example.com" autocomplete="username" required>
+        </div>
+        <button type="submit" class="btn-primary" id="resetBtn">Email Me a Reset Link</button>
+      </form>
+      <button type="button" class="link-btn" id="resetBack">Back to sign in</button>
+    </div>
+
+    <!-- NEW PASSWORD: opened from the emailed reset link -->
+    <div class="panel" id="newPassPanel">
+      <h2>Choose a new password</h2>
+      <div class="error-msg" id="newPassError"></div>
+      <form id="newPassForm">
+        <input type="email" id="newPassUser" class="sr-only" autocomplete="username" tabindex="-1" aria-hidden="true" readonly>
+        <div class="field">
+          <label for="newPassword">New Password</label>
+          <input type="password" id="newPassword" placeholder="At least 6 characters" autocomplete="new-password" required minlength="6">
+        </div>
+        <div class="field">
+          <label for="newPassword2">Type It Again</label>
+          <input type="password" id="newPassword2" autocomplete="new-password" required minlength="6">
+        </div>
+        <button type="submit" class="btn-primary" id="newPassBtn">Save New Password</button>
       </form>
     </div>
 
@@ -188,9 +222,9 @@
     </div>
   </div>
 
-  <div class="version-tag">v0.15.4</div>
+  <div class="version-tag">v0.15.5</div>
   <footer class="footer">&copy; 2026 play27. All rights reserved.</footer>
 
-<script type="module" src="js/login.js?v=0.15.4"></script>
+<script type="module" src="js/login.js?v=0.15.5"></script>
 </body>
 </html>

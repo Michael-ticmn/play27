@@ -37,6 +37,11 @@
 - sql/migration-invite-signup.sql: a BEFORE INSERT trigger on auth.users rejects accounts without a valid, unexpired code; an AFTER INSERT trigger records the redemption.
 - The dashboard "Add user" is now refused; the admin API needs user_metadata.invite_code. Accounts created before the fix may have no recorded redemption.
 
+**Password reset (v0.15.5):**
+- "Forgot your password?" on login.html and on Scorekeeper's sign-in (login.html?reset=scorekeeper). Emails a reset link with redirect_to = login.html; the link opens a "Choose a new password" form (PUT /auth/v1/user by direct fetch), then returns to Scorekeeper or the lobby.
+- index.html forwards a recovery or link-error hash to login.html, in case Supabase falls back to the Site URL.
+- iOS Keychain stores passwords per domain, and mycellar shares michael-ticmn.github.io, so autofill can offer the mycellar password on play27.
+
 **AI System:**
 - 4 AI players (LuVerne, Jeanne, Ron, Sue) × 4 tiers (Easy, Normal, Hard, Unfair)
 - Supabase Edge Functions: ai-turn (full turn logic), ai-buy (buy decisions)

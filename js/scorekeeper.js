@@ -9,8 +9,8 @@ import {
   colorOf, cellv, totalsMap, ranked, missing, allInAt, anyScores, dealerOf, firstOf,
   cTitle, cLong, cCode, cMin, rulesLine, meldsHTML, qrSVG, createScoreSheet, client, APP_VERSION,
   canSpeak, speak, unlockSpeech, speechFor, currentSession, signIn, signOut
-} from './score-common.js?v=0.15.4';
-import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.4';
+} from './score-common.js?v=0.15.5';
+import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.5';
 
 const HOST_KEY = 'p27sk.host';     // { code, token } for the table this device hosts
 const PREFS_KEY = 'p27sk.prefs';   // last contracts, rules, card values, notes and player names
@@ -268,6 +268,7 @@ function signInHTML() {
     '<label class="sr" for="si-pass">Password</label><input class="txt" id="si-pass" type="password" autocomplete="current-password" placeholder="Password" required>' +
     (authError ? '<p class="err" role="alert">' + esc(authError) + '</p>' : '') +
     '<button class="btn primary big" type="submit"' + (authBusy ? ' disabled' : '') + '>' + (authBusy ? 'Signing in' : 'Sign in') + '</button>' +
+    '<p class="hint"><a class="link" href="login.html?reset=scorekeeper">Forgot your password?</a></p>' +
     '<p class="hint">New to play27? <a class="link" href="login.html">Sign up with an invite code</a>. Players don\'t need an account; they just scan the code on the table.</p></form>';
 }
 
