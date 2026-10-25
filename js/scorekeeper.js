@@ -9,8 +9,8 @@ import {
   colorOf, cellv, totalsMap, ranked, missing, allInAt, anyScores, dealerOf, firstOf,
   cTitle, cLong, cCode, cMin, rulesLine, meldsHTML, qrSVG, createScoreSheet, client, APP_VERSION,
   canSpeak, speak, unlockSpeech, speechFor, currentSession, signIn, signOut
-} from './score-common.js?v=0.15.5';
-import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.5';
+} from './score-common.js?v=0.15.6';
+import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.6';
 
 const HOST_KEY = 'p27sk.host';     // { code, token } for the table this device hosts
 const PREFS_KEY = 'p27sk.prefs';   // last contracts, rules, card values, notes and player names
@@ -340,7 +340,7 @@ function contractHero() {
     '<div class="hero-head"><div class="hero-top"><p class="eyebrow hand-eb">Hand <b>' + (h + 1) + '</b> of ' + C.length + (g.status === 'setup' ? ' &middot; not started' : '') + '</p></div>' +
     '<h1 class="ctitle' + (cTitle(c).length > 12 ? ' long' : '') + '" id="ct">' + esc(cTitle(c)) + '</h1>' +
     '<p class="csub">' + esc(cLong(c, r)) + ', at least ' + cMin(c, r) + ' cards' + (c.all ? '. Meld every card in your hand except the final discard.' : '.') + '</p></div>' +
-    meldsHTML(c, r, dealIn ? 'deal-in' : '') +
+    '<div class="meld-fit">' + meldsHTML(c, r, dealIn ? 'deal-in' : '') + '</div>' +
     '<div class="hero-foot"><div class="deal">' +
     '<div><span class="k">Deal</span><span class="v">' + c.deal + ' cards</span></div>' +
     '<div><span class="k">Dealer</span><span class="v">' + esc(d ? d.name : '-') + '</span></div>' +

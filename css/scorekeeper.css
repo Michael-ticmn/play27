@@ -402,7 +402,7 @@ body.v-landing .join-form .txt{min-height:clamp(44px,6.5vh,52px)}
   body.v-board{height:100%;min-height:0;overflow:hidden;display:flex;flex-direction:column}
   body.v-board .topbar{flex:none}
   body.v-board main{flex:1 1 auto;min-height:0;width:100%;max-width:none}
-  body.v-board .board{height:100%;grid-template-columns:minmax(0,1.65fr) minmax(330px,1fr);grid-template-rows:minmax(0,1fr);align-items:stretch;gap:clamp(16px,2.2vw,36px);padding-block:clamp(12px,2.4vh,28px)}
+  body.v-board .board{height:100%;grid-template-columns:minmax(0,1.65fr) minmax(330px,1fr);grid-template-rows:minmax(0,1fr);align-items:stretch;gap:clamp(16px,2.2vw,36px);padding-block:clamp(12px,2.4vh,28px) calc(clamp(12px,2.4vh,28px) + env(safe-area-inset-bottom,0px))}
   body.v-board .hero{min-height:0;overflow-y:auto;gap:clamp(10px,2vh,22px);container-type:inline-size}
   body.v-board .hero-head{gap:clamp(6px,1.2vh,14px)}
   body.v-board .hand-eb{font-size:clamp(13px,2.1vh,19px)}
@@ -414,6 +414,11 @@ body.v-landing .join-form .txt{min-height:clamp(44px,6.5vh,52px)}
   @supports (width:1cqi){
     body.v-board .hero .melds{flex-wrap:nowrap;--cw:clamp(44px,min(15vh,calc((97cqi - (var(--mn) - 1) * var(--mgap)) / var(--units))),150px)}
   }
+  /* The example melds take whatever height is left, so the Start / Deal bar never drops below the screen */
+  body.v-board .meld-fit{flex:1 1 0;min-height:clamp(64px,11vh,120px);display:flex;align-items:center;container-type:size}
+  @supports (height:1cqh){
+    body.v-board .hero .meld-fit .melds{flex-wrap:nowrap;--cw:clamp(30px,min(15vh,calc((100cqh - 40px) / 1.42),calc((97cqi - (var(--mn) - 1) * var(--mgap)) / var(--units))),150px)}
+  }
   body.v-board .meld-label{font-size:clamp(11px,1.6vh,14px)}
   body.v-board .hero-foot{gap:clamp(8px,1.5vh,14px)}
   body.v-board .deal > div{padding:clamp(8px,1.4vh,14px) 16px}
@@ -422,7 +427,7 @@ body.v-landing .join-form .txt{min-height:clamp(44px,6.5vh,52px)}
   body.v-board .rules-line{font-size:clamp(12.5px,1.8vh,15px)}
   body.v-board .tk{padding:clamp(4px,.9vh,9px) 4px}
   body.v-board .tk .n{font-size:clamp(16px,2.6vh,24px)}
-  body.v-board .advance{padding:clamp(9px,1.6vh,16px) 16px}
+  body.v-board .advance{padding:clamp(9px,1.6vh,16px) 16px;position:sticky;bottom:0;z-index:1}
   body.v-board .advance p{font-size:clamp(14px,2vh,17px)}
   body.v-board .side{min-height:0;overflow-y:auto;gap:clamp(10px,1.8vh,16px)}
   body.v-board .side > *{flex:none}
