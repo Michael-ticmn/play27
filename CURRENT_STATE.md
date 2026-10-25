@@ -18,7 +18,8 @@
 - Lay-off on opponent melds after contract met (not same turn as fulfillment)
 - Round-end overlay with per-round scores, cumulative standings, deal-next
 - Game log with timestamped entries
-- Settings: theme (light/dark), hand view, meld view, card sort, ding on turn, fullscreen
+- Settings: theme (light/dark), hand view, meld view, card sort, ding on turn, fullscreen (also a Full screen button in the top bar; in full screen the top bar clears the iPad close button)
+- Seats around the table follow turn order from each viewer: the next player to play sits on your left (v0.15.15; before this only seat 0 saw the right order)
 - Ding on turn — Web Audio sine tone when it becomes your turn (toggle in settings)
 - Ready check at round start — all players confirm before play begins
 - Late join / spectator system — spectator view, host approval, deal-in next round

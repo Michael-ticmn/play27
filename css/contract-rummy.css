@@ -151,6 +151,9 @@
   .top-bar-right {
     display:flex; align-items:center; gap:10px;
   }
+  .btn-log-toggle[hidden] { display:none; }
+  /* iPad full screen puts its close button over the top-left corner, where the logo menu is */
+  body.fs .top-bar { padding-left:max(76px, env(safe-area-inset-left, 0px)); }
 
   .round-info { font-size:0.65rem; color:var(--text); opacity:0.7; letter-spacing:0.15em; text-transform:uppercase; text-align:right; }
   .round-pips { display:flex; gap:3px; justify-content:flex-end; margin-top:2px; }

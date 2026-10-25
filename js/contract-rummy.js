@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.14';
-import { initTheme } from './theme.js?v=0.15.14';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.15';
+import { initTheme } from './theme.js?v=0.15.15';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -895,7 +895,12 @@ function renderSeats(round) {
   const container = document.getElementById('seatsContainer');
   container.innerHTML = '';
 
-  const opponents = gameState.players.filter(p => !p.is_you);
+  // Seat the table in turn order starting after you, so the next player to play sits on your left
+  // (the first slot) for everyone, not only for seat 0. Spectators see plain seat order.
+  const mySeat = myPlayerInfo && !isSpectator ? myPlayerInfo.seat_position : null;
+  const seatCount = Math.max(0, ...gameState.players.map(p => p.seat_position)) + 1;
+  const turnsAfterMe = p => mySeat === null ? p.seat_position : (p.seat_position - mySeat + seatCount) % seatCount;
+  const opponents = gameState.players.filter(p => !p.is_you).sort((a, b) => turnsAfterMe(a) - turnsAfterMe(b));
   const oppData = gameState.opponents || [];
   const iMetContract = myPlayerInfo ? checkMetContract() : false;
   const totalPlayers = isSpectator ? opponents.length : opponents.length + 1;
@@ -927,7 +932,7 @@ function renderSeats(round) {
       cardBacks = hand.map(c => renderMiniCard(c)).join('');
     } else {
       for (let j = 0; j < Math.min(cardsInHand, 14); j++) {
-        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.14"></div>';
+        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.15"></div>';
       }
     }
 
@@ -1855,7 +1860,7 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
 
     // Start face-down for deck draws, face-up for discard draws
     if (isFaceDown) {
-      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.14" style="width:100%;height:100%;border-radius:6px;">';
+      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.15" style="width:100%;height:100%;border-radius:6px;">';
     } else if (cardCode) {
       styleFlyCardFace(flyEl, cardCode);
     }
@@ -2721,8 +2726,10 @@ function toggleFullscreen() {
   const el = document.documentElement;
   if (!document.fullscreenElement && !document.webkitFullscreenElement) {
     const req = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (req) req.call(el).catch(() => showToast('Fullscreen', 'Not supported in this browser'));
-    else showToast('Fullscreen', 'Not supported in this browser');
+    // Older Safari's prefixed call returns nothing rather than a promise
+    const p = req ? req.call(el) : null;
+    if (!req) showToast('Fullscreen', 'Not supported in this browser');
+    else if (p && p.catch) p.catch(() => showToast('Fullscreen', 'Not supported in this browser'));
   } else {
     const exit = document.exitFullscreen || document.webkitExitFullscreen;
     if (exit) exit.call(document);
@@ -2730,11 +2737,18 @@ function toggleFullscreen() {
 }
 document.getElementById('btnFullscreen').addEventListener('click', toggleFullscreen);
 document.getElementById('btnFullscreenWaiting').addEventListener('click', toggleFullscreen);
+// Top-bar button, shown only where the browser can go full screen (not iPhone Safari)
+const fsTopBtn = document.getElementById('btnFullscreenTop');
+fsTopBtn.hidden = !(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+fsTopBtn.addEventListener('click', toggleFullscreen);
 function onFullscreenChange() {
   const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
   const label = isFs ? 'Exit Fullscreen' : 'Fullscreen';
   document.getElementById('btnFullscreen').textContent = label;
   document.getElementById('btnFullscreenWaiting').textContent = label;
+  fsTopBtn.textContent = isFs ? 'Exit full screen' : 'Full screen';
+  // iPad full screen puts its close button over the top-left corner, where the logo menu is
+  document.body.classList.toggle('fs', isFs);
 }
 document.addEventListener('fullscreenchange', onFullscreenChange);
 document.addEventListener('webkitfullscreenchange', onFullscreenChange);
