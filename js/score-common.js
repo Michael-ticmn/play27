@@ -6,7 +6,7 @@
 // ============================================================
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, APP_VERSION } from './supabase.js?v=0.15.12';
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, APP_VERSION } from './supabase.js?v=0.15.13';
 
 export { APP_VERSION };
 

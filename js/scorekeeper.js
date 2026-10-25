@@ -9,8 +9,8 @@ import {
   colorOf, cellv, totalsMap, ranked, missing, wentOut, allInAt, anyScores, dealerOf, firstOf,
   cTitle, cLong, cCode, cMin, rulesLine, meldsHTML, qrSVG, createScoreSheet, client, APP_VERSION,
   canSpeak, speak, unlockSpeech, speechFor, currentSession, signIn, signOut
-} from './score-common.js?v=0.15.12';
-import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.12';
+} from './score-common.js?v=0.15.13';
+import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.13';
 
 const HOST_KEY = 'p27sk.host';     // { code, token } for the table this device hosts
 const PREFS_KEY = 'p27sk.prefs';   // last contracts, rules, card values, notes and player names
@@ -398,7 +398,8 @@ function scoreSheetHTML() {
   const head = '<tr><th class="name" scope="col">Player</th>' +
     C.map((c, i) => '<th scope="col" class="' + (i === cur && !done ? 'now' : '') + '" title="' + esc(cTitle(c)) + '"><span class="hn">' + (i + 1) + '</span><span class="hc">' + cCode(c) + '</span></th>').join('') +
     '<th class="tot" scope="col">Total</th></tr>';
-  const body = game.players.map(p => {
+  // Lowest total first, like the standings (ties stay in seat order)
+  const body = ranked(game).map(r => r.p).map(p => {
     const cells = C.map((c, i) => {
       const v = cellv(game, i, p.id);
       let cls = 'hcell' + (i === cur && !done ? ' now' : ''), txt;
@@ -410,7 +411,7 @@ function scoreSheetHTML() {
     return '<tr class="' + (started && t[p.id] === low ? 'lead' : '') + '"><td class="name"><span class="name-in"><span class="pdot" style="--pc:' + colorOf(p) + '"></span><span class="pn">' + esc(p.name) + '</span></span></td>' +
       cells + '<td class="tot">' + t[p.id] + '</td></tr>';
   }).join('');
-  return '<section class="sheet" aria-labelledby="st"><div class="sheet-head"><h2 class="sheet-title" id="st">Score sheet</h2><span class="legend">Seat order &middot; S = set, R = run &middot; 0 = went out</span></div>' +
+  return '<section class="sheet" aria-labelledby="st"><div class="sheet-head"><h2 class="sheet-title" id="st">Score sheet</h2><span class="legend">Low total first &middot; S = set, R = run &middot; 0 = went out</span></div>' +
     '<div class="tbl-wrap"><table class="scores"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div></section>';
 }
 
