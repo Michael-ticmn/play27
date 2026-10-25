@@ -460,21 +460,27 @@ body.rv-on{overflow:hidden}
 @keyframes rvfade{from{opacity:0}to{opacity:1}}
 @keyframes rvout{from{opacity:1}to{opacity:0}}
 .rv-grid{flex:1 1 auto;min-height:0;display:grid;gap:clamp(10px,2vh,22px) clamp(12px,2vw,28px);padding:clamp(14px,3vh,32px) 16px;
-  grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto auto;grid-template-areas:"hand tot" "next next" "foot foot"}
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;grid-template-areas:"hand tot" "center center"}
 @media (orientation:landscape) and (min-width:820px){
-  .rv-grid{grid-template-columns:minmax(230px,1fr) minmax(0,1.2fr) minmax(230px,1fr);grid-template-rows:minmax(0,1fr) auto;
-    grid-template-areas:"hand foot tot" "next foot tot";padding-inline:clamp(16px,2.4vw,40px)}
+  .rv-grid{grid-template-columns:minmax(230px,1fr) minmax(0,1.2fr) minmax(230px,1fr);grid-template-rows:minmax(0,1fr);
+    grid-template-areas:"hand center tot";padding-inline:clamp(16px,2.4vw,40px)}
 }
-.rv-col{display:flex;flex-direction:column;gap:clamp(6px,1.2vh,10px);min-height:0;min-width:0;overflow:hidden}
+/* iPad full screen puts its close button over the top-left corner */
+body.fs .rv-grid{padding-top:max(56px,3vh)}
+.rv-col{display:flex;flex-direction:column;justify-content:center;gap:clamp(6px,1.2vh,10px);min-height:0;min-width:0;overflow:hidden}
 .rv-hand{grid-area:hand}
-.rv-next{grid-area:next}
 .rv-tot{grid-area:tot}
-.rv-foot{grid-area:foot;display:flex;align-items:center;justify-content:center;min-width:0}
+.rv-center{grid-area:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(10px,2vh,18px);min-width:0;text-align:center}
+.rv-holdtop{display:flex;flex-direction:column;align-items:center;gap:clamp(6px,1.2vh,12px)}
+.rv-next{width:min(100%,520px)}
+.rv:not(.held) .rv-holdtop,.rv:not(.held) .rv-holdbtns{visibility:hidden}
+.rv.held .rv-holdtop,.rv.held .rv-holdbtns{animation:rvfade .4s ease-out both}
+.rv-holdbtns .btn-row{justify-content:center}
+.rv-row.ph,.rv-nextcard.ph{visibility:hidden}
 .rv .eyebrow{font-size:clamp(12px,1.9vh,17px)}
 .rv-head{opacity:0;transition:opacity .4s}
 .rv-head.on{opacity:1}
 .rv-list{display:flex;flex-direction:column;gap:clamp(5px,1vh,8px);min-height:0}
-.rv-tot .rv-list{flex:1 1 auto;justify-content:flex-end}
 .rv-row{display:flex;align-items:center;gap:10px;padding:clamp(6px,1.2vh,12px) 14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;min-width:0;font-variant-numeric:tabular-nums}
 .rv-row .rk{width:1.4em;flex:none;text-align:center;font-family:var(--f-display);font-weight:800;font-size:clamp(17px,2.6vh,26px);line-height:1;color:var(--ink-dim)}
 .rv-row .pn{flex:1 1 auto;min-width:0;font-weight:600;font-size:clamp(15px,2.4vh,24px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -484,7 +490,7 @@ body.rv-on{overflow:hidden}
 .rv-row.out .tag{background:rgba(147,214,173,.14);color:var(--good)}
 .rv-row.lead{border-color:rgba(221,182,102,.55);background:linear-gradient(90deg,var(--brass-soft),var(--panel) 75%)}
 .rv-row.lead .rk,.rv-row.lead .sc{color:var(--brass)}
-.rv-nextcard{display:flex;flex-direction:column;gap:6px;padding:clamp(10px,1.8vh,16px) 16px;background:var(--panel-hi);border:1px solid rgba(221,182,102,.45);border-radius:14px;min-width:0}
+.rv-nextcard{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:clamp(10px,1.8vh,16px) 16px;background:var(--panel-hi);border:1px solid rgba(221,182,102,.45);border-radius:14px;min-width:0}
 .rv-ntitle{font-family:var(--f-display);font-weight:800;font-size:clamp(24px,4.2vh,40px);line-height:.95;text-transform:uppercase;color:var(--brass);text-wrap:balance}
 .rv-nsub{font-size:clamp(14px,2.1vh,18px);color:var(--ink-dim)}
 .rv-nsub b{color:var(--ink);font-weight:600}
@@ -504,14 +510,11 @@ body.rv-on{overflow:hidden}
 .rv-quip{font-size:clamp(17px,2.8vh,26px);color:var(--ink-dim);font-style:italic;text-wrap:balance}
 .rv-big .deal{width:100%;text-align:left}
 .rv-big .deal .v{font-size:clamp(22px,4.4vh,44px)}
-.rv-hold{display:flex;flex-direction:column;align-items:center;gap:clamp(8px,1.6vh,14px);text-align:center;animation:rvfade .4s ease-out both}
 .rv-cd{font-family:var(--f-display);font-weight:800;font-size:clamp(64px,16vh,160px);line-height:.9;font-variant-numeric:tabular-nums}
-.rv-hold .btn-row{justify-content:center}
 .rv-skip{position:absolute;z-index:3;top:calc(12px + env(safe-area-inset-top,0px));right:calc(14px + env(safe-area-inset-right,0px));background:var(--shade)}
 @media (orientation:portrait),(max-width:819px){
   .rv-cd{font-size:clamp(48px,9vh,96px)}
   .rv-row{padding-inline:10px;gap:8px}
-  /* the standings header sits top right here, so Skip moves to the empty foot */
+  /* the standings header sits top right here, so Skip sits at the bottom where the hold buttons come in later */
   .rv-skip{top:auto;right:auto;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%)}
-  .rv:not(.held) .rv-grid{padding-bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 }

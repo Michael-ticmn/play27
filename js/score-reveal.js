@@ -8,7 +8,7 @@
 
 // Step lengths in ms. Every host device works out the same total for the same hand, and that
 // total sets when the next hand deals, so no step may depend on a device setting.
-const STEP = { intro: 1400, out: 1900, score: 2900, next: 3800, standings: 1300, total: 2100, settle: 900 };
+const STEP = { intro: 1400, out: 2600, score: 4000, next: 3800, standings: 1300, total: 2600, settle: 900 };
 const FLY = 650, LAND = 150;
 export const HOLD_MS = 120000;
 
@@ -58,17 +58,17 @@ const dot = c => '<span class="pdot" style="--pc:' + esc(c) + '"></span>';
 
 /* ---------- pieces ---------- */
 
-function handRow(r) {
+function handRow(r, hidden) {
   const out = r.score === 0;
-  return '<li class="rv-row' + (out ? ' out' : '') + '">' + dot(r.color) + '<span class="pn">' + esc(r.name) + '</span>' +
+  return '<li class="rv-row' + (out ? ' out' : '') + (hidden ? ' ph' : '') + '">' + dot(r.color) + '<span class="pn">' + esc(r.name) + '</span>' +
     (out ? '<span class="tag">Out</span>' : '') + '<span class="sc">' + r.score + '</span></li>';
 }
-function totRow(r) {
-  return '<li class="rv-row' + (r.rank === 1 ? ' lead' : '') + '"><span class="rk">' + r.rank + '</span>' + dot(r.color) +
+function totRow(r, hidden) {
+  return '<li class="rv-row' + (r.rank === 1 ? ' lead' : '') + (hidden ? ' ph' : '') + '"><span class="rk">' + r.rank + '</span>' + dot(r.color) +
     '<span class="pn">' + esc(r.name) + '</span><span class="sc">' + r.total + '</span></li>';
 }
-function nextCard(n) {
-  return '<div class="rv-nextcard"><p class="eyebrow">Next &middot; hand <b>' + n.handNo + '</b> of ' + n.hands + '</p>' +
+function nextCard(n, hidden) {
+  return '<div class="rv-nextcard' + (hidden ? ' ph' : '') + '"><p class="eyebrow">Next &middot; hand <b>' + n.handNo + '</b> of ' + n.hands + '</p>' +
     '<p class="rv-ntitle">' + esc(n.title) + '</p>' +
     '<p class="rv-nsub"><b>' + esc(n.dealer) + '</b> deals ' + n.deal + ' cards &middot; ' + esc(n.first) + ' plays first' +
     (n.all ? ' &middot; meld all but the discard' : '') + '</p></div>';
@@ -117,10 +117,13 @@ export function createReveal(root, opts) {
 
   function frame(s) {
     root.innerHTML = '<div class="rv" role="dialog" aria-modal="true" aria-label="Hand ' + s.handNo + ' results"><div class="rv-grid">' +
-      '<section class="rv-col rv-hand"><p class="eyebrow rv-head" data-head="hand">Hand <b>' + s.handNo + '</b> &middot; ' + esc(s.title) + '</p><ol class="rv-list" data-list="hand"></ol></section>' +
-      '<section class="rv-col rv-next" data-slot="next"></section>' +
-      '<section class="rv-col rv-tot"><p class="eyebrow rv-head" data-head="tot">' + (s.final ? 'Final standings' : 'Standings after hand ' + s.handNo) + '</p><ol class="rv-list" data-list="tot"></ol></section>' +
-      '<div class="rv-foot" data-slot="foot"></div></div>' +
+      '<section class="rv-col rv-hand"><p class="eyebrow rv-head" data-head="hand">Hand <b>' + s.handNo + '</b> &middot; ' + esc(s.title) + '</p>' +
+      '<ol class="rv-list" data-list="hand">' + s.hand.map(r => handRow(r, true)).join('') + '</ol></section>' +
+      '<div class="rv-center"><div class="rv-holdtop" data-slot="holdtop">' + holdTop(s) + '</div>' +
+      '<div class="rv-next" data-slot="next">' + (s.next ? nextCard(s.next, true) : '') + '</div>' +
+      '<div class="rv-holdbtns" data-slot="holdbtns">' + holdBtns(s) + '</div></div>' +
+      '<section class="rv-col rv-tot"><p class="eyebrow rv-head" data-head="tot">' + (s.final ? 'Final standings' : 'Standings after hand ' + s.handNo) + '</p>' +
+      '<ol class="rv-list" data-list="tot">' + s.totals.map(r => totRow(r, true)).join('') + '</ol></section></div>' +
       '<div class="rv-stage" data-slot="stage" aria-live="polite"></div>' +
       '<button type="button" class="tool rv-skip" data-rv="skip">Skip</button></div>';
     el = root.firstElementChild;
@@ -155,20 +158,21 @@ export function createReveal(root, opts) {
   // Shrink the big card into its slot, and fade the slot in as it lands.
   function fly(big, slot) {
     q('[data-slot="stage"]').classList.remove('dim');
-    if (!big || !slot || typeof big.animate !== 'function') { clearStage(); return; }
+    if (!big || !slot || typeof big.animate !== 'function') { clearStage(); if (slot) slot.classList.remove('ph'); return; }
     const ms = reduce() ? 1 : FLY;
     const a = big.getBoundingClientRect(), b = slot.getBoundingClientRect();
     const k = Math.max(0.08, Math.min(b.width / a.width, b.height / a.height));
+    slot.classList.remove('ph');
     const dx = b.left + b.width / 2 - (a.left + a.width / 2), dy = b.top + b.height / 2 - (a.top + a.height / 2);
     big.animate([{ transform: 'none', opacity: 1 }, { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + k + ')', opacity: 0 }],
       { duration: ms, easing: 'cubic-bezier(.55,0,.3,1)', fill: 'forwards' });
     slot.animate([{ opacity: 0, transform: 'scale(.9)' }, { opacity: 1, transform: 'none' }],
       { duration: reduce() ? 1 : 280, delay: ms * 0.62, easing: 'ease-out', fill: 'backwards' });
   }
-  function addHand(r) { const ol = q('[data-list="hand"]'); ol.insertAdjacentHTML('beforeend', handRow(r)); return ol.lastElementChild; }
-  // Standings build upward: each new row goes on top of the one before it.
-  function addTot(r) { const ol = q('[data-list="tot"]'); ol.insertAdjacentHTML('afterbegin', totRow(r)); return ol.firstElementChild; }
-  function addNext(n) { const box = q('[data-slot="next"]'); box.innerHTML = nextCard(n); return box.firstElementChild; }
+  function handSlot(i) { return q('[data-list="hand"]').children[i]; }
+  // Standings fill from the bottom up: each new row lands on top of the one before it.
+  function totSlot(i) { return q('[data-list="tot"]').children[i]; }
+  function nextSlot() { return q('[data-slot="next"]').firstElementChild; }
 
   async function sequence(my) {
     const s = shown;
@@ -182,13 +186,13 @@ export function createReveal(root, opts) {
       const r = s.hand[i];
       big = show(bigScore(s, r, i, opts.remarks()));
       await wait((r.score === 0 ? STEP.out : STEP.score) - FLY - LAND); if (!alive()) return;
-      fly(big, addHand(r));
+      fly(big, handSlot(i));
       await wait(FLY + LAND); if (!alive()) return;
     }
     if (s.next) {
       big = show(bigNext(s.next));
       await wait(STEP.next - FLY - LAND); if (!alive()) return;
-      fly(big, addNext(s.next));
+      fly(big, nextSlot());
       await wait(FLY + LAND); if (!alive()) return;
     }
     show(bigTitle(s.final ? 'After ' + s.hands + ' hands' : 'After hand ' + s.handNo, s.final ? 'Final standings' : 'Standings'));
@@ -199,7 +203,7 @@ export function createReveal(root, opts) {
       const r = s.totals[i];
       big = show(bigTotal(s, r));
       await wait(STEP.total - FLY - LAND); if (!alive()) return;
-      fly(big, addTot(r));
+      fly(big, totSlot(i));
       await wait(FLY + LAND); if (!alive()) return;
     }
     await wait(STEP.settle); if (!alive()) return;
@@ -210,30 +214,29 @@ export function createReveal(root, opts) {
     shown = s;
     clearStage();
     headOn('hand'); headOn('tot');
-    q('[data-list="hand"]').innerHTML = s.hand.map(handRow).join('');
+    q('[data-list="hand"]').innerHTML = s.hand.map(r => handRow(r)).join('');
     q('[data-slot="next"]').innerHTML = s.next ? nextCard(s.next) : '';
-    q('[data-list="tot"]').innerHTML = s.totals.map(totRow).join('');
+    q('[data-list="tot"]').innerHTML = s.totals.map(r => totRow(r)).join('');
+    q('[data-slot="holdtop"]').innerHTML = holdTop(s);
+    q('[data-slot="holdbtns"]').innerHTML = holdBtns(s);
   }
 
-  function holdHTML(s) {
-    const cd = deadline ? '<p class="rv-cd" data-rv-cd>' + clock(deadline - Date.now()) + '</p>' : '';
-    if (s.next) {
-      return '<div class="rv-hold"><p class="eyebrow">Hand <b>' + s.next.handNo + '</b> is being dealt</p>' + cd +
-        (deadline ? '<p class="hint">The board moves to hand ' + s.next.handNo + ' when this runs out.</p>' : '') +
-        '<div class="btn-row"><button type="button" class="btn primary" data-rv="deal">Deal hand ' + s.next.handNo + ' now</button>' +
-        '<button type="button" class="btn" data-rv="board">Back to the board</button></div></div>';
-    }
-    return '<div class="rv-hold"><p class="eyebrow">Every hand is scored</p>' + cd +
-      (deadline ? '<p class="hint">Back to the board when this runs out.</p>' : '') +
-      '<div class="btn-row"><button type="button" class="btn primary" data-rv="finish">Finish game</button>' +
-      '<button type="button" class="btn" data-rv="board">Back to the board</button></div></div>';
+  function holdTop(s) {
+    return '<p class="eyebrow">' + (s.next ? 'Hand <b>' + s.next.handNo + '</b> is being dealt' : 'Every hand is scored') + '</p>' +
+      (deadline ? '<p class="rv-cd" data-rv-cd>' + clock(deadline - Date.now()) + '</p>' +
+        '<p class="hint">' + (s.next ? 'The board moves to hand ' + s.next.handNo + ' when this runs out.' : 'Back to the board when this runs out.') + '</p>' : '');
+  }
+  function holdBtns(s) {
+    return '<div class="btn-row">' + (s.next
+      ? '<button type="button" class="btn primary" data-rv="deal">Deal hand ' + s.next.handNo + ' now</button>'
+      : '<button type="button" class="btn primary" data-rv="finish">Finish game</button>') +
+      '<button type="button" class="btn" data-rv="board">Back to the board</button></div>';
   }
   function toHold() {
     phase = 'hold';
     el.classList.add('held');
     if (sig(latest) !== sig(shown)) renderStatic(latest);
     q('[data-rv="skip"]').hidden = true;
-    q('[data-slot="foot"]').innerHTML = holdHTML(shown);
   }
 
   function open(s, o, straightToHold) {
@@ -278,7 +281,7 @@ export function createReveal(root, opts) {
     update(s) {
       if (!phase) return;
       latest = s;
-      if (phase === 'hold' && sig(s) !== sig(shown)) { renderStatic(s); q('[data-slot="foot"]').innerHTML = holdHTML(s); }
+      if (phase === 'hold' && sig(s) !== sig(shown)) renderStatic(s);
     },
     close,
     get isOpen() { return !!phase; },
