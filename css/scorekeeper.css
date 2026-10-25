@@ -494,7 +494,7 @@ body.fs .rv-grid{padding-top:max(56px,3vh)}
 .rv-tot{grid-area:tot}
 .rv-center{grid-area:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(10px,2vh,18px);min-width:0;text-align:center}
 .rv-holdtop{display:flex;flex-direction:column;align-items:center;gap:clamp(6px,1.2vh,12px)}
-.rv-next{width:min(100%,520px)}
+.rv-next{width:min(100%,620px)}
 .rv:not(.held) .rv-holdtop,.rv:not(.held) .rv-holdbtns{visibility:hidden}
 .rv.held .rv-holdtop,.rv.held .rv-holdbtns{animation:rvfade .4s ease-out both}
 .rv-holdbtns .btn-row{justify-content:center}
@@ -512,9 +512,10 @@ body.fs .rv-grid{padding-top:max(56px,3vh)}
 .rv-row.out .tag{background:rgba(147,214,173,.14);color:var(--good)}
 .rv-row.lead{border-color:rgba(221,182,102,.55);background:linear-gradient(90deg,var(--brass-soft),var(--panel) 75%)}
 .rv-row.lead .rk,.rv-row.lead .sc{color:var(--brass)}
-.rv-nextcard{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:clamp(10px,1.8vh,16px) 16px;background:var(--panel-hi);border:1px solid rgba(221,182,102,.45);border-radius:14px;min-width:0}
-.rv-ntitle{font-family:var(--f-display);font-weight:800;font-size:clamp(24px,4.2vh,40px);line-height:.95;text-transform:uppercase;color:var(--brass);text-wrap:balance}
-.rv-nsub{font-size:clamp(14px,2.1vh,18px);color:var(--ink-dim)}
+.rv-nextcard{display:flex;flex-direction:column;align-items:center;text-align:center;gap:clamp(4px,1vh,10px);padding:clamp(12px,2.2vh,22px) 20px;background:var(--panel-hi);border:1px solid rgba(221,182,102,.45);border-radius:14px;min-width:0}
+.rv-ntitle{font-family:var(--f-display);font-weight:800;font-size:clamp(32px,min(7.5vh,6vw),76px);line-height:.95;text-transform:uppercase;color:var(--brass);text-wrap:balance}
+.rv-nsub{font-size:clamp(16px,min(2.8vh,2.2vw),26px);color:var(--ink-dim)}
+.rv-nextcard .eyebrow{font-size:clamp(13px,2.2vh,20px)}
 .rv-nsub b{color:var(--ink);font-weight:600}
 .rv-stage{position:absolute;inset:0;z-index:2;display:grid;place-items:center;padding:24px;pointer-events:none;background-color:rgba(3,16,12,0);transition:background-color .35s}
 .rv-stage.dim{background-color:rgba(3,16,12,.62)}

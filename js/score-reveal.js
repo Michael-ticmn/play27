@@ -119,8 +119,8 @@ export function createReveal(root, opts) {
     root.innerHTML = '<div class="rv" role="dialog" aria-modal="true" aria-label="Hand ' + s.handNo + ' results"><div class="rv-grid">' +
       '<section class="rv-col rv-hand"><p class="eyebrow rv-head" data-head="hand">Hand <b>' + s.handNo + '</b> &middot; ' + esc(s.title) + '</p>' +
       '<ol class="rv-list" data-list="hand">' + s.hand.map(r => handRow(r, true)).join('') + '</ol></section>' +
-      '<div class="rv-center"><div class="rv-holdtop" data-slot="holdtop">' + holdTop(s) + '</div>' +
-      '<div class="rv-next" data-slot="next">' + (s.next ? nextCard(s.next, true) : '') + '</div>' +
+      '<div class="rv-center"><div class="rv-next" data-slot="next">' + (s.next ? nextCard(s.next, true) : '') + '</div>' +
+      '<div class="rv-holdtop" data-slot="holdtop">' + holdTop(s) + '</div>' +
       '<div class="rv-holdbtns" data-slot="holdbtns">' + holdBtns(s) + '</div></div>' +
       '<section class="rv-col rv-tot"><p class="eyebrow rv-head" data-head="tot">' + (s.final ? 'Final standings' : 'Standings after hand ' + s.handNo) + '</p>' +
       '<ol class="rv-list" data-list="tot">' + s.totals.map(r => totRow(r, true)).join('') + '</ol></section></div>' +
