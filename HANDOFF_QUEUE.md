@@ -2,7 +2,8 @@
 
 ## Pending
 
-_(none)_
+- Scorekeeper "Who went out?" picker on phones (needs a database change). A new SECURITY DEFINER function lets a seated player mark another player as going out for the current hand: only when nobody has 0 yet, and only for a player with no score. Michael applies the SQL in the Supabase SQL editor; then the phone flow asks "Who went out?" first and the winner's phone shows "You went out". The contested screen (v0.15.12) already handles disputes. Agreed 2026-10-25.
+- Contract Rummy (in-app) round-end reveal plus scoreboard countdown and auto-deal: X minutes set by the host, default 1 (needs a database change). Agreed 2026-10-25.
 
 ## Completed
 - ✅ Initial landscape layout built (portrait → landscape) — 2026-04-02

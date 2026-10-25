@@ -6,8 +6,8 @@
 
 import {
   call, watchTable, $, esc, store, listNames, toast, syncLabel, colorOf, cellv, totalsMap, ranked,
-  missing, anyScores, dealerOf, firstOf, cTitle, cLong, cMin, rulesLine, meldsHTML, createScoreSheet, APP_VERSION
-} from './score-common.js?v=0.15.11';
+  missing, wentOut, anyScores, dealerOf, firstOf, cTitle, cLong, cMin, rulesLine, meldsHTML, createScoreSheet, APP_VERSION
+} from './score-common.js?v=0.15.12';
 
 const code = (new URLSearchParams(location.search).get('t') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
 const ME_KEY = 'p27sc.' + code;
@@ -22,6 +22,7 @@ const sheet = createScoreSheet($('#modal-root'), {
   save: (pid, h, v) => submit(h, v),
   remove: (pid, h) => submit(h, null),
   next: () => null,
+  self: true,
   onClose: () => render()
 });
 
@@ -169,10 +170,12 @@ function seatedHTML() {
       g.players.length + (g.players.length === 1 ? ' player' : ' players') + ' at the table.</p></section>';
     html += contractPanel(0, mine) + standingsPanel(mine);
   } else {
-    const miss = missing(g, h), n = g.players.length;
+    const miss = missing(g, h), n = g.players.length, outs = wentOut(g, h);
+    const outNote = outs.length === 1 && outs[0].id !== mine.id ? ' ' + esc(outs[0].name) + ' went out.' : '';
     let status;
     if (h !== g.hand) status = 'You are changing hand ' + (h + 1) + '. Play is on hand ' + (g.hand + 1) + '. <button type="button" class="link" data-act="pick-hand" data-arg="' + g.hand + '">Back to hand ' + (g.hand + 1) + '</button>';
-    else if (miss.length) status = 'Scores in: ' + (n - miss.length) + ' of ' + n + '. Waiting on ' + listNames(miss) + '.';
+    else if (outs.length > 1) status = '<span class="contested">Winner contested:</span> ' + listNames(outs) + (outs.length > 2 ? ' all' : ' both') + ' entered 0. The host will settle who went out.';
+    else if (miss.length) status = 'Scores in: ' + (n - miss.length) + ' of ' + n + '.' + outNote + ' Waiting on ' + listNames(miss) + '.';
     else if (h < C.length - 1) {
       const nd = dealerOf(g, h + 1);
       status = 'All scores are in. Next is hand ' + (h + 2) + ': ' + (nd && nd.id === mine.id ? '<span class="youdeal">you deal</span>' : esc(nd ? nd.name : '') + ' deals') + ' ' + C[h + 1].deal + ' cards.';

@@ -6,11 +6,11 @@
 
 import {
   call, watchTable, linkSuffix, $, esc, clampInt, store, fmtDate, listNames, toast, syncLabel,
-  colorOf, cellv, totalsMap, ranked, missing, allInAt, anyScores, dealerOf, firstOf,
+  colorOf, cellv, totalsMap, ranked, missing, wentOut, allInAt, anyScores, dealerOf, firstOf,
   cTitle, cLong, cCode, cMin, rulesLine, meldsHTML, qrSVG, createScoreSheet, client, APP_VERSION,
   canSpeak, speak, unlockSpeech, speechFor, currentSession, signIn, signOut
-} from './score-common.js?v=0.15.11';
-import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.11';
+} from './score-common.js?v=0.15.12';
+import { createReveal, revealDuration, HOLD_MS, clock } from './score-reveal.js?v=0.15.12';
 
 const HOST_KEY = 'p27sk.host';     // { code, token } for the table this device hosts
 const PREFS_KEY = 'p27sk.prefs';   // last contracts, rules, card values, notes and player names
@@ -297,7 +297,7 @@ function joinMini() {
 function advanceHTML(where) {
   const g = game, h = g.hand, C = g.contracts, last = C.length - 1, n = g.players.length;
   if (g.status === 'done') return '';
-  const miss = missing(g, h);
+  const miss = missing(g, h), outs = wentOut(g, h);
   let msg, btn = '';
   if (g.status === 'setup') {
     if (n < 2) msg = 'Waiting for players. Start once at least two have joined.';
@@ -305,6 +305,10 @@ function advanceHTML(where) {
     btn = '<button class="btn primary" type="button" data-act="start"' + (n < 2 ? ' disabled' : '') + '>Start game</button>';
   } else if (!n) {
     msg = 'Nobody is at the table. Add players in Setup.';
+  } else if (outs.length > 1) {
+    msg = '<span class="contested">Winner contested:</span> ' + listNames(outs) + (outs.length > 2 ? ' all' : ' both') +
+      ' entered 0. Only one player can go out.' + (miss.length ? ' Still waiting on ' + listNames(miss) + '.' : '');
+    btn = '<button class="btn primary" type="button" data-act="contest">Settle it</button>';
   } else if (miss.length) {
     msg = 'Scores in: ' + (n - miss.length) + ' of ' + n + '. Waiting on ' + listNames(miss) + '.';
     if (where === 'board') btn = '<button class="btn primary" type="button" data-act="view" data-arg="scores">Enter scores</button>';
@@ -568,6 +572,10 @@ function renderOverlay() {
   const root = $('#overlay-root');
   if (!overlay || !host) { root.innerHTML = ''; return; }
   if (overlay.kind === 'read') { root.innerHTML = readHTML(); return; }
+  if (overlay.kind === 'contest') {
+    if (!game || wentOut(game, overlay.h).length < 2) { overlay = null; root.innerHTML = ''; return; }
+    root.innerHTML = contestHTML(); return;
+  }
   const isHost = overlay.kind === 'host';
   const url = isHost ? hostURL(overlay.token) : joinURL();
   root.innerHTML = '<div class="qr-overlay" data-act="overlay-bg"><div class="qr-card" role="dialog" aria-modal="true" aria-labelledby="ov-t">' +
@@ -665,6 +673,25 @@ const ACT = {
   },
   'overlay-bg': (a, t, e) => { if (e.target === t) { overlay = null; renderOverlay(); } },
   'overlay-close': () => { overlay = null; renderOverlay(); },
+  contest: () => {
+    const outs = wentOut(game, game.hand);
+    if (outs.length < 2) return;
+    contestDismissed = null;
+    overlay = { kind: 'contest', sig: contestSig(handKey(game, game.hand), outs), h: game.hand };
+    renderOverlay();
+  },
+  // The host picks who really went out; everyone else who entered 0 goes back to no score.
+  'contest-pick': a => {
+    if (!overlay || overlay.kind !== 'contest') return;
+    const h = overlay.h, others = wentOut(game, h).filter(p => p.id !== a);
+    overlay = null; renderOverlay();
+    others.forEach(p => quiet(setScore(p.id, h, null)));
+    if (others.length) toast('Cleared the 0 for ' + others.map(p => p.name).join(' and ') + '. They can enter their points now.');
+  },
+  'contest-close': () => {
+    if (overlay && overlay.kind === 'contest') contestDismissed = overlay.sig;
+    overlay = null; renderOverlay();
+  },
   move: a => {
     const [id, dir] = a.split(':');
     const ps = game.players.slice(), i = ps.findIndex(p => p.id === id), j = i + parseInt(dir, 10);
@@ -776,7 +803,11 @@ function revealSnap(g, h) {
 function checkHand() {
   const g = game;
   const h = g ? g.hand : 0, key = g ? handKey(g, h) : null;
-  const scored = !!g && g.status === 'playing' && g.players.length > 1 && !missing(g, h).length;
+  const playing = !!g && g.status === 'playing' && g.players.length > 1;
+  const outs = playing ? wentOut(g, h) : [], allIn = playing && !missing(g, h).length;
+  // Two players claiming the win holds the reveal and the automatic deal until the host settles it.
+  const scored = allIn && outs.length < 2;
+  checkContest(key, outs, allIn);
   if (reveal.isOpen && (!scored || reveal.key !== key)) {
     const moved = reveal.key !== key;
     reveal.close();
@@ -800,6 +831,33 @@ function checkHand() {
   if (!start || Date.now() - start > span + LATE_MS) return;
   auto = { key, h, start, deadline: start + span, show: true };
   if (!sheet.isOpen) showReveal();
+}
+
+/* ---------- contested hand: more than one player entered 0 ---------- */
+
+let contestDismissed = null; // the contest the host put off with "Not now"
+function contestSig(key, outs) { return key + ':' + outs.map(p => p.id).join(','); }
+
+// Opens the "Winner contested" screen when every score is in but two or more are 0, and closes it once settled.
+function checkContest(key, outs, allIn) {
+  const sig = outs.length > 1 ? contestSig(key, outs) : null;
+  if (overlay && overlay.kind === 'contest' && overlay.sig !== sig) { overlay = null; renderOverlay(); }
+  if (!sig || !allIn || sheet.isOpen || contestDismissed === sig) return;
+  if (!overlay || overlay.kind !== 'contest') { overlay = { kind: 'contest', sig, h: game.hand }; renderOverlay(); }
+}
+
+function contestHTML() {
+  const g = game, h = overlay.h, outs = wentOut(g, h);
+  return '<div class="ct-overlay"><div class="ct-card" role="dialog" aria-modal="true" aria-labelledby="ct-t">' +
+    '<p class="eyebrow">Hand <b>' + (h + 1) + '</b> &middot; ' + esc(cTitle(g.contracts[h])) + '</p>' +
+    '<h2 class="ct-title" id="ct-t">Winner contested</h2>' +
+    '<p class="ct-sub">' + listNames(outs) + (outs.length > 2 ? ' all' : ' both') + ' entered 0, and only one player can go out. Who did?</p>' +
+    '<div class="ct-claims">' + outs.map(p =>
+      '<button type="button" class="ct-claim" data-act="contest-pick" data-arg="' + esc(p.id) + '" style="--pc:' + colorOf(p) + '">' +
+      '<span class="ct-name"><span class="pdot"></span>' + esc(p.name) + '</span><span class="ct-zero">0</span>' +
+      '<span class="ct-do">' + esc(p.name) + ' went out</span></button>').join('') + '</div>' +
+    '<p class="hint">The others go back to no score, and their phones ask them for their points. The reveal plays once every score is in.</p>' +
+    '<button type="button" class="btn" data-act="contest-close">Not now</button></div></div>';
 }
 
 function showReveal() {
@@ -890,7 +948,10 @@ document.addEventListener('submit', e => {
   }
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && overlay) { overlay = null; renderOverlay(); }
+  if (e.key === 'Escape' && overlay) {
+    if (overlay.kind === 'contest') contestDismissed = overlay.sig;
+    overlay = null; renderOverlay();
+  }
 });
 
 /* ---------- boot ---------- */

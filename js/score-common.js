@@ -6,7 +6,7 @@
 // ============================================================
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, APP_VERSION } from './supabase.js?v=0.15.11';
+import { sb, SUPABASE_URL, SUPABASE_ANON_KEY, APP_VERSION } from './supabase.js?v=0.15.12';
 
 export { APP_VERSION };
 
@@ -240,6 +240,8 @@ export function ranked(g) {
   return rows;
 }
 export function missing(g, h) { return g.players.filter(p => cellv(g, h, p.id) === null); }
+/** Players with 0 (went out) for hand h. Only one player can go out, so more than one means the hand is contested. */
+export function wentOut(g, h) { return g.players.filter(p => cellv(g, h, p.id) === 0); }
 /** When the last score for hand h was saved (ms, server clock), or null if none are in. */
 export function allInAt(g, h) {
   const row = g.times['h' + h] || {};
@@ -425,6 +427,7 @@ const keyLabel = k => (k === 'JK' ? 'Jkr' : k);
  * The card-counting score entry sheet.
  * opts.getGame() → current game; opts.save(pid, hand, value) → Promise; opts.remove(pid, hand) → Promise;
  * opts.next(pid, hand) → next player id to open after saving, or null to close.
+ * opts.self → true on a player's phone, where the sheet is always "me".
  */
 export function createScoreSheet(root, opts) {
   let s = null;
@@ -454,7 +457,16 @@ export function createScoreSheet(root, opts) {
     const c = g && g.contracts[h];
     if (!p || !c) return;
     const v = cellv(g, h, pid);
-    s = { pid, h, base: v, chips: [], had: v !== null, err: '', busy: false };
+    // Someone else already went out: a 0 here would make two winners, so it takes a deliberate "dispute" tap.
+    const others = wentOut(g, h).filter(x => x.id !== pid);
+    s = { pid, h, base: v, chips: [], had: v !== null, err: '', busy: false, others, dispute: false };
+    const outBtn = others.length
+      ? '<button type="button" class="btn" data-sk="out" disabled>' + listNames(others) + ' went out</button>'
+      : '<button type="button" class="btn" data-sk="out">Went out (0)</button>';
+    const dispute = others.length
+      ? '<p class="hint">Not right? <button type="button" class="link" data-sk="dispute">' + (opts.self ? 'I' : esc(p.name)) +
+        ' went out, not ' + listNames(others) + '</button>' + (opts.self ? '. The host settles who really went out.' : ', then pick who really went out.') + '</p>'
+      : '';
     const keys = KEYS.map(k => '<button type="button" class="key' + (k === 'JK' ? ' jk' : '') + '" data-sk="key" data-k="' + k +
       '" aria-label="' + (RANK_NAME[k] || k) + ', ' + rankValue(g, k) + ' points"><span class="kr">' + keyLabel(k) + '</span><small>+' + rankValue(g, k) + '</small></button>').join('');
     root.innerHTML = '<div class="modal-back" data-sk="bg">' +
@@ -467,9 +479,9 @@ export function createScoreSheet(root, opts) {
       '<span class="pts">points</span></div>' +
       '<div class="chips" id="sheet-chips"></div>' +
       '<div class="keypad" role="group" aria-label="Add a card left in hand">' + keys + '</div>' +
-      '<div class="modal-row"><button type="button" class="btn" data-sk="out">Went out (0)</button>' +
+      '<div class="modal-row">' + outBtn +
       '<button type="button" class="btn" id="sheet-undo" data-sk="undo" disabled>Undo card</button>' +
-      '<button type="button" class="btn" data-sk="clear">Clear</button></div>' +
+      '<button type="button" class="btn" data-sk="clear">Clear</button></div>' + dispute +
       '<p class="err" id="sheet-err" role="alert"></p>' +
       '<div class="modal-row end">' + (s.had ? '<button type="button" class="btn danger" data-sk="remove">Remove score</button>' : '') +
       '<button type="button" class="btn primary" data-sk="save">Save</button></div></div></div>';
@@ -491,6 +503,10 @@ export function createScoreSheet(root, opts) {
       if (!/^-?\d{1,4}$/.test(raw)) { s.err = 'Points must be a whole number.'; refresh(); return; }
       v = parseInt(raw, 10);
     }
+    if (v === 0 && s.others.length && !s.dispute) {
+      s.err = joinWords(s.others.map(p => p.name)) + ' already went out on this hand. Only one player can go out.';
+      refresh(); return;
+    }
     const { pid, h } = s;
     s.busy = true;
     try { await opts.save(pid, h, v); }
@@ -508,6 +524,7 @@ export function createScoreSheet(root, opts) {
     else if (a === 'undo') { s.chips.pop(); refresh(); }
     else if (a === 'clear') { s.chips = []; s.base = null; s.err = ''; refresh(); }
     else if (a === 'out') save(0);
+    else if (a === 'dispute') { s.dispute = true; save(0); }
     else if (a === 'save') save();
     else if (a === 'remove') {
       const { pid, h } = s;

@@ -552,3 +552,22 @@ body.fs .rv-grid{padding-top:max(56px,3vh)}
   /* the standings header sits top right here, so Skip sits at the bottom where the hold buttons come in later */
   .rv-skip{top:auto;right:auto;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%)}
 }
+
+/* ── contested hand: more than one player entered 0 ── */
+.contested{color:var(--warn);font-weight:600}
+.ct-overlay{position:fixed;inset:0;z-index:47;display:grid;place-items:center;overflow-y:auto;
+  padding:max(24px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(24px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  background-color:var(--felt-deep);
+  background-image:radial-gradient(90% 65% at 50% 38%,#1b5a44 0%,rgba(27,90,68,0) 70%),linear-gradient(180deg,var(--felt) 0%,var(--felt-deep) 100%);
+  animation:rvfade .35s ease-out both}
+.ct-card{width:min(920px,100%);display:flex;flex-direction:column;align-items:center;gap:clamp(10px,2vh,20px);text-align:center}
+.ct-card .eyebrow{font-size:clamp(12px,1.9vh,17px)}
+.ct-title{font-family:var(--f-display);font-weight:800;font-size:clamp(48px,11vh,120px);line-height:.9;text-transform:uppercase;color:var(--warn);text-wrap:balance}
+.ct-sub{font-size:clamp(16px,2.6vh,24px);color:var(--ink-dim);text-wrap:balance;max-width:44ch}
+.ct-claims{display:flex;flex-wrap:wrap;justify-content:center;gap:clamp(12px,2vw,24px);width:100%}
+.ct-claim{appearance:none;cursor:pointer;flex:0 1 260px;display:flex;flex-direction:column;align-items:center;gap:8px;padding:clamp(16px,3vh,28px) 20px;background:var(--panel-hi);border:2px solid var(--line);border-radius:20px;color:var(--ink);font:inherit}
+.ct-claim:hover{border-color:var(--brass)}
+.ct-name{display:flex;align-items:center;gap:10px;max-width:100%;font-family:var(--f-display);font-weight:800;font-size:clamp(28px,5vh,52px);line-height:1;text-transform:uppercase;overflow-wrap:anywhere}
+.ct-name .pdot{width:16px;height:16px}
+.ct-zero{font-family:var(--f-display);font-weight:800;font-size:clamp(60px,13vh,140px);line-height:.85;color:var(--good)}
+.ct-do{margin-top:4px;padding:10px 16px;border-radius:10px;background:var(--brass);color:var(--brass-ink);font-weight:600;font-size:15px}
