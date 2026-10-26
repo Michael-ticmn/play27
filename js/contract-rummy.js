@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.18';
-import { initTheme } from './theme.js?v=0.15.18';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.19';
+import { initTheme } from './theme.js?v=0.15.19';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -948,7 +948,7 @@ function renderSeats(round) {
       cardBacks = hand.map(c => renderMiniCard(c)).join('');
     } else {
       for (let j = 0; j < Math.min(cardsInHand, 14); j++) {
-        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.18"></div>';
+        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.19"></div>';
       }
     }
 
@@ -1629,6 +1629,14 @@ window.exportRoundData = async function() {
       .eq('round_id', roundId)
       .order('position');
 
+    // Opponents' hands are private, so the query above only returns your own. The host can peek at
+    // AI hands (as the Hands button does); a human opponent's hand stays hidden.
+    const aiHands = {};
+    if (isHost) {
+      const { data: peek } = await sb.rpc('peek_ai_hands', { p_round_id: roundId });
+      for (const ai of (peek || [])) aiHands[ai.player_id] = ai.hand || [];
+    }
+
     // Fetch all melds for this round
     const { data: allMelds } = await sb.from('melds')
       .select('id, player_id, meld_type')
@@ -1656,10 +1664,11 @@ window.exportRoundData = async function() {
     const playerStates = {};
     for (const p of players) {
       const pid = p.player_id;
-      const hand = (allCards || [])
-        .filter(c => c.player_id === pid && c.location === 'hand')
-        .sort((a, b) => a.position - b.position)
-        .map(c => formatCard(c.card_id));
+      // null = can't be seen from this device (another person's hand, or an AI when not the host)
+      const hand = p.is_you
+        ? (allCards || []).filter(c => c.player_id === pid && c.location === 'hand')
+          .sort((a, b) => a.position - b.position).map(c => formatCard(c.card_id))
+        : aiHands[pid] ? aiHands[pid].map(formatCard) : null;
 
       const playerMelds = (allMelds || [])
         .filter(m => m.player_id === pid)
@@ -1676,7 +1685,7 @@ window.exportRoundData = async function() {
         ai_tier: p.ai_tier || null,
         seat: p.seat_position,
         hand_remaining: hand,
-        hand_count: hand.length,
+        hand_count: hand ? hand.length : null,
         melds: playerMelds,
       };
     }
@@ -1717,7 +1726,7 @@ window.exportRoundData = async function() {
     const lines = [];
     lines.push(`# Contract Rummy — Round ${round.round_number} of 7`);
     lines.push(`Game: ${gameState.game_code || gameId}`);
-    lines.push(`Contract: ${round.contract_sets || 0} sets of 3 + ${round.contract_runs || 0} runs of 4`);
+    lines.push(`Contract: ${round.contract_sets || 0} sets of 3 + ${round.contract_runs || 0} runs of 3${round.round_number >= 7 ? " (meld every card but the final discard)" : ""}`);
     lines.push('');
 
     // Player roster
@@ -1763,10 +1772,12 @@ window.exportRoundData = async function() {
       } else {
         lines.push('Melds: none (did not fulfill contract)');
       }
-      if (state.hand_remaining.length > 0) {
+      if (state.hand_remaining === null) {
+        lines.push('Cards left in hand: hidden (another player\'s hand)');
+      } else if (state.hand_remaining.length > 0) {
         lines.push(`Cards left in hand (${state.hand_count}): ${state.hand_remaining.join(' ')}`);
       } else {
-        lines.push('Cards left in hand: 0 (went out)');
+        lines.push(score === 0 ? 'Cards left in hand: 0 (went out)' : 'Cards left in hand: 0');
       }
     }
     lines.push('');
@@ -1876,7 +1887,7 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
 
     // Start face-down for deck draws, face-up for discard draws
     if (isFaceDown) {
-      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.18" style="width:100%;height:100%;border-radius:6px;">';
+      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.19" style="width:100%;height:100%;border-radius:6px;">';
     } else if (cardCode) {
       styleFlyCardFace(flyEl, cardCode);
     }
