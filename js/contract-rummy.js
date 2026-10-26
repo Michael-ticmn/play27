@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.17';
-import { initTheme } from './theme.js?v=0.15.17';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.18';
+import { initTheme } from './theme.js?v=0.15.18';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -383,6 +383,7 @@ async function fetchAndRender() {
 
 // ── AI Turn Triggering (host client only) ──
 let aiTriggerInFlight = false;
+const BUY_GRACE_MS = 3000;       // extra wait before an AI draws when a person could buy the discard
 let aiPaused = false;
 let showAiHands = false;
 let aiHandsCache = {}; // { player_id: [card_id, ...] }
@@ -454,6 +455,21 @@ async function checkAndTriggerAI() {
   if (currentPlayer?.is_ai && (round.turn_phase === 'draw' || round.turn_phase === 'action')) {
     aiTriggerInFlight = true;
     const name = currentPlayer.display_name;
+    // Before an AI draws, give the people at the table a fair chance to buy the discard: fast AIs
+    // otherwise draw in as little as 3 seconds. Skipped when nobody but AIs could buy.
+    const personCouldBuy = round.turn_phase === 'draw' && !round.discard_bought &&
+      players.some(p => !p.is_ai && p.seat_position !== round.current_turn_seat);
+    if (personCouldBuy) {
+      aiDebug(`${name} waiting ${BUY_GRACE_MS / 1000}s so people can buy...`);
+      await new Promise(r => setTimeout(r, BUY_GRACE_MS));
+      const now = gameState?.round;
+      if (aiPaused || !now || now.id !== round.id || now.current_turn_seat !== round.current_turn_seat || now.turn_phase !== 'draw') {
+        // Someone asked to buy (buy window) or play moved on: run the normal checks on the new state
+        aiTriggerInFlight = false;
+        checkAndTriggerAI();
+        return;
+      }
+    }
     aiDebug(`${name} thinking... (seat=${currentPlayer.seat_position} id=…${currentPlayer.player_id.slice(-4)})`);
     const startTime = Date.now();
     try {
@@ -932,7 +948,7 @@ function renderSeats(round) {
       cardBacks = hand.map(c => renderMiniCard(c)).join('');
     } else {
       for (let j = 0; j < Math.min(cardsInHand, 14); j++) {
-        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.17"></div>';
+        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.18"></div>';
       }
     }
 
@@ -1860,7 +1876,7 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
 
     // Start face-down for deck draws, face-up for discard draws
     if (isFaceDown) {
-      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.17" style="width:100%;height:100%;border-radius:6px;">';
+      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.18" style="width:100%;height:100%;border-radius:6px;">';
     } else if (cardCode) {
       styleFlyCardFace(flyEl, cardCode);
     }
