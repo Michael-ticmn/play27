@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.15';
-import { initTheme } from './theme.js?v=0.15.15';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.16';
+import { initTheme } from './theme.js?v=0.15.16';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -58,7 +58,7 @@ let isSpectator = false;
 let isHost = false;
 let lateJoinStatus = null;      // 'pending' | 'approved' | 'spectating' | 'kicked'
 let activeJoinRequestId = null;  // for host modal dedup
-let lastTurnSeat = null;         // track turn transitions for ding
+let lastMyTurn = null;           // was it my turn to play at the last update (null = no update yet), for the ding
 let dingOnTurn = true;           // default on
 
 // ── DOM refs ──
@@ -366,15 +366,15 @@ async function fetchAndRender() {
   }
   lastRoundId = curRoundId;
 
-  // Ding when it becomes the player's turn
+  // Ding when it becomes the player's turn to play. Compare against "my turn to play" last time, not the
+  // seat: the first player of a round already holds the seat during the ready check, and must still hear it.
   const curSeat = gameState.round?.current_turn_seat ?? null;
-  const isMyTurnNow = myPlayerInfo && curSeat === myPlayerInfo.seat_position
-    && gameState.round?.turn_phase !== 'ready_check';
-  const wasMyTurn = myPlayerInfo && lastTurnSeat === myPlayerInfo.seat_position;
-  if (isMyTurnNow && !wasMyTurn && lastTurnSeat !== null && dingOnTurn) {
+  const isMyTurnNow = !!myPlayerInfo && curSeat === myPlayerInfo.seat_position
+    && gameState.round?.status === 'active' && gameState.round?.turn_phase !== 'ready_check';
+  if (isMyTurnNow && lastMyTurn === false && dingOnTurn) {
     playTurnDing();
   }
-  lastTurnSeat = curSeat;
+  lastMyTurn = isMyTurnNow;
 
   if (showAiHands) fetchAiHands().then(() => render());
   render();
@@ -932,7 +932,7 @@ function renderSeats(round) {
       cardBacks = hand.map(c => renderMiniCard(c)).join('');
     } else {
       for (let j = 0; j < Math.min(cardsInHand, 14); j++) {
-        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.15"></div>';
+        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.16"></div>';
       }
     }
 
@@ -1860,7 +1860,7 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
 
     // Start face-down for deck draws, face-up for discard draws
     if (isFaceDown) {
-      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.15" style="width:100%;height:100%;border-radius:6px;">';
+      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.16" style="width:100%;height:100%;border-radius:6px;">';
     } else if (cardCode) {
       styleFlyCardFace(flyEl, cardCode);
     }
@@ -2887,9 +2887,36 @@ document.querySelectorAll('[data-setting="dingOnTurn"]').forEach(btn => {
 });
 
 // Turn ding via Web Audio API
+// One shared audio context. iPad Safari only lets audio start from a tap, so a context made when a turn
+// update arrives stays silent; instead every tap keeps this one unlocked, and the ding reuses it.
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    audioCtx = new AC();
+  }
+  return audioCtx;
+}
+function unlockAudio() {
+  try {
+    const ctx = getAudio();
+    if (!ctx) return;
+    if (ctx.state !== 'running') ctx.resume().catch(() => { });
+    // A silent sound played inside the tap is what iOS needs to treat the context as allowed
+    const src = ctx.createBufferSource();
+    src.buffer = ctx.createBuffer(1, 1, 22050);
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch (e) { /* audio not available */ }
+}
+['pointerdown', 'touchend', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { passive: true }));
+
 function playTurnDing() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = getAudio();
+    if (!ctx) return;
+    if (ctx.state !== 'running') ctx.resume().catch(() => { });
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
