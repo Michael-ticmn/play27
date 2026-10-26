@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.16';
-import { initTheme } from './theme.js?v=0.15.16';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.17';
+import { initTheme } from './theme.js?v=0.15.17';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -932,7 +932,7 @@ function renderSeats(round) {
       cardBacks = hand.map(c => renderMiniCard(c)).join('');
     } else {
       for (let j = 0; j < Math.min(cardsInHand, 14); j++) {
-        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.16"></div>';
+        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.17"></div>';
       }
     }
 
@@ -1860,7 +1860,7 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
 
     // Start face-down for deck draws, face-up for discard draws
     if (isFaceDown) {
-      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.16" style="width:100%;height:100%;border-radius:6px;">';
+      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.17" style="width:100%;height:100%;border-radius:6px;">';
     } else if (cardCode) {
       styleFlyCardFace(flyEl, cardCode);
     }
@@ -2544,7 +2544,13 @@ async function handleBuy() {
     buyRequestSent = false;
     buyBtn.classList.remove('already-in');
     buyBtn.textContent = 'Buy!';
-    showToast('Error', error.message || 'Could not request buy');
+    // The usual refusals are a lost race, not a fault: say who got there first
+    const msg = error.message || '';
+    const turnPlayer = (gameState.players || []).find(p => p.seat_position === gameState.round?.current_turn_seat);
+    const who = turnPlayer ? (turnPlayer.is_you ? 'You' : turnPlayer.display_name) : 'The player';
+    if (/cannot buy right now/i.test(msg)) showToast('Too late to buy', `${who} already drew, so the discard is gone.`);
+    else if (/already bought/i.test(msg)) showToast('Too late to buy', 'Someone else bought that discard first.');
+    else showToast('Error', msg || 'Could not request buy');
   }
 }
 
