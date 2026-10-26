@@ -22,6 +22,7 @@
 - Seats around the table follow turn order from each viewer: the next player to play sits on your left (v0.15.15; before this only seat 0 saw the right order)
 - Ding on turn (v0.15.16): one shared audio context that any tap unlocks (iPad Safari silenced the old per-ding contexts), and it also rings on your first turn after a round's ready check.
 - Buying from an AI (v0.15.17-18): when a person could buy, the host waits 3 extra seconds before an AI draws (AIs otherwise draw after 3 to 12 seconds by tier), and a late buy says "Too late to buy: Jeanne already drew" instead of an error.
+- AI-started buys (v0.15.20): before each draw the AIs other than Easy decide once whether to buy the discard, as in training; Easy joins only open windows. For now only on AI turns (AI_BUYS_ON_PEOPLES_TURNS), until sql/migration-buy-first-claim.sql gives whoever's turn it is first claim. Draw Discard stays enabled for that player during a countdown ("Take it free"). Round export fills in AI hands for the host (v0.15.19).
 - Ding on turn — Web Audio sine tone when it becomes your turn (toggle in settings)
 - Ready check at round start — all players confirm before play begins
 - Late join / spectator system — spectator view, host approval, deal-in next round

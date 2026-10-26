@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.19';
-import { initTheme } from './theme.js?v=0.15.19';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.20';
+import { initTheme } from './theme.js?v=0.15.20';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -443,6 +443,8 @@ async function checkAndTriggerAI() {
   if (!isHost) { dbg('[AI] skip: not host'); return; }
   if (!gameState?.round) { dbg('[AI] skip: no round'); return; }
   if (gameState.round.status !== 'active') { dbg('[AI] skip: round status', gameState.round.status); return; }
+  // Runs even while an AI turn is in flight, so the AIs see each discard before the next draw
+  if (!aiPaused) offerDiscardToAIs(gameState.round);
   if (aiTriggerInFlight) { dbg('[AI] skip: in flight'); return; }
   if (aiPaused) { dbg('[AI] skip: paused'); return; }
 
@@ -510,30 +512,48 @@ async function checkAndTriggerAI() {
     return;
   }
 
-  // Check for AI players who should evaluate buy during buy_window only
+  // Once a buy window is open, every other AI (Easy included) weighs in
   if (round.turn_phase === 'buy_window') {
-    const aiNonActive = players.filter(
-      p => p.is_ai && p.seat_position !== round.current_turn_seat
-    );
-    for (const ai of aiNonActive) {
-      aiDebug(`${ai.display_name} evaluating buy...`);
-      fetch(`${SUPABASE_URL}/functions/v1/ai-buy`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          round_id: round.id,
-          ai_player_id: ai.player_id,
-          countdown_seconds: gameState.buy_countdown_seconds
-        })
-      }).then(r => r.json()).then(result => {
-        if (result.error) aiDebug(`${ai.display_name} buy error: ${result.error}`, 'err');
-        else aiDebug(`${ai.display_name} buy: ${result.status}`, result.status === 'buy_requested' ? 'ok' : '');
-      }).catch(e => aiDebug(`${ai.display_name} buy failed: ${e.message}`, 'err'));
-    }
+    players.filter(p => p.is_ai && p.seat_position !== round.current_turn_seat)
+      .forEach(ai => requestAiBuy(round, ai));
   }
+}
+
+function requestAiBuy(round, ai) {
+  aiDebug(`${ai.display_name} evaluating buy...`);
+  fetch(`${SUPABASE_URL}/functions/v1/ai-buy`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      round_id: round.id,
+      ai_player_id: ai.player_id,
+      countdown_seconds: gameState.buy_countdown_seconds
+    })
+  }).then(r => r.json()).then(result => {
+    if (result.error) aiDebug(`${ai.display_name} buy error: ${result.error}`, 'err');
+    else aiDebug(`${ai.display_name} buy: ${result.status}`, result.status === 'buy_requested' ? 'ok' : '');
+  }).catch(e => aiDebug(`${ai.display_name} buy failed: ${e.message}`, 'err'));
+}
+
+// Before the active player draws, the AIs other than Easy decide whether to buy each discard, once,
+// as they do in training. Easy only joins once someone else has asked (the buy window above).
+// Until sql/migration-buy-first-claim.sql is applied, a person can't take the discard once a buy starts,
+// so AIs only start buys when another AI is up. Turn this on after the update.
+const AI_BUYS_ON_PEOPLES_TURNS = false;
+let aiBuyOfferKey = null;
+function offerDiscardToAIs(round) {
+  if (round.turn_phase !== 'draw' || round.discard_bought || !round.top_discard) return;
+  const active = (gameState.players || []).find(p => p.seat_position === round.current_turn_seat);
+  if (!active || (!active.is_ai && !AI_BUYS_ON_PEOPLES_TURNS)) return;
+  const key = round.id + ':' + round.current_turn_seat + ':' + round.top_discard;
+  if (aiBuyOfferKey === key) return;
+  aiBuyOfferKey = key;
+  (gameState.players || [])
+    .filter(p => p.is_ai && p.seat_position !== round.current_turn_seat && String(p.ai_tier || 'normal').toLowerCase() !== 'easy')
+    .forEach(ai => requestAiBuy(round, ai));
 }
 
 // Also trigger AI for deal_next_round when dealer is AI
@@ -948,7 +968,7 @@ function renderSeats(round) {
       cardBacks = hand.map(c => renderMiniCard(c)).join('');
     } else {
       for (let j = 0; j < Math.min(cardsInHand, 14); j++) {
-        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.19"></div>';
+        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.20"></div>';
       }
     }
 
@@ -1196,7 +1216,7 @@ function renderDeckDiscard(round) {
   if (round.turn_phase === 'buy_window') {
     discardWrap.className = 'discard-wrap countdown-active';
     discardTag.className = 'discard-tag tag-hot';
-    discardTag.textContent = 'Buy Window!';
+    discardTag.textContent = isMyTurn ? 'Take it free' : 'Buy Window!';
     if (buyRequestSent) {
       buyBtnWrap.style.display = 'flex';
       const buyBtn = document.getElementById('buyBtn');
@@ -1838,7 +1858,8 @@ function renderActionButtons(round) {
   const drawDeckBtn = document.getElementById('btnDrawDeck');
   const drawDiscardBtn = document.getElementById('btnDrawDiscard');
   const canDrawDeck = isMyTurn && phase === 'draw';
-  const canDrawDiscard = isMyTurn && phase === 'draw' && !round.discard_bought;
+  // During a buy countdown the player whose turn it is still has first claim on the discard
+  const canDrawDiscard = isMyTurn && (phase === 'draw' || phase === 'buy_window') && !round.discard_bought;
   drawDeckBtn.disabled = !canDrawDeck;
   drawDiscardBtn.disabled = !canDrawDiscard;
   drawDeckBtn.classList.toggle('draw-ready', canDrawDeck);
@@ -1887,7 +1908,7 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
 
     // Start face-down for deck draws, face-up for discard draws
     if (isFaceDown) {
-      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.19" style="width:100%;height:100%;border-radius:6px;">';
+      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.20" style="width:100%;height:100%;border-radius:6px;">';
     } else if (cardCode) {
       styleFlyCardFace(flyEl, cardCode);
     }
@@ -2015,7 +2036,10 @@ async function handleDrawDiscard() {
   const sourceRect = discardEl ? discardEl.getBoundingClientRect() : null;
   const { data, error } = await rpc('draw_from_discard', { p_round_id: gameState.round.id });
   if (error) {
-    showToast('Error', error.message || 'Could not draw from discard');
+    // Taking the card during a buy countdown needs sql/migration-buy-first-claim.sql on the server
+    if (/not draw phase/i.test(error.message || '') && gameState.round.turn_phase === 'buy_window') {
+      showToast('Not yet', 'Taking the discard during a buy needs the database update. Let the buy finish this time.');
+    } else showToast('Error', error.message || 'Could not draw from discard');
     return;
   }
   lastDrawnCard = data;
