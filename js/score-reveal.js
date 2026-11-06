@@ -1,12 +1,16 @@
 // ============================================================
-// play27 — Scorekeeper hand reveal (the table display)
+// play27 — Hand and round reveal (Scorekeeper table display, in-app game)
 // Once every score for a hand is in: the hand's scores low to high,
 // the next deal, then the standings high to low. Each one shows large
 // in the middle, then flies to its stack. A countdown hold follows.
-// No imports: it renders whatever snapshot scorekeeper.js hands it.
+// No imports: it renders whatever snapshot the page hands it.
 // ============================================================
 
-// Step lengths in ms. Every host device works out the same total for the same hand, and that
+// A snapshot names its unit in s.word (and s.next.word): 'Hand' on the table display, 'Round' in the game.
+const unit = s => s.word || 'Hand';
+const lower = s => unit(s).toLowerCase();
+
+// Step lengths in ms. Every device works out the same total for the same hand, and that
 // total sets when the next hand deals, so no step may depend on a device setting.
 const STEP = { intro: 1400, out: 2600, score: 4000, next: 3800, standings: 1300, total: 2600, settle: 900, finalTitle: 2200, winner: 1800 };
 const FLY = 650, LAND = 150;
@@ -71,7 +75,7 @@ function totRow(r, hidden) {
     '<span class="pn">' + esc(r.name) + '</span><span class="sc">' + r.total + '</span></li>';
 }
 function nextCard(n, hidden) {
-  return '<div class="rv-nextcard' + (hidden ? ' ph' : '') + '"><p class="eyebrow">Next &middot; hand <b>' + n.handNo + '</b> of ' + n.hands + '</p>' +
+  return '<div class="rv-nextcard' + (hidden ? ' ph' : '') + '"><p class="eyebrow">Next &middot; ' + lower(n) + ' <b>' + n.handNo + '</b> of ' + n.hands + '</p>' +
     '<p class="rv-ntitle">' + esc(n.title) + '</p>' +
     '<p class="rv-nsub"><b>' + esc(n.dealer) + '</b> deals ' + n.deal + ' cards &middot; ' + esc(n.first) + ' plays first' +
     (n.all ? ' &middot; meld all but the discard' : '') + '</p></div>';
@@ -82,13 +86,13 @@ function bigTitle(eyebrow, title, sub) {
 }
 function bigScore(s, r, i, remarks) {
   const out = r.score === 0;
-  return '<div class="rv-big"><p class="eyebrow">Hand ' + s.handNo + (out ? ' &middot; went out' : '') + '</p>' +
+  return '<div class="rv-big"><p class="eyebrow">' + unit(s) + ' ' + s.handNo + (out ? ' &middot; went out' : '') + '</p>' +
     '<p class="rv-name">' + dot(r.color) + esc(r.name) + '</p>' +
     '<p class="rv-num' + (out ? ' out' : '') + '" data-to="' + r.score + '">0</p>' +
     (!out && remarks ? '<p class="rv-quip">' + esc(quip(s, r, i)) + '</p>' : '') + '</div>';
 }
 function bigNext(n) {
-  return '<div class="rv-big"><p class="eyebrow">Next up &middot; hand <b>' + n.handNo + '</b> of ' + n.hands + '</p>' +
+  return '<div class="rv-big"><p class="eyebrow">Next up &middot; ' + lower(n) + ' <b>' + n.handNo + '</b> of ' + n.hands + '</p>' +
     '<p class="rv-title">' + esc(n.title) + '</p>' +
     '<div class="deal"><div><span class="k">Deal</span><span class="v">' + n.deal + ' cards</span></div>' +
     '<div><span class="k">Dealer</span><span class="v">' + esc(n.dealer) + '</span></div>' +
@@ -175,6 +179,8 @@ function floaters(box) {
 /**
  * opts.remarks() → true to show the funny lines; opts.onDeal(), opts.onFinish(), opts.onBoard()
  * run from the hold's buttons. play() runs the full show; hold() opens straight on the final layout.
+ * opts.holdBtns(s) → replaces the hold's buttons. opts.noHold → a page with its own countdown:
+ * onBoard runs when the show ends, except on the last hand, which stays on the final standings.
  */
 export function createReveal(root, opts) {
   let el = null, phase = null, run = 0, shown = null, latest = null, deadline = null, ticker = null, stopParty = null;
@@ -184,18 +190,18 @@ export function createReveal(root, opts) {
   const wait = ms => new Promise(res => setTimeout(res, ms));
 
   function frame(s) {
-    root.innerHTML = '<div class="rv" role="dialog" aria-modal="true" aria-label="Hand ' + s.handNo + ' results"><div class="rv-grid">' +
-      '<section class="rv-col rv-hand"><p class="eyebrow rv-head" data-head="hand">Hand <b>' + s.handNo + '</b> &middot; ' + esc(s.title) + '</p>' +
+    root.innerHTML = '<div class="rv" role="dialog" aria-modal="true" aria-label="' + unit(s) + ' ' + s.handNo + ' results"><div class="rv-grid">' +
+      '<section class="rv-col rv-hand"><p class="eyebrow rv-head" data-head="hand">' + unit(s) + ' <b>' + s.handNo + '</b> &middot; ' + esc(s.title) + '</p>' +
       '<ol class="rv-list" data-list="hand">' + s.hand.map(r => handRow(r, true)).join('') + '</ol></section>' +
       '<div class="rv-center"><div class="rv-next" data-slot="next">' + (s.next ? nextCard(s.next, true) : '') + '</div>' +
       '<div class="rv-holdtop" data-slot="holdtop">' + holdTop(s) + '</div>' +
       '<div class="rv-holdbtns" data-slot="holdbtns">' + holdBtns(s) + '</div>' +
       '<p class="rv-now" data-rv-now aria-label="Time now">' + timeOfDay() + '</p></div>' +
-      '<section class="rv-col rv-tot"><p class="eyebrow rv-head" data-head="tot">' + (s.final ? 'Final standings' : 'Standings after hand ' + s.handNo) + '</p>' +
+      '<section class="rv-col rv-tot"><p class="eyebrow rv-head" data-head="tot">' + (s.final ? 'Final standings' : 'Standings after ' + lower(s) + ' ' + s.handNo) + '</p>' +
       '<ol class="rv-list" data-list="tot">' + s.totals.map(r => totRow(r, true)).join('') + '</ol></section></div>' +
       (s.final ? '<section class="rv-final" aria-label="Final standings"><canvas class="rv-confetti" data-slot="confetti"></canvas>' +
         '<div class="rv-floaters" data-slot="floaters" aria-hidden="true"></div><div class="rv-fbody">' +
-        '<p class="eyebrow">After ' + s.hands + ' hands</p><h2 class="rv-ftitle">Final standings</h2>' +
+        '<p class="eyebrow">After ' + s.hands + ' ' + lower(s) + 's</p><h2 class="rv-ftitle">Final standings</h2>' +
         '<ol class="rv-flist" data-list="final" style="--n:' + s.totals.length + '">' + s.totals.map(r => finalRow(r, true)).join('') + '</ol>' +
         '<div class="rv-fbtns" data-slot="fbtns">' + holdBtns(s) + '</div></div></section>' : '') +
       '<div class="rv-stage" data-slot="stage" aria-live="polite"></div>' +
@@ -252,7 +258,7 @@ export function createReveal(root, opts) {
     const s = shown;
     const alive = () => my === run && phase === 'reveal';
     let big;
-    show(bigTitle('All scores are in', 'Hand ' + s.handNo, esc(s.title)));
+    show(bigTitle('All scores are in', unit(s) + ' ' + s.handNo, esc(s.title)));
     await wait(STEP.intro - 300); if (!alive()) return;
     clearStage(); headOn('hand');
     await wait(300); if (!alive()) return;
@@ -270,7 +276,7 @@ export function createReveal(root, opts) {
       await wait(FLY + LAND); if (!alive()) return;
     }
     if (s.final) { await finalStandings(s, alive); return; }
-    show(bigTitle('After hand ' + s.handNo, 'Standings'));
+    show(bigTitle('After ' + lower(s) + ' ' + s.handNo, 'Standings'));
     await wait(STEP.standings - 300); if (!alive()) return;
     clearStage(); headOn('tot');
     await wait(300); if (!alive()) return;
@@ -288,7 +294,7 @@ export function createReveal(root, opts) {
   // Last hand: the page clears to a full-page final standings, last place first, then the party.
   async function finalStandings(s, alive) {
     let big;
-    show(bigTitle('After ' + s.hands + ' hands', 'Final standings'));
+    show(bigTitle('After ' + s.hands + ' ' + lower(s) + 's', 'Final standings'));
     await wait(STEP.finalTitle - 600); if (!alive()) return;
     clearStage(); el.classList.add('final-on');
     await wait(600); if (!alive()) return;
@@ -334,12 +340,14 @@ export function createReveal(root, opts) {
         '<p class="hint">' + (s.next ? 'The board moves to hand ' + s.next.handNo + ' when this runs out.' : 'Back to the board when this runs out.') + '</p>' : '');
   }
   function holdBtns(s) {
+    if (opts.holdBtns) return opts.holdBtns(s);
     return '<div class="btn-row">' + (s.next
       ? '<button type="button" class="btn primary" data-rv="deal">Deal hand ' + s.next.handNo + ' now</button>'
       : '<button type="button" class="btn primary" data-rv="finish">Finish game</button>') +
       '<button type="button" class="btn" data-rv="board">Back to the board</button></div>';
   }
   function toHold() {
+    if (opts.noHold && !shown.final) { if (opts.onBoard) opts.onBoard(); return; }
     phase = 'hold';
     el.classList.add('held');
     if (sig(latest) !== sig(shown)) renderStatic(latest);

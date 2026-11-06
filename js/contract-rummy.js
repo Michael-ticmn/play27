@@ -1,5 +1,6 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.22';
-import { initTheme } from './theme.js?v=0.15.22';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.23';
+import { initTheme } from './theme.js?v=0.15.23';
+import { createReveal, revealDuration, clock } from './score-reveal.js?v=0.15.23';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -12,6 +13,7 @@ const CONTRACT_DESCRIPTIONS = {
   6: '1 Set + 2 Runs',
   7: '3 Runs (must meld all)'
 };
+const CONTRACT_CARDS = { 1: 10, 2: 10, 3: 10, 4: 10, 5: 12, 6: 12, 7: 12 };
 const CONTRACT_EXAMPLES = {
   1: '7♠7♥7♦ + Q♣Q♠Q♥',
   2: '5♠5♥5♦ + 8♣9♣10♣',
@@ -332,9 +334,11 @@ async function fetchAndRender() {
     return;
   }
   gameState = data;
+  if (gameState.server_now) serverOffset = Date.parse(gameState.server_now) - Date.now();
   countdownDuration = gameState.buy_countdown_seconds || 5;
   isSpectator = gameState.is_spectator || false;
   isHost = gameState.created_by === myUserId;
+  updateAutoDealRow();
   lateJoinStatus = gameState.my_late_join_status || null;
   myPlayerInfo = gameState.players?.find(p => p.is_you);
 
@@ -967,7 +971,7 @@ function renderSeats(round) {
       cardBacks = hand.map(c => renderMiniCard(c)).join('');
     } else {
       for (let j = 0; j < Math.min(cardsInHand, 14); j++) {
-        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.22"></div>';
+        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.23"></div>';
       }
     }
 
@@ -1445,11 +1449,102 @@ function wireHandCard(el) {
 let roundEndShown = false;
 let reRotateInterval = null;
 
+// The show plays first, on every device at once; the scoreboard and its countdown come after it.
+const REVEAL_COLORS = ['#ddb666', '#93d6ad', '#86c0e3', '#ee8a6a', '#bba2ea', '#ee9cbc', '#3ea8aa', '#f2ecdc'];
+const reveal = createReveal(document.getElementById('revealRoot'), {
+  remarks: () => true,
+  noHold: true,
+  holdBtns: () => '<div class="btn-row"><button type="button" class="btn primary" data-rv="board">See the scoreboard</button></div>',
+  onBoard: () => {
+    reveal.close();
+    if (gameState?.round?.status === 'finished') showRoundEnd();
+  }
+});
+const revealSeen = new Set(); // rounds whose reveal has played, or was already over when this page saw them
+let serverOffset = 0; // the server's clock minus this device's
+const serverNow = () => Date.now() + serverOffset;
+
+function roundSnap(round) {
+  const players = gameState.players || [];
+  const rn = round.round_number, final = rn >= 7;
+  const color = p => REVEAL_COLORS[p.seat_position % REVEAL_COLORS.length];
+  const row = (gameState.round_scores || []).find(r => r.round_number === rn);
+  const hand = players.map(p => ({
+    id: p.player_id, name: p.display_name, color: color(p), seat: p.seat_position,
+    score: row?.scores.find(s => s.player_id === p.player_id)?.score ?? 0
+  })).sort((a, b) => (a.score - b.score) || (a.seat - b.seat));
+  const sorted = [...players].sort((a, b) => ((a.total_score || 0) - (b.total_score || 0)) || (a.seat_position - b.seat_position));
+  const lead = sorted.length ? (sorted[0].total_score || 0) : 0;
+  let rank = 0, prev = null;
+  const totals = sorted.map((p, i) => {
+    const total = p.total_score || 0;
+    if (total !== prev) { rank = i + 1; prev = total; }
+    return { id: p.player_id, name: p.display_name, color: color(p), total, rank, gap: total - lead };
+  });
+  let next = null;
+  if (!final) {
+    const seatOf = s => players.find(p => p.seat_position === s);
+    const dealerSeat = gameState.next_dealer_seat;
+    next = {
+      word: 'Round', handNo: rn + 1, hands: 7, title: CONTRACT_DESCRIPTIONS[rn + 1], deal: CONTRACT_CARDS[rn + 1],
+      dealer: seatOf(dealerSeat)?.display_name || '', first: seatOf((dealerSeat + 1) % players.length)?.display_name || '', all: rn + 1 === 7
+    };
+  }
+  return { key: round.id, word: 'Round', handNo: rn, hands: 7, title: CONTRACT_DESCRIPTIONS[rn], final, hand, next, totals };
+}
+
+// True while the show is running, so the scoreboard waits. A show that's already over just gets marked as seen.
+function playRoundReveal(round) {
+  if (reveal.isOpen && reveal.key === round.id) return true;
+  if (revealSeen.has(round.id)) return false;
+  revealSeen.add(round.id);
+  if (!round.finished_at) return false;
+  const snap = roundSnap(round);
+  if (serverNow() - Date.parse(round.finished_at) >= revealDuration(snap)) return false;
+  reveal.play(snap);
+  return true;
+}
+
+// The moment the next round deals itself on the server's clock (the same on every device), or null if it won't.
+function autoDealAt(round) {
+  const minutes = gameState.auto_deal_minutes || 0;
+  if (!minutes || round.round_number >= 7 || !round.finished_at || gameState.status !== 'active') return null;
+  return Date.parse(round.finished_at) + revealDuration(roundSnap(round)) + minutes * 60000;
+}
+
+let autoDealTick = null, autoDealTried = 0;
+function tickAutoDeal() {
+  const round = gameState?.round, el = document.getElementById('reCountdown');
+  if (!round || round.status !== 'finished') return;
+  const at = autoDealAt(round);
+  if (!at) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  const left = at - serverNow();
+  if (left > 0) { el.textContent = `Next round in ${clock(left)}`; return; }
+  if (isHost && aiPaused) { el.textContent = 'On hold while the AI is paused'; return; }
+  el.textContent = 'Dealing the next round...';
+  if (isSpectator || Date.now() - autoDealTried < 5000) return;
+  autoDealTried = Date.now();
+  // Every seated device calls this; the first one deals and the others are told the round is already dealt.
+  rpc('deal_next_round', { p_game_id: gameId }).then(({ error }) => {
+    if (error && !/not finished/i.test(error.message || '')) console.error('[auto deal]', error);
+    fetchAndRender();
+  });
+}
+
+function updateAutoDealRow() {
+  const row = document.getElementById('autoDealRow');
+  row.style.display = isHost ? '' : 'none';
+  row.querySelectorAll('[data-auto-deal]').forEach(b => b.classList.toggle('active', +b.dataset.autoDeal === gameState.auto_deal_minutes));
+}
+
 function showRoundEnd() {
+  if (playRoundReveal(gameState.round)) return;
   const overlay = document.getElementById('roundEndOverlay');
   if (roundEndShown && overlay.classList.contains('active')) {
     // Already showing — just update deal button state
     updateDealButton();
+    tickAutoDeal();
     return;
   }
   roundEndShown = true;
@@ -1553,11 +1648,14 @@ function showRoundEnd() {
   scoreboardView.innerHTML = `<table class="re-scores"><thead><tr><th></th>${roundHeaders}<th>Total</th></tr></thead><tbody>${sbRows.join('')}</tbody></table>`;
 
   updateDealButton();
+  tickAutoDeal();
+  if (!autoDealTick) autoDealTick = setInterval(tickAutoDeal, 500);
 
-  // Auto-rotate views
+  // Auto-rotate views, starting on the scoreboard: the reveal has just shown the other two
   if (reRotateInterval) clearInterval(reRotateInterval);
   const tabs = ['round', 'standings', 'scoreboard'];
-  let currentTab = 0;
+  let currentTab = 2;
+  switchReView(tabs[currentTab]);
   reRotateInterval = setInterval(() => {
     currentTab = (currentTab + 1) % tabs.length;
     switchReView(tabs[currentTab]);
@@ -1591,10 +1689,17 @@ function updateDealButton() {
   const isDealer = myPlayerInfo && myPlayerInfo.seat_position === nextDealerSeat;
   const dealerPlayer = gameState.players.find(p => p.seat_position === nextDealerSeat);
   const dealerName = dealerPlayer ? dealerPlayer.display_name : 'Player';
+  const counting = !!autoDealAt(round);
 
-  if (isDealer) {
+  // With the countdown on, the host can skip it for an AI dealer the way a dealer skips it for themselves
+  if (isDealer || (counting && isHost && dealerPlayer?.is_ai)) {
     dealBtn.style.display = '';
+    if (!dealBtn.disabled) dealBtn.textContent = counting ? 'Deal Now' : 'Deal Next Round';
     waitMsg.style.display = 'none';
+  } else if (counting) {
+    dealBtn.style.display = 'none';
+    waitMsg.style.display = 'block';
+    waitMsg.textContent = `${dealerName} deals next`;
   } else if (dealerPlayer?.is_ai) {
     dealBtn.style.display = 'none';
     waitMsg.style.display = 'block';
@@ -1627,6 +1732,9 @@ function hideRoundEnd() {
   roundEndShown = false;
   document.getElementById('roundEndOverlay').classList.remove('active');
   if (reRotateInterval) { clearInterval(reRotateInterval); reRotateInterval = null; }
+  if (autoDealTick) { clearInterval(autoDealTick); autoDealTick = null; }
+  autoDealTried = 0;
+  reveal.close();
 }
 
 // ── Round data export for play analysis ──
@@ -1907,7 +2015,7 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
 
     // Start face-down for deck draws, face-up for discard draws
     if (isFaceDown) {
-      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.22" style="width:100%;height:100%;border-radius:6px;">';
+      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.23" style="width:100%;height:100%;border-radius:6px;">';
     } else if (cardCode) {
       styleFlyCardFace(flyEl, cardCode);
     }
@@ -2869,12 +2977,25 @@ document.getElementById('reDealBtn').addEventListener('click', async () => {
   const btn = document.getElementById('reDealBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Dealing...';
-  const { error } = await rpc('deal_next_round', { p_game_id: gameId });
+  const dealer = (gameState.players || []).find(p => p.seat_position === gameState.next_dealer_seat);
+  const { error } = await rpc('deal_next_round', dealer?.is_ai ? { p_game_id: gameId, p_acting_as: dealer.player_id } : { p_game_id: gameId });
   btn.disabled = false;
-  btn.textContent = 'Deal Next Round';
-  if (error) {
+  btn.textContent = autoDealAt(gameState.round) ? 'Deal Now' : 'Deal Next Round';
+  if (error && !/not finished/i.test(error.message || '')) {
     showToast('Error', error.message || 'Could not deal');
   }
+});
+
+// Auto-deal minutes (host only)
+document.getElementById('autoDealRow').addEventListener('click', async (e) => {
+  e.stopPropagation();
+  const btn = e.target.closest('[data-auto-deal]');
+  if (!btn) return;
+  const minutes = +btn.dataset.autoDeal;
+  const { error } = await rpc('set_auto_deal', { p_game_id: gameId, p_minutes: minutes });
+  if (error) { showToast('Error', error.message || 'Could not change the auto-deal'); return; }
+  gameState.auto_deal_minutes = minutes;
+  updateAutoDealRow();
 });
 document.getElementById('btnCancelStaging').addEventListener('click', closeMeldStaging);
 document.getElementById('btnSubmitContract').addEventListener('click', handleSubmitContract);

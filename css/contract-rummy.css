@@ -1903,3 +1903,36 @@
   gap: 8px;
   margin-top: 12px;
 }
+
+  /* ── Round-end countdown ── */
+  .re-countdown {
+    margin-top:14px;
+    font-family:'Courier New',Courier,monospace;
+    font-size:1.05rem;
+    font-weight:700;
+    letter-spacing:0.04em;
+    color:var(--amber);
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* ── Round reveal: the shared show (score-reveal.css) in this game's colors, above everything here ── */
+  html .rv {
+    z-index:95;
+    --felt:var(--bg2);
+    --felt-deep:var(--bg);
+    --panel:var(--bg2);
+    --panel-hi:var(--bg3);
+    --line:var(--border);
+    --ink:var(--text);
+    --ink-dim:var(--muted);
+    --brass:var(--amber);
+    --brass-soft:var(--amber-dim);
+    --brass-ink:var(--bg);
+    --good:var(--green);
+    --shade:rgba(127,127,127,0.12);
+    --rv-glow:var(--amber-dim);
+  }
+  html .rv { --rv-dim:rgba(20,18,14,0.62); }
+  /* The title cards sit straight on the dimmed stage, so they keep light text in both themes */
+  html .rv-big.plain { --ink:#fff; --ink-dim:#ece9e2; --brass:#e9bd55; }
+  html .rv .rv-skip { background:var(--bg); color:var(--text); border-color:var(--border); }

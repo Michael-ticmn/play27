@@ -1,5 +1,5 @@
-import { sb, rpc, ensureProfile, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.22';
-import { initTheme } from './theme.js?v=0.15.22';
+import { sb, rpc, ensureProfile, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.23';
+import { initTheme } from './theme.js?v=0.15.23';
 
 // ─────────────────────────────────────────────
 // AUTH STATE
@@ -365,7 +365,8 @@ async function checkActiveGame() {
 const setupOptions = {
   numJokers: 0,
   buyCountdown: 10,
-  maxBuys: null  // null = unlimited
+  maxBuys: null,  // null = unlimited
+  autoDeal: 1     // minutes on the scoreboard before the next round deals itself; 0 = off
 };
 
 function showSetupModal() {
@@ -420,6 +421,10 @@ async function handleCreateGame() {
 
     const code = data?.code || (typeof data === 'string' ? data : null);
     if (code) {
+      // The game has been made either way: if this fails, the host can still change it in Settings
+      if (data?.game_id && setupOptions.autoDeal !== 1) {
+        await rpc('set_auto_deal', { p_game_id: data.game_id, p_minutes: setupOptions.autoDeal });
+      }
       window.location.href = `contract-rummy.html?game=${code}`;
     } else {
       errEl.textContent = 'Response: ' + JSON.stringify(data);
