@@ -1,5 +1,5 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.20';
-import { initTheme } from './theme.js?v=0.15.20';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.21';
+import { initTheme } from './theme.js?v=0.15.21';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -540,9 +540,8 @@ function requestAiBuy(round, ai) {
 
 // Before the active player draws, the AIs other than Easy decide whether to buy each discard, once,
 // as they do in training. Easy only joins once someone else has asked (the buy window above).
-// Until sql/migration-buy-first-claim.sql is applied, a person can't take the discard once a buy starts,
-// so AIs only start buys when another AI is up. Turn this on after the update.
-const AI_BUYS_ON_PEOPLES_TURNS = false;
+// On a person's turn they keep first claim during the countdown (sql/migration-buy-first-claim.sql).
+const AI_BUYS_ON_PEOPLES_TURNS = true;
 let aiBuyOfferKey = null;
 function offerDiscardToAIs(round) {
   if (round.turn_phase !== 'draw' || round.discard_bought || !round.top_discard) return;
@@ -968,7 +967,7 @@ function renderSeats(round) {
       cardBacks = hand.map(c => renderMiniCard(c)).join('');
     } else {
       for (let j = 0; j < Math.min(cardsInHand, 14); j++) {
-        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.20"></div>';
+        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.21"></div>';
       }
     }
 
@@ -1908,7 +1907,7 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
 
     // Start face-down for deck draws, face-up for discard draws
     if (isFaceDown) {
-      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.20" style="width:100%;height:100%;border-radius:6px;">';
+      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.21" style="width:100%;height:100%;border-radius:6px;">';
     } else if (cardCode) {
       styleFlyCardFace(flyEl, cardCode);
     }
@@ -2036,10 +2035,7 @@ async function handleDrawDiscard() {
   const sourceRect = discardEl ? discardEl.getBoundingClientRect() : null;
   const { data, error } = await rpc('draw_from_discard', { p_round_id: gameState.round.id });
   if (error) {
-    // Taking the card during a buy countdown needs sql/migration-buy-first-claim.sql on the server
-    if (/not draw phase/i.test(error.message || '') && gameState.round.turn_phase === 'buy_window') {
-      showToast('Not yet', 'Taking the discard during a buy needs the database update. Let the buy finish this time.');
-    } else showToast('Error', error.message || 'Could not draw from discard');
+    showToast('Error', error.message || 'Could not draw from discard');
     return;
   }
   lastDrawnCard = data;
