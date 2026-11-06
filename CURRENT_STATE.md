@@ -1,6 +1,6 @@
 # Contract Rummy — CURRENT_STATE.md
 
-## As of 2026-04-12 (v0.13.9)
+## As of 2026-11-05 (v0.15.24)
 
 **What exists and works:**
 - index.html — landing page with game directory, copyright footer
@@ -24,6 +24,7 @@
 - Buying from an AI (v0.15.17-18): when a person could buy, the host waits 3 extra seconds before an AI draws (AIs otherwise draw after 3 to 12 seconds by tier), and a late buy says "Too late to buy: Jeanne already drew" instead of an error.
 - AI-started buys (v0.15.20, on people's turns from v0.15.21): before each draw the AIs other than Easy decide once whether to buy the discard, as in training; Easy joins only open windows. A person whose turn it is keeps first claim (sql/migration-buy-first-claim.sql, applied 2026-11-05): Draw Discard stays enabled during a countdown ("Take it free") and cancels the buys, or they can let the buy finish. AI turns wait out a countdown, so AIs don't use first claim. Round export fills in AI hands for the host (v0.15.19).
 - Round end (v0.15.23, sql/migration-round-auto-deal.sql): when a round finishes, every device plays the Scorekeeper reveal (js/score-reveal.js, css/score-reveal.css, in the game's own theme colors and labeled Round): scores low to high, the next deal, then standings. Anyone can Skip it on their own device. The scoreboard follows with a countdown, then the next round deals itself and lands on the ready check. The host sets the minutes in game setup or Settings (Off, 1, 2, 3, 5; default 1), and the countdown starts after the reveal. The dealer can deal at any time ("Deal Now"), and the host can do the same for an AI dealer. When the time is up any seated player's device can deal, so an absent dealer can't stall the table; the games row lock means only one deal goes through. With the host's AI pause on, the host's device holds off. Off keeps the old behavior, including the 10-second AI deal. Round 7 ends on the final standings with confetti and no countdown.
+- Up to 8 players (v0.15.24, sql/migration-eight-players.sql): joining, late joins and adding AI players all stop at 8. The reveal shrinks its rows to fit 8 on a phone. On the table itself, the iPad and phone portrait hold 8, but in phone landscape the seats overlap from about 6 players (see HANDOFF_QUEUE).
 - Ding on turn — Web Audio sine tone when it becomes your turn (toggle in settings)
 - Ready check at round start — all players confirm before play begins
 - Late join / spectator system — spectator view, host approval, deal-in next round
@@ -86,11 +87,12 @@
 **Infrastructure:**
 - Supabase: PostgreSQL DB, Realtime subscriptions, Edge Functions, Auth
 - GitHub Pages: static frontend hosting
-- SQL: CREATE OR REPLACE functions applied via `supabase db query --linked`
+- SQL: CREATE OR REPLACE functions applied by pasting the sql/ file in the Supabase SQL editor, or via `supabase db query --linked`
 - Edge Functions deployed via `supabase functions deploy`
 
 **What's in progress:**
 - Playtesting AI tier behavior and tuning decision quality per round
+- First real games on the changes from 2026-11-05, none played yet: AIs buying on people's turns with first claim, the "Who went out?" picker, the round-end reveal and auto-deal, and 8 players
 - Mobile portrait layout refinements
 
 **Which surface should act next:** Playtesting

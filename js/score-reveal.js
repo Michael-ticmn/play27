@@ -192,13 +192,13 @@ export function createReveal(root, opts) {
   function frame(s) {
     root.innerHTML = '<div class="rv" role="dialog" aria-modal="true" aria-label="' + unit(s) + ' ' + s.handNo + ' results"><div class="rv-grid">' +
       '<section class="rv-col rv-hand"><p class="eyebrow rv-head" data-head="hand">' + unit(s) + ' <b>' + s.handNo + '</b> &middot; ' + esc(s.title) + '</p>' +
-      '<ol class="rv-list" data-list="hand">' + s.hand.map(r => handRow(r, true)).join('') + '</ol></section>' +
+      '<ol class="rv-list" data-list="hand" style="--n:' + s.hand.length + '">' + s.hand.map(r => handRow(r, true)).join('') + '</ol></section>' +
       '<div class="rv-center"><div class="rv-next" data-slot="next">' + (s.next ? nextCard(s.next, true) : '') + '</div>' +
       '<div class="rv-holdtop" data-slot="holdtop">' + holdTop(s) + '</div>' +
       '<div class="rv-holdbtns" data-slot="holdbtns">' + holdBtns(s) + '</div>' +
       '<p class="rv-now" data-rv-now aria-label="Time now">' + timeOfDay() + '</p></div>' +
       '<section class="rv-col rv-tot"><p class="eyebrow rv-head" data-head="tot">' + (s.final ? 'Final standings' : 'Standings after ' + lower(s) + ' ' + s.handNo) + '</p>' +
-      '<ol class="rv-list" data-list="tot">' + s.totals.map(r => totRow(r, true)).join('') + '</ol></section></div>' +
+      '<ol class="rv-list" data-list="tot" style="--n:' + s.totals.length + '">' + s.totals.map(r => totRow(r, true)).join('') + '</ol></section></div>' +
       (s.final ? '<section class="rv-final" aria-label="Final standings"><canvas class="rv-confetti" data-slot="confetti"></canvas>' +
         '<div class="rv-floaters" data-slot="floaters" aria-hidden="true"></div><div class="rv-fbody">' +
         '<p class="eyebrow">After ' + s.hands + ' ' + lower(s) + 's</p><h2 class="rv-ftitle">Final standings</h2>' +

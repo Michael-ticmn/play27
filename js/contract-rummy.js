@@ -1,6 +1,6 @@
-import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.23';
-import { initTheme } from './theme.js?v=0.15.23';
-import { createReveal, revealDuration, clock } from './score-reveal.js?v=0.15.23';
+import { sb, rpc, getTokenFromStorage, SUPABASE_URL, SUPABASE_ANON_KEY, dbg } from './supabase.js?v=0.15.24';
+import { initTheme } from './theme.js?v=0.15.24';
+import { createReveal, revealDuration, clock } from './score-reveal.js?v=0.15.24';
 
 // ── Constants ──
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -971,7 +971,7 @@ function renderSeats(round) {
       cardBacks = hand.map(c => renderMiniCard(c)).join('');
     } else {
       for (let j = 0; j < Math.min(cardsInHand, 14); j++) {
-        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.23"></div>';
+        cardBacks += '<div class="opp-card-back"><img src="assets/card-back.svg?v=0.15.24"></div>';
       }
     }
 
@@ -2015,7 +2015,7 @@ function flyCardToHand(sourceRect, cardCode, isFaceDown, isPenalty) {
 
     // Start face-down for deck draws, face-up for discard draws
     if (isFaceDown) {
-      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.23" style="width:100%;height:100%;border-radius:6px;">';
+      flyEl.innerHTML = '<img src="assets/card-back.svg?v=0.15.24" style="width:100%;height:100%;border-radius:6px;">';
     } else if (cardCode) {
       styleFlyCardFace(flyEl, cardCode);
     }
