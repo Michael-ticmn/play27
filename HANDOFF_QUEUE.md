@@ -3,7 +3,6 @@
 ## Pending
 
 - Round 6 AI tuning: in a live round 6 (all Hard) the AIs took the discard 58 to 75% of turns, threw recent pickups straight back out, and 3 of 4 never made the contract in 120 turns. Baseline R6 in the training harness per AI_TUNING_PLAYBOOK.md; target is a clear ladder of levels. The uncommitted ai-training work is mid-experiment: read and report on it before building on it.
-- Scorekeeper "Who went out?" picker on phones (needs a database change). A new SECURITY DEFINER function lets a seated player mark another player as going out for the current hand: only when nobody has 0 yet, and only for a player with no score. Apply the SQL in the Supabase SQL editor; then the phone flow asks "Who went out?" first and the winner's phone shows "You went out". The contested screen (v0.15.12) already handles disputes. Agreed 2026-10-25.
 - Contract Rummy (in-app) round-end reveal plus scoreboard countdown and auto-deal: X minutes set by the host, default 1 (needs a database change). Agreed 2026-10-25.
 
 ## Completed
@@ -21,3 +20,4 @@
 - ✅ AI tier tuning — contract weakness bias, urgency system, quality gates — 2026-04-12
 - ✅ Round 7 must-meld-all — variable-length runs, server enforcement, client validation — 2026-04-12
 - ✅ Buy first claim — sql/migration-buy-first-claim.sql applied, AIs start buys on people's turns too (v0.15.21) — 2026-11-05
+- ✅ Scorekeeper "Who went out?" picker on phones — sql/migration-scorekeeper-mark-out.sql applied (v0.15.22) — 2026-11-05

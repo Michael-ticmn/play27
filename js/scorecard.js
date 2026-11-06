@@ -7,7 +7,7 @@
 import {
   call, watchTable, $, esc, store, listNames, toast, syncLabel, colorOf, cellv, totalsMap, ranked,
   missing, wentOut, anyScores, dealerOf, firstOf, cTitle, cLong, cMin, rulesLine, meldsHTML, createScoreSheet, APP_VERSION
-} from './score-common.js?v=0.15.21';
+} from './score-common.js?v=0.15.22';
 
 const code = (new URLSearchParams(location.search).get('t') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
 const ME_KEY = 'p27sc.' + code;
@@ -16,6 +16,7 @@ let me = code ? store(ME_KEY) : null; // { playerId, token }
 let game = null, loaded = false, closed = false, syncState = 'connecting';
 let editHand = null, renaming = false, armed = null, armTimer = null, busy = false, notice = '';
 let checking = false;
+let picker = null; // { h, busy } while "Who went out?" is open
 
 const sheet = createScoreSheet($('#modal-root'), {
   getGame: () => game,
@@ -36,7 +37,7 @@ async function verifySeat() {
   try {
     const who = await call('score_whoami', { p_code: code, p_token: me.token });
     if (who.role !== 'player' || who.player_id !== me.playerId) {
-      me = null; store(ME_KEY, null); sheet.close();
+      me = null; store(ME_KEY, null); sheet.close(); closePicker();
       notice = 'The host freed your seat. Tap your name or join again.';
       render();
     }
@@ -55,6 +56,62 @@ function submit(h, v) {
     if (/seat was freed/.test(err.message)) verifySeat();
     throw err;
   });
+}
+
+/* ---------- who went out ---------- */
+
+// Asked before the keypad on the current hand, until someone has gone out or this player has a score.
+function asksWhoWentOut(h) {
+  return game.status === 'playing' && h === game.hand && cellv(game, h, me.playerId) === null && !wentOut(game, h).length;
+}
+
+function renderPicker() {
+  const g = game, h = picker.h, c = g.contracts[h], mine = myPlayer();
+  const others = missing(g, h).filter(p => p.id !== mine.id);
+  const dis = picker.busy ? ' disabled' : '';
+  const row = (p, name, sub) => '<li><button type="button" class="prow" data-act="out-pick" data-arg="' + esc(p.id) + '"' + dis + '>' +
+    '<span class="pdot" style="--pc:' + colorOf(p) + '"></span><span class="pmeta"><span class="pn">' + esc(name) + '</span>' +
+    '<span class="psub">' + sub + '</span></span></button></li>';
+  const root = $('#modal-root');
+  root.innerHTML = '<div class="modal-back" data-act="out-bg"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="out-title" tabindex="-1">' +
+    '<div class="modal-head"><div><p class="eyebrow">Hand ' + (h + 1) + ' &middot; ' + esc(cTitle(c)) + '</p>' +
+    '<h2 class="modal-title" id="out-title">Who went out?</h2></div>' +
+    '<button type="button" class="icon-btn" data-act="out-close" aria-label="Close">&#x2715;</button></div>' +
+    '<ul class="claim-list">' + row(mine, 'I went out', 'You get a 0') + others.map(p => row(p, p.name, 'They get a 0, then you enter your score')).join('') + '</ul>' +
+    '<div class="modal-row"><button type="button" class="btn" data-act="out-skip"' + dis + '>Skip, just enter my score</button></div></div></div>';
+  const m = root.querySelector('.modal'); if (m) m.focus({ preventScroll: true });
+}
+
+function closePicker() {
+  if (!picker) return;
+  picker = null; $('#modal-root').innerHTML = '';
+}
+
+// Keeps an open picker honest as updates arrive. Once someone else has answered, this phone moves on to the keypad.
+function syncPicker() {
+  if (!picker || picker.busy) return;
+  if (myPlayer() && asksWhoWentOut(picker.h)) { renderPicker(); return; }
+  const h = picker.h;
+  closePicker();
+  if (myPlayer() && h === game.hand && cellv(game, h, me.playerId) === null) sheet.open(me.playerId, h);
+}
+
+async function markOut(pid) {
+  if (!picker || picker.busy) return;
+  const h = picker.h;
+  picker.busy = true; renderPicker();
+  try {
+    await call('score_mark_out', { p_code: code, p_token: me.token, p_player_id: pid, p_hand: h });
+    game.scores['h' + h] = Object.assign({}, game.scores['h' + h], { [pid]: 0 });
+    closePicker();
+    render();
+    if (pid !== me.playerId) sheet.open(me.playerId, h);
+  } catch (err) {
+    toast(err.message);
+    if (/seat was freed/.test(err.message)) { closePicker(); verifySeat(); return; }
+    if (picker) { picker.busy = false; syncPicker(); }
+  }
+  if (watcher) watcher.refresh();
 }
 
 async function join(name) {
@@ -171,7 +228,8 @@ function seatedHTML() {
     html += contractPanel(0, mine) + standingsPanel(mine);
   } else {
     const miss = missing(g, h), n = g.players.length, outs = wentOut(g, h);
-    const outNote = outs.length === 1 && outs[0].id !== mine.id ? ' ' + esc(outs[0].name) + ' went out.' : '';
+    const iWentOut = outs.length === 1 && outs[0].id === mine.id;
+    const outNote = outs.length === 1 && !iWentOut ? ' ' + esc(outs[0].name) + ' went out.' : '';
     let status;
     if (h !== g.hand) status = 'You are changing hand ' + (h + 1) + '. Play is on hand ' + (g.hand + 1) + '. <button type="button" class="link" data-act="pick-hand" data-arg="' + g.hand + '">Back to hand ' + (g.hand + 1) + '</button>';
     else if (outs.length > 1) status = '<span class="contested">Winner contested:</span> ' + listNames(outs) + (outs.length > 2 ? ' all' : ' both') + ' entered 0. The host will settle who went out.';
@@ -180,10 +238,11 @@ function seatedHTML() {
       const nd = dealerOf(g, h + 1);
       status = 'All scores are in. Next is hand ' + (h + 2) + ': ' + (nd && nd.id === mine.id ? '<span class="youdeal">you deal</span>' : esc(nd ? nd.name : '') + ' deals') + ' ' + C[h + 1].deal + ' cards.';
     } else status = 'All scores are in. Waiting for the host to finish the game.';
-    html += '<section class="myscore" aria-labelledby="ms"><p class="eyebrow" id="ms">Your score for hand ' + (h + 1) + '</p>' +
+    html += '<section class="myscore" aria-labelledby="ms"><p class="eyebrow" id="ms">' + (iWentOut ? 'Hand ' : 'Your score for hand ') + (h + 1) + '</p>' +
+      (iWentOut ? '<h2 class="mtitle">You went out</h2>' : '') +
       '<div class="row"><span class="mynum">' + (v === null ? '&ndash;' : v) + '</span>' +
       '<button type="button" class="btn primary big" data-act="enter">' + (v === null ? 'Enter my score' : 'Change') + '</button></div>' +
-      '<p class="note">' + status + '</p></section>';
+      '<p class="note">' + status + (iWentOut ? ' Not right? Tap Change.' : '') + '</p></section>';
     html += '<nav class="handpick" aria-label="Choose a hand">' + C.map((cc, i) =>
       '<button type="button" class="hp' + (i === g.hand ? ' now' : '') + (cellv(g, i, mine.id) !== null ? ' full' : '') + '" data-act="pick-hand" data-arg="' + i + '" aria-pressed="' + (i === h) + '"' +
       (i > g.hand ? ' disabled' : '') + ' aria-label="Hand ' + (i + 1) + '">' + (i + 1) + '</button>').join('') + '</nav>';
@@ -208,8 +267,13 @@ const ACT = {
   claim: a => claim(a),
   enter: () => {
     const h = editHand === null ? game.hand : editHand;
+    if (asksWhoWentOut(h)) { picker = { h, busy: false }; renderPicker(); return; }
     sheet.open(me.playerId, h);
   },
+  'out-pick': a => markOut(a),
+  'out-skip': () => { const h = picker.h; closePicker(); sheet.open(me.playerId, h); },
+  'out-close': () => closePicker(),
+  'out-bg': (a, t, e) => { if (e.target === t) closePicker(); },
   'pick-hand': a => { const i = parseInt(a, 10); editHand = i === game.hand ? null : i; render(); },
   rename: () => { renaming = true; render(); const el = $('#rename'); if (el) el.focus(); },
   'rename-cancel': () => { renaming = false; render(); },
@@ -231,6 +295,7 @@ document.addEventListener('click', e => {
   const t = e.target.closest('[data-act]'); if (!t || t.disabled || !game) return;
   const fn = ACT[t.dataset.act]; if (fn) fn(t.dataset.arg, t, e);
 });
+document.addEventListener('keydown', e => { if (picker && e.key === 'Escape') closePicker(); });
 document.addEventListener('submit', e => {
   const f = e.target.closest('[data-form]'); if (!f) return;
   e.preventDefault();
@@ -253,12 +318,13 @@ let watcher = null;
 render();
 if (code) {
   watcher = watchTable(code, g => {
-    if (!g) { closed = true; loaded = true; sheet.close(); render(); return; }
+    if (!g) { closed = true; loaded = true; sheet.close(); closePicker(); render(); return; }
     closed = false; game = g; loaded = true;
     if (me) {
       const p = g.players.find(x => x.id === me.playerId);
       if (!p || !p.hasDevice) verifySeat();
     }
+    syncPicker();
     if (sheet.isOpen) return; // don't rebuild the page under the open keypad
     render();
   }, s => { syncState = s; syncLabel($('#sync'), s); });
