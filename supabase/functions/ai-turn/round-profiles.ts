@@ -49,6 +49,10 @@ export interface RoundProfile {
   // Set to 2 for run-heavy rounds to prevent low-quality speculative pickups
   // that cost tempo without completing runs
   minSpeculativeRunMatch: number;
+
+  // Disable feed strategy (discard-to-create-layoff) for tight-hand rounds
+  // where there's no hand room to hold feeding cards
+  disableFeedStrategy: boolean;
 }
 
 // ── Effective profile: tier + round merged ──
@@ -62,6 +66,7 @@ export interface EffectiveProfile extends TierProfile {
   disablePostContractSpec: boolean;
   disableDeckProbabilityGate: boolean;
   minSpeculativeRunMatch: number;
+  disableFeedStrategy: boolean;
 }
 
 // ── Round profiles ──
@@ -83,6 +88,7 @@ export const ROUND_PROFILES: Record<number, RoundProfile> = {
     disablePostContractSpec: false,
     disableDeckProbabilityGate: false,
     minSpeculativeRunMatch: 0,
+    disableFeedStrategy: false,
   },
 
   2: {
@@ -100,6 +106,7 @@ export const ROUND_PROFILES: Record<number, RoundProfile> = {
     disablePostContractSpec: false,
     disableDeckProbabilityGate: false,
     minSpeculativeRunMatch: 0,
+    disableFeedStrategy: false,
   },
 
   3: {
@@ -117,6 +124,7 @@ export const ROUND_PROFILES: Record<number, RoundProfile> = {
     disablePostContractSpec: true,
     disableDeckProbabilityGate: true,
     minSpeculativeRunMatch: 2,
+    disableFeedStrategy: false,
   },
 
   4: {
@@ -124,16 +132,17 @@ export const ROUND_PROFILES: Record<number, RoundProfile> = {
     setRelevanceWeight: 1.5,
     runRelevanceWeight: 0.1,
     isolationPenalty: 0,
-    speculativeThresholdAdjust: -1,
+    speculativeThresholdAdjust: 1,    // tighten: require pair before speculating (tight hand)
     runGapFillBonus: 0,
     missContractMultiplier: 0.5,
     buyThresholdAdjust: -5,
     layOffDetectionBoost: 0.1,
     urgentMeldScale: 0.9,
     useGapFillDraw: false,
-    disablePostContractSpec: false,
-    disableDeckProbabilityGate: false,
+    disablePostContractSpec: true,     // no room for post-contract speculation (9/10 cards in contract)
+    disableDeckProbabilityGate: false, // probability gate helps in sets — keeps marginal pickups out
     minSpeculativeRunMatch: 0,
+    disableFeedStrategy: true,         // no hand room for feed cards (0-22% payoff in sets)
   },
 
   5: {
@@ -151,6 +160,7 @@ export const ROUND_PROFILES: Record<number, RoundProfile> = {
     disablePostContractSpec: false,
     disableDeckProbabilityGate: false,
     minSpeculativeRunMatch: 0,
+    disableFeedStrategy: true,          // feed inflates hand to 18.7 with only 33% payoff
   },
 
   6: {
@@ -168,6 +178,7 @@ export const ROUND_PROFILES: Record<number, RoundProfile> = {
     disablePostContractSpec: true,
     disableDeckProbabilityGate: true,
     minSpeculativeRunMatch: 2,
+    disableFeedStrategy: false,
   },
 
   7: {
@@ -185,6 +196,7 @@ export const ROUND_PROFILES: Record<number, RoundProfile> = {
     disablePostContractSpec: true,
     disableDeckProbabilityGate: true,
     minSpeculativeRunMatch: 2,
+    disableFeedStrategy: false,
   },
 };
 
@@ -205,6 +217,7 @@ export function resolveProfile(tier: TierProfile, roundNumber: number): Effectiv
       disablePostContractSpec: false,
       disableDeckProbabilityGate: false,
       minSpeculativeRunMatch: 0,
+      disableFeedStrategy: false,
     };
   }
 
@@ -240,6 +253,7 @@ export function resolveProfile(tier: TierProfile, roundNumber: number): Effectiv
     disablePostContractSpec: rp.disablePostContractSpec,
     disableDeckProbabilityGate: rp.disableDeckProbabilityGate,
     minSpeculativeRunMatch: rp.minSpeculativeRunMatch,
+    disableFeedStrategy: rp.disableFeedStrategy,
   };
 }
 

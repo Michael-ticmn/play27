@@ -71,23 +71,27 @@ export async function failRun(
     .eq('id', runId);
 }
 
+// ── Per-round result (for full-game mode) ──
+export interface RoundResult {
+  roundNumber: number;
+  winnerSeat: number | null;
+  winnerTier: string | null;
+  totalTurns: number;
+  playerSeats: Record<string, unknown>[];
+}
+
 // ── Log a completed game ──
 export interface GameResult {
   gameId: string;
   gameNumber: number;
-  roundNumber: number;
-  winnerSeat: number | null;
+  roundNumber: number;           // 0 = full game, 1-7 = single round
+  winnerSeat: number | null;     // overall winner (lowest total score for full game)
   winnerTier: string | null;
   durationMs: number;
-  totalTurns: number;
-  deckOrder: string[];
-  playerSeats: {
-    seat: number;
-    ai_name: string;
-    ai_tier: string;
-    final_score: number;
-    met_contract: boolean;
-  }[];
+  totalTurns: number;            // sum across all rounds
+  deckOrder: string[];           // first round's deck order
+  playerSeats: Record<string, unknown>[];  // cumulative final for full game, or single round
+  roundResults?: RoundResult[];  // per-round breakdown (full-game mode only)
 }
 
 export async function logGame(
@@ -107,7 +111,9 @@ export async function logGame(
       duration_ms: result.durationMs,
       total_turns: result.totalTurns,
       deck_order: result.deckOrder,
-      player_seats: result.playerSeats,
+      player_seats: result.roundResults
+        ? { cumulative: result.playerSeats, rounds: result.roundResults }
+        : result.playerSeats,
     });
 
   if (error) console.error(`Failed to log game: ${error.message}`);
@@ -216,7 +222,11 @@ export async function computeSummary(
       winsByTier[game.winner_tier] = (winsByTier[game.winner_tier] || 0) + 1;
     }
 
-    for (const seat of (game.player_seats as any[])) {
+    // Handle full-game format: { cumulative: [...], rounds: [...] } vs single-round [...]
+    const seats = Array.isArray(game.player_seats)
+      ? game.player_seats
+      : (game.player_seats as any).cumulative || [];
+    for (const seat of (seats as any[])) {
       const tier = seat.ai_tier;
       if (!accum[tier]) accum[tier] = emptyAccum();
       const a = accum[tier];

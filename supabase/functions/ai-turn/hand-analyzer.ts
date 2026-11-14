@@ -77,6 +77,9 @@ export function findPossibleRuns(hand: CardId[], minLength = 3): { cards: CardId
         const nextVal = lastVal + 1;
         if (nextVal > 14) break; // Can't go past Ace
 
+        // Skip duplicate values from 2-deck games (same suit+value, different deck)
+        while (j < sorted.length && values[j] < nextVal) j++;
+
         if (j < sorted.length && values[j] === nextVal) {
           run.push(sorted[j]);
           lastVal = nextVal;
@@ -103,6 +106,8 @@ export function findPossibleRuns(hand: CardId[], minLength = 3): { cards: CardId
           const aj = [...jokers];
           for (let j = i + 1; j < sorted.length || aj.length > 0; ) {
             const nv = lv + 1;
+            // Skip duplicate values from 2-deck games
+            while (j < sorted.length && values[j] < nv) j++;
             if (j < sorted.length && values[j] === nv) {
               aceLowRun.push(sorted[j]);
               lv = nv;
@@ -144,18 +149,21 @@ export function solveContract(
     runsFound: MeldCandidate[],
     depth: number
   ) {
-    if (setsFound.length >= requiredSets && runsFound.length >= requiredRuns) {
-      if (mustMeldAll) {
-        // Only accept if exactly 0 or 1 cards remain (1 = the discard)
-        if (remaining.length > 1) return;
+    const metContract = setsFound.length >= requiredSets && runsFound.length >= requiredRuns;
+
+    if (metContract) {
+      if (mustMeldAll && remaining.length > 1) {
+        // Contract met but cards remain — keep searching for extra melds to absorb them
+        // (fall through to run/set search below)
+      } else {
+        solutions.push([...setsFound, ...runsFound]);
+        return;
       }
-      solutions.push([...setsFound, ...runsFound]);
-      return;
     }
     if (depth > 20) return; // safety limit
 
     // Try to find sets
-    if (setsFound.length < requiredSets) {
+    if (!metContract && setsFound.length < requiredSets) {
       const sets = findPossibleSets(remaining);
       for (const set of sets) {
         if (set.cards.length < 3) continue;
@@ -171,8 +179,8 @@ export function solveContract(
       }
     }
 
-    // Try to find runs
-    if (runsFound.length < requiredRuns) {
+    // Try to find runs (also when mustMeldAll needs extra melds to absorb remaining cards)
+    if (runsFound.length < requiredRuns || (mustMeldAll && remaining.length > 1)) {
       const runs = findPossibleRuns(remaining, minRunLength);
       for (const run of runs) {
         if (run.cards.length < minRunLength) continue;
@@ -186,6 +194,22 @@ export function solveContract(
             newRemaining,
             setsFound,
             [...runsFound, { meld_type: 'run', cards: trimmed }],
+            depth + 1
+          );
+        }
+      }
+
+      // mustMeldAll: also try extra sets to absorb remaining duplicates
+      if (mustMeldAll && metContract && remaining.length > 1) {
+        const sets = findPossibleSets(remaining);
+        for (const set of sets) {
+          if (set.cards.length < 3) continue;
+          const trimmed = set.cards.slice(0, 3);
+          const newRemaining = remaining.filter(c => !trimmed.includes(c));
+          backtrack(
+            newRemaining,
+            [...setsFound, { meld_type: 'set', cards: trimmed }],
+            runsFound,
             depth + 1
           );
         }
@@ -688,9 +712,9 @@ function hasRunNeighbors(card: CardId, hand: CardId[]): boolean {
      (cv === 2 && cardValue(c) === 14)));
 }
 
-// ── Round 7 discard evaluator: score by solvability ──
-// For each candidate, count how many valid 3-run must-meld-all solutions exist
-// with vs without the card. The card whose removal keeps the most solutions is best discard.
+// ── Round 7 discard evaluator: solver-based solvability scoring ──
+// For hands near 12 cards: run solver to find must-meld-all solutions.
+// For bloated hands (>13): use solvability score to steer toward run structure.
 export function rankDiscardsRound7(
   hand: CardId[],
   tableMelds: { id: string; meld_type: string; cards: CardId[] }[] = [],
@@ -700,10 +724,22 @@ export function rankDiscardsRound7(
   let candidates = hand.filter(c => !protectedSet.has(c));
   if (candidates.length === 0) candidates = [...hand];
 
+  // Use solver when hand is small enough for must-meld-all to be feasible
+  const useSolver = hand.length <= 13;
+
   const scored = candidates.map(card => {
     const without = hand.filter(c => c !== card);
-    // Count solutions with must-meld-all (remaining must be 0 after removing 1 card)
-    const solutions = solveContract(without, 0, 3, 3, true).length;
+    const pts = cardPoints(card);
+
+    let solvScore = 0;
+    if (useSolver) {
+      // Solver: count must-meld-all solutions after removing this card
+      const solutions = solveContract(without, 0, 3, 3, true).length;
+      solvScore = solutions * 100;
+    }
+
+    // Solvability score: how many cards participate in run fragments (always computed)
+    const solvability = r7SolvabilityScore(without);
 
     // Feed penalty for table-aware tiers
     let feedsPenalty = 0;
@@ -711,21 +747,17 @@ export function rankDiscardsRound7(
       if (canLayOff(card, meld)) { feedsPenalty = -20; break; }
     }
 
-    const pts = cardPoints(card);
-
     // Isolation penalty: unsupported face cards (J/Q/K/A without same-suit neighbors)
-    // are deadweight — high points, hard to fit into runs
     let isolationPenalty = 0;
     if (!isJoker(card) && cardValue(card) >= 11 && !hasRunNeighbors(card, hand)) {
-      isolationPenalty = -50; // strongly favor discarding isolated face cards
+      isolationPenalty = -50;
     }
 
-    // Higher solutions = better to discard this card (hand stays solvable without it)
-    // Isolation penalty makes lone face cards top discard priority
-    // Tiebreak: prefer discarding high-point cards
+    // Score: lower = better to discard
+    // Solver solutions dominate when available, solvability score steers otherwise
     return {
       card,
-      score: -(solutions * 100) + feedsPenalty + isolationPenalty - pts
+      score: -(solvScore) - (solvability * 10) + feedsPenalty + isolationPenalty - pts
     };
   });
 
@@ -758,6 +790,175 @@ export function evaluateRound7Buy(
   if (gapCount > 0 && hand.some(c => isJoker(c))) score += 40;
 
   return score;
+}
+
+// ── R7 Solver-Based Strategy ──
+// Uses the must-meld-all solver directly for every decision.
+// Expensive but correct — the solver runs on 11-13 cards which is fast.
+
+/** Score how close a hand is to being solvable for must-meld-all.
+ *  Returns the total number of cards participating in run fragments (2+ consecutive same-suit). */
+function r7SolvabilityScore(hand: CardId[]): number {
+  const bySuit = groupBySuit(hand);
+  let score = 0;
+  for (const [, suitCards] of bySuit) {
+    const vals = suitCards.map(c => cardValue(c)).sort((a, b) => a - b);
+    // Deduplicate for scoring (count each value once per fragment)
+    const unique = [...new Set(vals)];
+    // Count cards in consecutive fragments of 2+
+    let fragLen = 1;
+    for (let i = 1; i < unique.length; i++) {
+      if (unique[i] === unique[i - 1] + 1) {
+        fragLen++;
+      } else {
+        if (fragLen >= 2) score += fragLen;
+        fragLen = 1;
+      }
+    }
+    if (fragLen >= 2) score += fragLen;
+    // Ace-low bonus: if hand has A and 2 of same suit
+    if (unique.includes(14) && unique.includes(2)) score += 1;
+  }
+  return score;
+}
+
+/** R7 solver-based draw: should AI take the discard?
+ *  For small hands (≤12): checks if taking discard + discarding creates a must-meld-all solution.
+ *  For all hands: checks if taking discard improves solvability (run fragment coverage). */
+export function r7SolverDraw(
+  hand: CardId[],
+  discardCard: CardId
+): { takeDiscard: boolean; reason: string } {
+  if (isJoker(discardCard)) return { takeDiscard: true, reason: 'joker' };
+
+  const withDiscard = [...hand, discardCard];
+
+  // For small hands: check if adding card + discarding any card solves must-meld-all
+  if (hand.length <= 12) {
+    for (const candidate of withDiscard) {
+      const without = withDiscard.filter(c => c !== candidate);
+      if (solveContract(without, 0, 3, 3, true).length > 0) {
+        return { takeDiscard: true, reason: 'enables_meld_all' };
+      }
+    }
+  }
+
+  // Does adding the card improve solvability?
+  const currentScore = r7SolvabilityScore(hand);
+  let bestWithScore = 0;
+  for (const candidate of withDiscard) {
+    const without = withDiscard.filter(c => c !== candidate);
+    bestWithScore = Math.max(bestWithScore, r7SolvabilityScore(without));
+  }
+
+  if (bestWithScore > currentScore) {
+    return { takeDiscard: true, reason: 'improves_solvability' };
+  }
+
+  return { takeDiscard: false, reason: 'no_improvement' };
+}
+
+/** R7 solver-based buy evaluation: is this card a run connector?
+ *  Buy adds 2 cards (wanted + random penalty). Penalty card is next turn's discard.
+ *
+ *  100 — always buy: gap-filler merging two 2+ fragments, or enables must-meld-all solution.
+ *  70  — buy if resulting fragment is 3+: extender that grows fragment from 2→3 or longer.
+ *  0   — never: singleton extend (creates only a 2-card pair) or no connection.
+ *
+ *  Unfair exception: 100 for last copy if memory shows remainingInDeck === 1. */
+export function r7SolverBuy(
+  hand: CardId[],
+  discardCard: CardId,
+  memory?: CardMemory,
+  totalPerValue = 8
+): number {
+  if (isJoker(discardCard)) return 100;
+
+  const ds = cardSuit(discardCard);
+  const dv = cardValue(discardCard);
+
+  // For small hands: check if adding card enables must-meld-all solution
+  if (hand.length <= 13) {
+    const withCard = [...hand, discardCard];
+    for (const candidate of withCard) {
+      const without = withCard.filter(c => c !== candidate);
+      if (solveContract(without, 0, 3, 3, true).length > 0) {
+        return 100;
+      }
+    }
+  }
+
+  // Hand size gate: as hand grows, raise the bar for buying
+  // 12-13: buy freely. 14-15: only gap-fillers (100). 16+: only if it solves.
+  const handGated = hand.length >= 16;
+  const strictGated = hand.length >= 14;
+
+  // Find same-suit cards and their values
+  const sameSuit = hand.filter(c => !isJoker(c) && cardSuit(c) === ds);
+  const vals = sameSuit.map(c => cardValue(c)).sort((a, b) => a - b);
+  const uniqueVals = [...new Set(vals)];
+
+  // At 16+: only buy if it solves the hand (solver check already returned 100 above)
+  if (handGated) return 0;
+
+  if (uniqueVals.length === 0) return 0; // no cards in this suit
+
+  // Count fragment length on each side of the discard value
+  let lowerLen = 0;
+  { let v = dv - 1;
+    // Ace-low: if dv === 2, check for ace (14)
+    if (dv === 2 && uniqueVals.includes(14)) { lowerLen++; v = 13; }
+    while (uniqueVals.includes(v)) { lowerLen++; v--; }
+  }
+  let upperLen = 0;
+  { let v = dv + 1;
+    // Ace-low: if dv === 14, check for 2
+    if (dv === 14 && uniqueVals.includes(2)) { upperLen++; v = 3; }
+    while (uniqueVals.includes(v)) { upperLen++; v++; }
+  }
+
+  const hasLower = lowerLen > 0;
+  const hasUpper = upperLen > 0;
+  const resultingLen = lowerLen + 1 + upperLen; // full fragment with this card included
+
+  // Unfair scarcity-aware buying (memory-informed urgency)
+  // Checked BEFORE standard scoring — last-copy urgency overrides hand-size strict gate at 14+
+  // Still respects 16+ hard gate (handled above)
+  if (memory && memory.visibleCards.size > 0 && (hasLower || hasUpper)) {
+    let visibleOfSuitValue = 0;
+    for (const card of memory.visibleCards) {
+      if (!isJoker(card) && cardValue(card) === dv && cardSuit(card) === ds) {
+        visibleOfSuitValue++;
+      }
+    }
+    const totalOfSuitValue = totalPerValue / 4; // cards per suit-value (typically 2 for 2-deck)
+    const inHand = sameSuit.filter(c => cardValue(c) === dv).length;
+    const remaining = totalOfSuitValue - inHand - visibleOfSuitValue;
+
+    if (remaining <= 1) return 100;  // last copy — must buy, won't see another
+    if (remaining <= 2 && hasLower && hasUpper) return 85; // getting scarce + gap-filler
+  }
+
+  // Gap-filler: merges two fragments (both sides have cards)
+  // Only score 100 if both fragments are 2+ cards (meaningful merge)
+  if (hasLower && hasUpper && lowerLen >= 2 && upperLen >= 2) return 100;
+
+  // Gap-filler with smaller fragments: still a merge but less impactful
+  // Score 100 if resulting fragment is 4+ (e.g., 1+card+2 = 4), else 70 if 3+
+  if (hasLower && hasUpper) {
+    if (resultingLen >= 4) return 100;
+    if (strictGated) return 0; // at 14+, only 100-score gap-fillers pass
+    if (resultingLen >= 3) return 70;
+  }
+
+  // Extender: only buy if resulting fragment is 3+ (a complete run)
+  if (hasLower || hasUpper) {
+    if (strictGated) return 0; // at 14+, extenders don't pass
+    if (resultingLen >= 3) return 70;
+    return 0; // would only create a 2-card pair — not worth penalty card
+  }
+
+  return 0; // no run connection
 }
 
 // ── Draw evaluator: should AI take discard or draw from deck? ──

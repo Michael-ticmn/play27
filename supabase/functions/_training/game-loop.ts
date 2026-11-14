@@ -51,6 +51,13 @@ import {
   getDiagnosticsSummary,
   type GameDiagnostics,
 } from './diagnostics.ts';
+import {
+  type PlanState,
+  initializePlan,
+  updatePlan,
+  isInPlan,
+  getPlanDiagnostics,
+} from '../ai-turn/plan-state.ts';
 
 const MAX_TURNS = 500;
 
@@ -87,7 +94,7 @@ async function aiRpc(
   return data;
 }
 
-// ── Run a single training game ──
+// ── Run a single training game (single or multi-round) ──
 export async function runGame(
   clients: LoopClients,
   config: TrainingConfig,
@@ -95,6 +102,9 @@ export async function runGame(
   gameNumber: number
 ): Promise<GameResult> {
   const startTime = Date.now();
+  const isFullGame = config.roundNumber === 0;
+  const startRound = isFullGame ? (config.startRound || 1) : config.roundNumber;
+  const endRound = isFullGame ? 7 : config.roundNumber;
 
   // ── 1. CREATE GAME ──
   const gameData = await hostRpc(clients.host, 'create_game', {
@@ -120,21 +130,10 @@ export async function runGame(
   // ── 3. START GAME ──
   await hostRpc(clients.host, 'start_game', {
     p_game_id: gameId,
-    p_start_round: config.roundNumber,
+    p_start_round: startRound,
   });
 
-  // ── 4. READY CHECK ──
-  let roundState = await getCurrentRound(clients.service, gameId);
-  if (roundState.turnPhase === 'ready_check') {
-    await hostRpc(clients.host, 'player_ready', { p_round_id: roundState.roundId });
-    // Re-read state — should now be 'draw'
-    roundState = await getCurrentRound(clients.service, gameId);
-  }
-
-  // ── 5. RECORD DECK ORDER ──
-  const deckOrder = await readDeckOrder(clients.service, roundState.roundId);
-
-  // ── 6. GET PLAYER MAP ──
+  // ── 4. GET PLAYER MAP (shared across rounds) ──
   const players = await getPlayers(clients.service, gameId);
   // Seat 0 uses the first config entry's tier
   const seat0Tier = config.seats[0].aiTier;
@@ -155,14 +154,6 @@ export async function runGame(
     return seat === 0;
   }
 
-  // ── DIAGNOSTICS INIT ──
-  const diag = config.diagnostics
-    ? initGameDiagnostics(players.map(p => ({
-        seat: p.seat,
-        tier: p.seat === 0 ? seat0Tier : (p.tier || 'normal'),
-      })))
-    : null;
-
   // Helper: call RPC as appropriate client
   async function callRpc(
     fn: string,
@@ -177,20 +168,76 @@ export async function runGame(
     }
   }
 
-  // ── 7. TURN LOOP ──
-  let turnCount = 0;
+  // ── ROUND LOOP (single round or full 7-round game) ──
+  let totalTurnCount = 0;
+  let deckOrder: string[] = [];
+  const roundResults: import('./logger.ts').RoundResult[] = [];
 
-  while (turnCount < MAX_TURNS) {
-    roundState = await getCurrentRound(clients.service, gameId);
-
-    if (roundState.status !== 'active') break;
-
-    // Handle unexpected phases
-    if (roundState.turnPhase === 'buy_window') {
-      // Resolve immediately if we ended up in buy_window
-      await hostRpc(clients.host, 'resolve_buy', { p_round_id: roundState.roundId });
-      continue;
+  for (let currentRoundNum = startRound; currentRoundNum <= endRound; currentRoundNum++) {
+    // ── READY CHECK ──
+    let roundState = await getCurrentRound(clients.service, gameId);
+    if (roundState.turnPhase === 'ready_check') {
+      await hostRpc(clients.host, 'player_ready', { p_round_id: roundState.roundId });
+      roundState = await getCurrentRound(clients.service, gameId);
     }
+
+    // Record deck order from first round only
+    if (currentRoundNum === startRound) {
+      deckOrder = await readDeckOrder(clients.service, roundState.roundId);
+    }
+
+    // ── DIAGNOSTICS INIT (per-round) ──
+    const diag = config.diagnostics
+      ? initGameDiagnostics(players.map(p => ({
+          seat: p.seat,
+          tier: p.seat === 0 ? seat0Tier : (p.tier || 'normal'),
+        })))
+      : null;
+
+    // ── PLAN STATE INIT (per-round) ──
+    const plans = new Map<number, PlanState>();
+    if (roundState.contractSets > 0) {
+      const tpv = config.gameSettings.numDecks * 4;
+      for (const player of players) {
+        const tier = getTierForSeat(player.seat);
+        const tierProfile = getTier(tier);
+        if (tier === 'easy' || tier === 'unfair') continue;
+
+        const hand = await getHand(clients.service, roundState.roundId, player.playerId);
+        let planMemory: CardMemory | null = null;
+        if (tierProfile.cardMemoryDepth > 0) {
+          const { data: actionLog } = await clients.service
+            .from('game_actions')
+            .select('action_type, player_id, details')
+            .eq('round_id', roundState.roundId)
+            .order('created_at');
+          if (actionLog && actionLog.length > 0) {
+            planMemory = buildCardMemory(
+              actionLog as GameAction[],
+              player.playerId,
+              tierProfile.cardMemoryDepth,
+              tierProfile.tracksOpponentPickups
+            );
+          }
+        }
+        const plan = initializePlan(hand, roundState.contractSets, planMemory, tpv);
+        plans.set(player.seat, plan);
+      }
+    }
+
+    // ── TURN LOOP ──
+    let turnCount = 0;
+
+    while (turnCount < MAX_TURNS) {
+      roundState = await getCurrentRound(clients.service, gameId);
+
+      if (roundState.status !== 'active') break;
+
+      // Handle unexpected phases
+      if (roundState.turnPhase === 'buy_window') {
+        await hostRpc(clients.host, 'resolve_buy', { p_round_id: roundState.roundId });
+        continue;
+      }
 
     if (roundState.turnPhase !== 'draw') {
       // Might be 'action' (mid-turn recovery) or 'ready_check'
@@ -207,6 +254,33 @@ export async function runGame(
     const currentTier = getTierForSeat(currentSeat);
     const currentPlayerId = getPlayerIdForSeat(currentSeat);
     const tp = getTier(currentTier);
+
+    // ── UPDATE PLAN STATE (before any decisions this turn) ──
+    const currentPlan = plans.get(currentSeat);
+    if (currentPlan && tp.cardMemoryDepth > 0) {
+      const hand = await getHand(clients.service, roundState.roundId, currentPlayerId);
+      let turnMemory: CardMemory | null = null;
+      if (tp.cardMemoryDepth > 0) {
+        const { data: actionLog } = await clients.service
+          .from('game_actions')
+          .select('action_type, player_id, details')
+          .eq('round_id', roundState.roundId)
+          .order('created_at');
+        if (actionLog && actionLog.length > 0) {
+          turnMemory = buildCardMemory(
+            actionLog as GameAction[],
+            currentPlayerId,
+            tp.cardMemoryDepth,
+            tp.tracksOpponentPickups
+          );
+        }
+      }
+      updatePlan(
+        currentPlan, hand, turnMemory,
+        config.gameSettings.numDecks * 4,
+        turnCount, tp, roundState.contractSets
+      );
+    }
 
     // ── BUY EVALUATION (before active player draws) ──
     if (roundState.turnPhase === 'draw' && !roundState.discardBought) {
@@ -232,19 +306,22 @@ export async function runGame(
           }
         }
 
-        for (const player of players) {
-          if (player.seat === currentSeat) continue; // active player can't buy
+        // Two-pass buy: Pass 1 = non-Easy tiers. Pass 2 = Easy only if someone else requested.
+        // Easy needs a "social cue" — only buys after seeing another player request.
+        const buyPlayers = players.filter(p => p.seat !== currentSeat);
 
-          // Skip buying if player has already met their contract
+        for (const player of buyPlayers) {
+          const buyTier = getTierForSeat(player.seat);
+          if (buyTier === 'easy') continue; // defer Easy to pass 2
+
           const buyerState = await getPlayerRoundState(clients.service, roundState.roundId, player.playerId);
           if (buyerState.hasMetContract) continue;
 
           const buyHand = await getHand(clients.service, roundState.roundId, player.playerId);
-          const buyTier = getTierForSeat(player.seat);
-          // Only pass memory if this tier has card memory
           const buyerTp = getTier(buyTier);
           const mem = buyerTp.cardMemoryDepth > 0 ? buyMemory : undefined;
-          const { shouldBuy, score } = evaluateBuy(buyHand, topDiscard, roundState.roundNumber, buyTier, mem, config.gameSettings.numDecks * 4);
+          const buyerPlan = plans.get(player.seat);
+          const { shouldBuy, score } = evaluateBuy(buyHand, topDiscard, roundState.roundNumber, buyTier, mem, config.gameSettings.numDecks * 4, buyerPlan);
 
           if (shouldBuy) {
             try {
@@ -270,6 +347,44 @@ export async function runGame(
           }
         }
 
+        // Pass 2: Easy only buys if another player already requested (social cue)
+        if (anyBuyRequested) {
+          for (const player of buyPlayers) {
+            const buyTier = getTierForSeat(player.seat);
+            if (buyTier !== 'easy') continue;
+
+            const buyerState = await getPlayerRoundState(clients.service, roundState.roundId, player.playerId);
+            if (buyerState.hasMetContract) continue;
+
+            const buyHand = await getHand(clients.service, roundState.roundId, player.playerId);
+            const buyerTp = getTier(buyTier);
+            const buyerPlan = plans.get(player.seat);
+            const { shouldBuy, score } = evaluateBuy(buyHand, topDiscard, roundState.roundNumber, buyTier, undefined, config.gameSettings.numDecks * 4, buyerPlan);
+
+            if (shouldBuy) {
+              try {
+                if (isSeat0(player.seat)) {
+                  await hostRpc(clients.host, 'request_buy', { p_round_id: roundState.roundId });
+                } else {
+                  await aiRpc(clients.service, 'request_buy', player.playerId, {
+                    p_round_id: roundState.roundId,
+                  });
+                }
+
+                if (config.logDecisions) {
+                  await logDecision(
+                    clients.service, gameId, roundState.roundId,
+                    turnCount, player.seat, buyTier, 'buy',
+                    { action: 'request_buy', score, card: topDiscard, hand_size: buyHand.length, social_cue: true }
+                  );
+                }
+              } catch {
+                // Buy may fail
+              }
+            }
+          }
+        }
+
         if (anyBuyRequested) {
           // Resolve buy immediately — no countdown
           try {
@@ -287,6 +402,9 @@ export async function runGame(
     // ── BUILD TURN CONTEXT ──
     const { ctx, protectedCards, myLastDiscard } =
       await buildTurnContext(clients.service, roundState, currentPlayerId, currentTier, config.gameSettings);
+
+    // Attach plan state to context (if player has one)
+    if (currentPlan) ctx.plan = currentPlan;
 
     // ── DRAW PHASE ──
     if (roundState.turnPhase === 'draw') {
@@ -327,14 +445,23 @@ export async function runGame(
         : plan.drawFrom === 'discard';
 
       let drawnCard: CardId;
-      if (shouldDrawDiscard && ctx.topDiscard && !roundState.discardBought && !discardBlocked && !postContractBlock) {
-        drawnCard = await callRpc('draw_from_discard', currentSeat, {
-          p_round_id: roundState.roundId,
-        }) as string;
-      } else {
-        drawnCard = await callRpc('draw_from_deck', currentSeat, {
-          p_round_id: roundState.roundId,
-        }) as string;
+      try {
+        if (shouldDrawDiscard && ctx.topDiscard && !roundState.discardBought && !discardBlocked && !postContractBlock) {
+          drawnCard = await callRpc('draw_from_discard', currentSeat, {
+            p_round_id: roundState.roundId,
+          }) as string;
+        } else {
+          drawnCard = await callRpc('draw_from_deck', currentSeat, {
+            p_round_id: roundState.roundId,
+          }) as string;
+        }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes('Not enough cards') || msg.includes('reshuffle')) {
+          // Deck exhausted — end the game (all cards are in hands/melds)
+          break;
+        }
+        throw e;
       }
 
       // ── DIAGNOSTICS: draw phase ──
@@ -408,48 +535,118 @@ export async function runGame(
     }
   }
 
-  // ── 8. RECORD RESULTS ──
-  const finalRound = await getCurrentRound(clients.service, gameId);
-  const finalScores = await readFinalScores(clients.service, finalRound.roundId);
+    // ── ROUND RESULTS ──
+    totalTurnCount += turnCount;
+    const roundEnd = await getCurrentRound(clients.service, gameId);
+    const roundScores = await readFinalScores(clients.service, roundEnd.roundId);
+
+    const roundWinner = roundScores.find(s => s.score === 0);
+    const roundWinnerSeat = roundWinner ? players.find(p => p.playerId === roundWinner.playerId)?.seat ?? null : null;
+    const roundWinnerTier = roundWinnerSeat !== null ? getTierForSeat(roundWinnerSeat) : null;
+
+    const roundPlayerSeats = players.map(p => {
+      const score = roundScores.find(s => s.playerId === p.playerId);
+      const base = {
+        seat: p.seat,
+        ai_name: p.seat === 0 ? config.seats[0].aiName : p.aiName,
+        ai_tier: getTierForSeat(p.seat),
+        final_score: score?.score ?? -1,
+        met_contract: score?.hasMetContract ?? false,
+      };
+      if (diag) {
+        const dp = diag.players.get(p.seat);
+        if (dp) {
+          if (dp.turns_to_contract > 0) {
+            dp.turns_post_contract = Math.max(0, turnCount - dp.turns_to_contract);
+          }
+        }
+        const planDiag = plans.get(p.seat) ? getPlanDiagnostics(plans.get(p.seat)!) : null;
+        return { ...base, ...getDiagnosticsSummary(diag, p.seat), ...(planDiag ?? {}) };
+      }
+      return base;
+    });
+
+    roundResults.push({
+      roundNumber: currentRoundNum,
+      winnerSeat: roundWinnerSeat,
+      winnerTier: roundWinnerTier,
+      totalTurns: turnCount,
+      playerSeats: roundPlayerSeats,
+    });
+
+    // ── ADVANCE TO NEXT ROUND (full-game mode) ──
+    if (isFullGame && currentRoundNum < endRound) {
+      try {
+        // Dealer for next round = (nextRound - 1) % playerCount
+        const nextDealerSeat = currentRoundNum % players.length;
+        await callRpc('deal_next_round', nextDealerSeat, {
+          p_game_id: gameId,
+        });
+        // Ready check for new round
+        const newRound = await getCurrentRound(clients.service, gameId);
+        if (newRound.turnPhase === 'ready_check') {
+          await hostRpc(clients.host, 'player_ready', { p_round_id: newRound.roundId });
+        }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes('not active') || msg.includes('Game is not active') || msg.includes('All rounds completed')) break;
+        throw e;
+      }
+    }
+  } // end round loop
+
+  // ── FINAL GAME RESULTS ──
   const durationMs = Date.now() - startTime;
 
-  const winner = finalScores.find(s => s.score === 0);
-  const winnerSeat = winner ? players.find(p => p.playerId === winner.playerId)?.seat ?? null : null;
-  const winnerTier = winnerSeat !== null ? getTierForSeat(winnerSeat) : null;
+  // For full games: determine overall winner by lowest total score
+  // For single rounds: use round winner
+  let overallWinnerSeat: number | null = null;
+  let overallWinnerTier: string | null = null;
+  let finalPlayerSeats: Record<string, unknown>[];
 
-  const playerSeats = players.map(p => {
-    const score = finalScores.find(s => s.playerId === p.playerId);
-    const base = {
-      seat: p.seat,
-      ai_name: p.seat === 0 ? config.seats[0].aiName : p.aiName,
-      ai_tier: getTierForSeat(p.seat),
-      final_score: score?.score ?? -1,
-      met_contract: score?.hasMetContract ?? false,
-    };
-    // Append diagnostics summary if enabled
-    if (diag) {
-      const dp = diag.players.get(p.seat);
-      if (dp) {
-        // Compute turns_post_contract from contract timing
-        if (dp.turns_to_contract > 0) {
-          dp.turns_post_contract = Math.max(0, turnCount - dp.turns_to_contract);
-        }
-      }
-      return { ...base, ...getDiagnosticsSummary(diag, p.seat) };
-    }
-    return base;
-  });
+  if (isFullGame) {
+    // Get cumulative scores across all rounds
+    const cumulativeScores = await Promise.all(
+      players.map(async p => ({
+        seat: p.seat,
+        playerId: p.playerId,
+        totalScore: await getTotalScore(clients.service, gameId, p.playerId),
+      }))
+    );
+    const lowestScore = Math.min(...cumulativeScores.map(s => s.totalScore));
+    const winner = cumulativeScores.find(s => s.totalScore === lowestScore);
+    overallWinnerSeat = winner?.seat ?? null;
+    overallWinnerTier = overallWinnerSeat !== null ? getTierForSeat(overallWinnerSeat) : null;
+
+    finalPlayerSeats = players.map(p => {
+      const cumScore = cumulativeScores.find(s => s.seat === p.seat);
+      return {
+        seat: p.seat,
+        ai_name: p.seat === 0 ? config.seats[0].aiName : p.aiName,
+        ai_tier: getTierForSeat(p.seat),
+        final_score: cumScore?.totalScore ?? -1,
+        rounds_played: roundResults.length,
+      };
+    });
+  } else {
+    // Single round: use the round result directly
+    const rr = roundResults[0];
+    overallWinnerSeat = rr?.winnerSeat ?? null;
+    overallWinnerTier = rr?.winnerTier ?? null;
+    finalPlayerSeats = rr?.playerSeats ?? [];
+  }
 
   const result: GameResult = {
     gameId,
     gameNumber,
     roundNumber: config.roundNumber,
-    winnerSeat,
-    winnerTier,
+    winnerSeat: overallWinnerSeat,
+    winnerTier: overallWinnerTier,
     durationMs,
-    totalTurns: turnCount,
+    totalTurns: totalTurnCount,
     deckOrder,
-    playerSeats,
+    playerSeats: finalPlayerSeats,
+    ...(isFullGame ? { roundResults } : {}),
   };
 
   await logGame(clients.service, runId, result);
@@ -566,7 +763,7 @@ async function executeActionPhase(
       const dp = diag.players.get(currentSeat);
       if (dp) {
         dp.decisions_total++;
-        trackHandSize(diag, currentSeat, currentHand.length);
+        trackHandSize(diag, currentSeat, currentHand.length - 1); // -1: pending discard
 
         if (tp.cardMemoryDepth > 0) {
           const baselineCard = baselineDiscardDecision(
@@ -675,7 +872,9 @@ async function executeActionPhase(
     const dp = diag.players.get(currentSeat);
     if (dp) {
       dp.decisions_total++;
-      trackHandSize(diag, currentSeat, handAfterLayoffs.length);
+      trackHandSize(diag, currentSeat, handAfterLayoffs.length - 1); // -1: pending discard
+
+      const ep = resolveProfile(tp, roundState.roundNumber);
 
       // Baseline comparison
       if (tp.cardMemoryDepth > 0) {
@@ -687,7 +886,6 @@ async function executeActionPhase(
 
       // Table awareness cost
       if (tp.checksTableMelds && tableMelds.length > 0) {
-        const ep = resolveProfile(tp, roundState.roundNumber);
         const cost = measureTableAwarenessCost(
           handAfterLayoffs, roundState.contractSets, roundState.contractRuns,
           tableMelds, true, cardMemory, tableModel,
@@ -698,8 +896,8 @@ async function executeActionPhase(
         dp.table_awareness_deadwood_cost += cost.deadwoodCost;
       }
 
-      // Feed tracking: check if this discard has a feed bonus
-      if (tableModel && tableModel.myPlayerId && !isJoker(discard)) {
+      // Feed tracking: check if this discard has a feed bonus (skip if feed suppressed)
+      if (!ep.disableFeedStrategy && tableModel && tableModel.myPlayerId && !isJoker(discard)) {
         const bonus = feedLayOffBonus(discard, handAfterLayoffs, tableModel, tableModel.myPlayerId);
         if (bonus > 0) {
           trackFeedAttempt(diag, currentSeat, discard, turnCount);

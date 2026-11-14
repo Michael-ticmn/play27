@@ -10,7 +10,8 @@ export interface SeatConfig {
 export interface TrainingConfig {
   label: string;
   numGames: number;
-  roundNumber: number;
+  roundNumber: number;       // 0 = full 7-round game, 1-7 = single round
+  startRound: number;        // for full games: which round to start at (default 1)
   seats: SeatConfig[];
   gameSettings: {
     buyCountdown: number;
@@ -29,7 +30,8 @@ export function parseArgs(args: string[]): TrainingConfig {
   const config: TrainingConfig = {
     label: `training_${Date.now()}`,
     numGames: 10,
-    roundNumber: 1,
+    roundNumber: 0,            // 0 = full game (all 7 rounds)
+    startRound: 1,
     seats: [
       { aiName: 'LuVerne', aiTier: 'easy' },
       { aiName: 'Jeanne', aiTier: 'normal' },
@@ -38,7 +40,7 @@ export function parseArgs(args: string[]): TrainingConfig {
     ],
     gameSettings: {
       buyCountdown: 10,
-      maxBuys: 3,       // null would be unlimited — 3 is reasonable default
+      maxBuys: null,    // unlimited — matches real game behavior
       numDecks: 2,
       numJokers: 0,
     },
@@ -63,6 +65,12 @@ export function parseArgs(args: string[]): TrainingConfig {
       config.roundNumber = parseInt(next, 10);
       if (config.roundNumber < 1 || config.roundNumber > 7) {
         throw new Error(`Invalid --round value: ${next} (must be 1-7)`);
+      }
+      i++;
+    } else if (arg === '--start-round' && next) {
+      config.startRound = parseInt(next, 10);
+      if (config.startRound < 1 || config.startRound > 7) {
+        throw new Error(`Invalid --start-round value: ${next} (must be 1-7)`);
       }
       i++;
     } else if (arg === '--seats' && next) {
@@ -118,7 +126,8 @@ Usage:
 Options:
   --label <name>       Run label (default: training_<timestamp>)
   --games <n>          Number of games to run (default: 10)
-  --round <1-7>        Which round to play (default: 1)
+  --round <1-7>        Single round mode (omit for full 7-round game)
+  --start-round <1-7>  Start round for full games (default: 1)
   --seats <config>     Seat config: "Name:tier,Name:tier,..." (default: all 4 tiers)
   --jokers <n>         Jokers per deck (default: 0)
   --max-buys <n|none>  Max buys per player per round (default: 3)

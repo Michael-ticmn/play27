@@ -5,6 +5,7 @@ import {
   rankDiscardsRound7,
   evaluateDiscardDraw,
   evaluateRound7Draw,
+  r7SolverDraw,
   deckDrawProbability,
   findLayOffs,
   helpsWeakerContract,
@@ -14,6 +15,7 @@ import { TierProfile, getTier, shouldMakeMistake, filterLayOffs } from './tiers.
 import { resolveProfile, type EffectiveProfile } from './round-profiles.ts';
 import { type CardMemory, opponentWantsValue } from './card-memory.ts';
 import { type TableModel } from './opponent-model.ts';
+import { type PlanState, isInPlan, getPlanTarget } from './plan-state.ts';
 
 export interface TurnDecision {
   drawFrom: 'deck' | 'discard';
@@ -40,6 +42,7 @@ export interface TurnContext {
   tableModel?: TableModel;
   playerId?: string;
   gameSettings?: { numDecks: number; numJokers: number; maxBuys: number | null };
+  plan?: PlanState;
 }
 
 // ── DRAW DECISION ──
@@ -48,9 +51,19 @@ export function decideDrawSource(ctx: TurnContext): 'deck' | 'discard' {
 
   const profile = resolveProfile(getTier(ctx.tier), ctx.roundNumber);
 
-  // Round 7: adjacency-based speculative pickups (all tiers)
+  // Plan-aware draw: if discard matches an active plan target with evidence, take it
+  if (ctx.plan && ctx.topDiscard && !isJoker(ctx.topDiscard)) {
+    const dv = cardValue(ctx.topDiscard);
+    const target = getPlanTarget(ctx.plan, dv);
+    if (target && target.held >= 1) {
+      return shouldMakeMistake(profile, ctx.totalScore) ? 'deck' : 'discard';
+    }
+  }
+
+  // Round 7: solver-based draw — checks if taking the discard creates or improves
+  // a path to must-meld-all solution
   if (ctx.mustMeldAll) {
-    const r7 = evaluateRound7Draw(ctx.hand, ctx.topDiscard);
+    const r7 = r7SolverDraw(ctx.hand, ctx.topDiscard);
     if (r7.takeDiscard) {
       return shouldMakeMistake(profile, ctx.totalScore) ? 'deck' : 'discard';
     }
@@ -207,9 +220,48 @@ export function decideDiscard(ctx: TurnContext): CardId {
     isolationPenalty: profile.isolationPenalty,
   };
   const tpv = (ctx.gameSettings?.numDecks ?? 2) * 4;
-  const ranked = rankDiscards(ctx.hand, ctx.contractSets, ctx.contractRuns, tableMelds, [], ctx.hasMetContract, roundWeights, ctx.cardMemory, ctx.tableModel, tpv);
+  const tableModel = profile.disableFeedStrategy ? undefined : ctx.tableModel;
+  let ranked = rankDiscards(ctx.hand, ctx.contractSets, ctx.contractRuns, tableMelds, [], ctx.hasMetContract, roundWeights, ctx.cardMemory, tableModel, tpv);
 
   if (ranked.length === 0) return ctx.hand[0]; // fallback
+
+  // Plan-aware reranking: tier-scaled influence on discard order
+  // Normal: gentle nudge. Hard: moderate guide. Unfair: strong directive.
+  // Plan influence by tier: Normal = gentle nudge, Hard = moderate guide
+  // Easy/Unfair have no plan (skipped in game-loop), but zero entries for safety
+  const planKeepBonus: Record<string, number> = { easy: 0, normal: 30, hard: 60, unfair: 0 };
+  const planShedBonus: Record<string, number> = { easy: 0, normal: 5, hard: 15, unfair: 0 };
+  const keepBonus = planKeepBonus[ctx.tier] ?? 0;
+  const shedBonus = planShedBonus[ctx.tier] ?? 0;
+
+  if (ctx.plan && !ctx.hasMetContract && ranked.length > 1 && (keepBonus > 0 || shedBonus > 0)) {
+    // Score each card: higher = better to discard (ranked[0] is best discard)
+    // Base position score: first card = 0 (best discard), last = N-1 (worst discard)
+    // Plan confidence scales with evidence in hand
+    // Pairs = strong commitment, singletons = tentative, empty = no commitment
+    const planConfidence = (t: { held: number }) =>
+      t.held >= 2 ? 1.0 : t.held === 1 ? 0.3 : 0.0;
+
+    const scored = ranked.map((card, i) => {
+      let score = i; // base: preserve rankDiscards ordering
+      if (!isJoker(card)) {
+        const target = getPlanTarget(ctx.plan!, cardValue(card));
+        if (target) {
+          score += keepBonus * planConfidence(target);
+        } else {
+          // Off-plan card: shed bonus scaled by average confidence of active targets
+          const activeTargets = ctx.plan!.targets.filter(t => t.status === 'active');
+          const avgConf = activeTargets.length > 0
+            ? activeTargets.reduce((sum, t) => sum + planConfidence(t), 0) / activeTargets.length
+            : 0;
+          score -= shedBonus * avgConf;
+        }
+      }
+      return { card, score };
+    });
+    scored.sort((a, b) => a.score - b.score);
+    ranked = scored.map(s => s.card);
+  }
 
   // Mistake: pick suboptimal discard
   if (shouldMakeMistake(profile, ctx.totalScore)) {

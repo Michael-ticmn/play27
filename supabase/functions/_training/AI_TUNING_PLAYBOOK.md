@@ -30,7 +30,6 @@ Separate what stays constant across contexts from what varies:
 | `speculativeThresholdAdjust` | Tighten/loosen speculation per context | Runs: looser, Sets: tighter |
 | `disablePostContractSpec` | Kill a feature in contexts where it backfires | true for run-heavy rounds |
 | `disableDeckProbabilityGate` | Remove a quality filter that's too restrictive | true for run-heavy rounds |
-| `minSpeculativeRunMatch` | Selectivity gate for run speculation | 2 for run-heavy rounds |
 | `relevanceWeights` | Shift strategic focus per context | R1: sets 1.0 / runs 0.0 |
 
 **Resolver** merges tier + context into an `EffectiveProfile` for each decision. This is the single point where all configuration converges.
@@ -229,7 +228,7 @@ Full end-to-end validation:                  100-200 games
 
 **The diagnostic that caught it:** `AvgTTC` (average turns to contract) was never a headline metric in early tuning — we focused on win rates, speculation hit rates, and shedding speed. Once we added it to the enriched summary, the 2.5-turn gap was immediately visible and explained why Unfair was losing despite better post-contract play.
 
-**The fix pattern:** Don't increase speculation volume. Increase speculation *selectivity*. A perfect player should take fewer risks than a good player, not more — it should know which risks aren't worth taking. `minSpeculativeMatch: 2` makes Unfair only speculate with strong evidence (2+ matching cards), which reduced dead pickups and closed the contract speed gap.
+**The fix pattern:** Don't increase speculation volume. Increase speculation *selectivity*. A perfect player should take fewer risks than a good player, not more — it should know which risks aren't worth taking. `minSpeculativeMatch: 2` makes Unfair only speculate with strong evidence (2+ matching cards), which should reduce dead pickups and close the contract speed gap.
 
 **General lesson:** More features and looser gates don't make a tier stronger. The strongest play is often the most selective — knowing which opportunities to ignore is as important as knowing which to take.
 
@@ -259,6 +258,45 @@ Full end-to-end validation:                  100-200 games
 
 **Validation pattern:** When your worst tier fails in exactly the way its profile predicts (Easy's negative shed rate from 50% mistakes + 15% lay-off detection = gaining cards post-contract), that's confirmation the system is working as designed. Log these as positive validation, not bugs.
 
+### 10. Smart Features Need Hand Room to Operate
+
+**The finding:** In R4 (3 sets, 9 of 10 dealt cards needed for contract), Unfair's contract rate dropped to 69% — worse than Easy's 76%. Speculation hit rates collapsed below 30%, feed strategy got 0-22% payoff, and all tiers had negative post-contract shed rates. Every "smart" feature requires holding cards that aren't part of the contract, but with only 1 free card slot, there's no room.
+
+**The general principle:** Advanced AI features (speculation, opponent modeling, feed strategy, defensive holds) all consume a shared resource: hand capacity. When the game state leaves very little slack between dealt cards and required cards, these features compete directly with the primary objective. A feature that helps in a loose-hand context (4 free cards) can sabotage the AI in a tight-hand context (1 free card).
+
+**The diagnostic that caught it:** Contract rate. A 0%-mistake tier meeting contract *less often* than a 50%-mistake tier is the clearest signal that features are actively interfering. This should be a Phase 2 diagnostic check: if contract rate doesn't correlate with mistake rate, something is wrong.
+
+**Profile response:** Tight-hand contexts need aggressive feature suppression — `disablePostContractSpec`, `disableFeedStrategy`, and tighter speculation gates. The profile system should account for hand pressure as a dimension separate from set-heavy vs run-heavy:
+
+```
+Context dimensions:
+  1. Contract type: sets vs runs vs mixed
+  2. Hand pressure: loose (3+ free cards) vs tight (1-2 free cards)
+  
+R1: sets, loose (4 free)  → speculation OK, feed marginal
+R4: sets, tight (1 free)  → suppress everything except core play
+R3: runs, loose (2 free)  → suppress post-contract spec, disable deck gate
+R7: runs, tight (0 free)  → must-meld-all, unique solver
+```
+
+**General rule:** Calculate `free_cards = cards_dealt - cards_needed_for_contract`. If free_cards ≤ 1, disable all features that hold or accumulate cards. If free_cards ≥ 3, features can operate freely. Between 1-3, tune per context.
+
+### 11. Explicit Systems Are Redundant When Implicit Ones Exist
+
+**The finding:** A planning layer (persistent target tracking, pivot logic, plan-aware buying) was built and tested across 5 configurations over 1000 games. It improved Normal by up to +8pp and Hard by +4.5pp, but every configuration either hurt Unfair or was neutral. Unfair's best result (32%) came with Normal crashing to 36% — a seesaw where helping one tier hurt the other.
+
+**The root cause:** Unfair already had implicit planning through card memory (knows what's dead), dead-path penalties (abandons dead values), and speculation gates (targets promising groups). Adding an explicit plan created two competing steering systems. The plan scored cards one way, the implicit systems scored them another, and the conflict made Unfair worse than either system alone.
+
+**The general principle:** Before adding a new decision-making system, audit whether existing systems already provide the same function implicitly. If a tier already has the information and mechanisms to make good decisions, adding an explicit framework on top creates conflicts, not improvements. New systems help tiers that *lack* the underlying information, not tiers that already have it.
+
+**Diagnostic to check:** If adding a feature to your strongest tier makes it worse while helping weaker tiers, the strong tier likely already has an implicit version of that feature. Disable the explicit version for that tier and keep it for the ones it helps.
+
+**Implementation pattern:**
+```
+if (tier has implicit equivalent) → skip explicit system
+if (tier lacks information) → explicit system fills the gap
+```
+
 ---
 
 ## Part 5: Tuning Workflow (Reusable)
@@ -285,6 +323,11 @@ Before changing any knobs, answer these questions from diagnostic data:
 □ What is the contract speed (AvgTTC) per tier?
   → If a "smarter" tier meets contract SLOWER than a simpler tier,
     speculation is costing tempo. Tighten selectivity, don't increase volume.
+
+□ What is the contract MET RATE per tier?
+  → Must correlate with mistake rate (Unfair > Hard > Normal > Easy)
+  → If a low-mistake tier has LOWER contract rate than a high-mistake tier,
+    features are sabotaging contract formation. Suppress features for this context.
 
 □ What is the defensive deadwood cost per tier?
   → If > 20% of avg score: defense is too expensive
@@ -341,6 +384,8 @@ Ordered by observed impact during Contract Rummy tuning. Applicability column in
 | 9 | `feedStrategy` | Manufacturing opportunities via opponent — 36-38% payoff in run rounds, viable but not dominant | Games with shared play surfaces |
 | 10 | `contextRelevanceWeights` | Strategic focus per context | Any game with varying objectives |
 | 11 | `deckProbabilityGate` | Mathematical quality filter — confirmed to silently kill features when too restrictive, disable per context rather than tune | Card/resource games |
+| 12 | `planningLayer` | Persistent target tracking with tier-specific pivot timing — helps Normal/Hard (+4-8pp), hurts Unfair (redundant with implicit systems). Enable per-tier, not globally | Any game with goal-building over multiple turns |
+| 13 | `planConfidence` | Evidence-gating for plan influence — plan only commits when holding evidence (pair+). Prevents over-commitment to initial targets | Games with planning layers |
 
 ---
 
@@ -463,11 +508,118 @@ Options:
 2. **Reduce Normal's advantage** — lower Normal's layOffDetection from 70% (less shedding ability) or raise its mistake rate for R3
 3. **Give Unfair a structural advantage** — explore whether Unfair should deliberately introduce discard randomness (anti-exploitation noise) in run-heavy rounds
 
-### Tier Cascade Strategy
+### R1 Re-Baseline (100 games, current profiles + diagnostics)
 
-Once Unfair is dialed in as the ceiling, Hard and Normal are just degraded versions:
-- Hard = Unfair + 10% mistakes + memory decay + no feed strategy override
-- Normal = Unfair + 30% mistakes + strict speculation + shallow memory
-- Easy = barely trying
+Old "locked in" numbers were measured before diagnostics, before deck gate fix, before feed strategy was fully active. Re-baseline showed:
 
-Tune Unfair first. Then verify degradation produces correct tier separation. Don't tune each tier independently.
+| Tier | Old Win% | New Win% | Avg Score | StdDev | Contract% |
+|------|----------|----------|-----------|--------|-----------|
+| Easy | 1% | 1% | 30 | 19.7 | 93% |
+| Normal | 54% | 55% | 5 | 7.6 | 100% |
+| Hard | 18% | 23% | 12 | 15.3 | 99% |
+| Unfair | 26% | 20% | 15 | 20.0 | 97% |
+
+Key changes: Hard improved (features working), Unfair dropped (feed strategy 20.7% payoff hurts in sets). Normal unchanged — conservative play dominates sets.
+
+### R4 Tuning Progression (3 sets of 3, tight hand)
+
+| Tier | Baseline (200g) | Suppress features (200g) | + Planning (Normal/Hard only) (200g) | Final |
+|------|-----------------|--------------------------|--------------------------------------|-------|
+| Easy | 0% / 40 / 76% | 1.0% / 39 / 77% | 3.0% / 45 / 75% | Bottom |
+| Normal | 48% / 18 / 89% | 41.5% / 24 / 88% | 36.0% / 24 / 86% | 1st |
+| Hard | 26% / 35 / 80% | 31% / 28 / 84% | 35.5% / 30 / 83% | 2nd |
+| Unfair | 26% / 46 / 69% | 26.5% / 35 / 81% | 25.5% / 43 / 71% | 3rd |
+
+Format: Win% / Avg Score / Contract%
+
+**What the suppression fixed:**
+- Unfair contract rate: 69% → 81% (+12pp)
+- Unfair avg score: 46 → 35 (-11 points)
+- Feed strategy properly suppressed (0 attempts after diagnostic fix)
+- Post-contract speculation suppressed (confirmed via pickups = 0)
+
+**Planning layer results (5 iterations to get right):**
+
+The planning layer was built, tested across 5 configurations, and landed on: plan ON for Normal/Hard, plan OFF for Easy/Unfair.
+
+| Config | Normal | Hard | Unfair | Key Finding |
+|--------|--------|------|--------|-------------|
+| No plan (baseline) | 41.5% | 31.0% | 26.5% | — |
+| Flat plan (all tiers) | 36.0% | 28.5% | 32.0% | Unfair peaked but Normal crashed |
+| Tier-scaled bonuses | 38.0% | 31.0% | 30.0% | Better balance, Unfair still up |
+| + Confidence gating | 39.0% | 34.0% | 23.5% | Normal/Hard recovered, Unfair cratered |
+| + Unfair full commit | 45.5% | 28.5% | 25.0% | Seesaw — helping one hurts the other |
+| Plan off for Unfair | 36.0% | 35.5% | 25.5% | Final: Hard biggest winner |
+
+**Why the plan helps Normal/Hard but hurts Unfair:**
+
+Unfair already has an *implicit* planning system — perfect card memory, dead-path penalties, speculation gates. These systems do what the explicit plan does, but they're integrated into the existing evaluators. Adding an explicit plan on top created conflicts: two steering systems scoring the same decisions differently. Every attempt to tune the plan's influence for Unfair either made it too rigid (low contract rate) or too weak (no improvement).
+
+Normal and Hard *don't* have those implicit systems (shallow memory, lower detection). For them, the explicit plan fills a genuine gap. Normal's confidence-gated plan with emotional pivot timing (40% panic, 30% stubborn, 30% correct) produces realistic human-like behavior. Hard's plan with slightly-delayed pivots complements its decaying memory.
+
+**Profile settings (R4 final):**
+- `disablePostContractSpec: true`
+- `disableFeedStrategy: true`
+- `speculativeThresholdAdjust: +1` (pair minimum for all speculative tiers)
+- `disableDeckProbabilityGate: false` (probability gate appropriate for sets)
+- Planning layer: ON for Normal (confidence-gated + emotional pivots), ON for Hard (confidence-gated + delayed pivots), OFF for Easy and Unfair
+
+### Set-Heavy Category — Locked
+
+**R1 (2 sets, loose hand) final:**
+| Tier | Win% | Avg Score | Contract% |
+|------|------|-----------|-----------|
+| Easy | 1.5% | 29 | 95% |
+| Normal | 49.0% | 9 | 99% |
+| Hard | 28.0% | 15 | 95% |
+| Unfair | 21.5% | 15 | 99% |
+
+**R4 (3 sets, tight hand) final:**
+| Tier | Win% | Avg Score | Contract% |
+|------|------|-----------|-----------|
+| Easy | 3.0% | 45 | 75% |
+| Normal | 36.0% | 24 | 86% |
+| Hard | 35.5% | 30 | 83% |
+| Unfair | 25.5% | 43 | 71% |
+
+**Consistent ordering across both:** Normal > Hard > Unfair > Easy
+
+**Known limitations:**
+- Unfair's feed strategy has <20% payoff in sets — marginal value, minor drag on performance
+- Unfair slightly below baseline (25%) in both rounds — implicit systems are good but not dominant in set-heavy contexts
+- Normal dominates sets through conservative play + planning layer — same pattern as runs but even stronger
+- The consistency hypothesis (Unfair wins games via low variance) remains untested until full-game validation
+
+### Planning Layer — Lessons Learned
+
+**What was built:** `PlanState` object with persistent target tracking, tier-specific pivot logic (Normal: emotional timing, Hard: correct-but-delayed, Unfair: instant), confidence-gated influence scaling, wired into draw/discard/buy evaluators.
+
+**Key lesson: Explicit planning is redundant when implicit systems already exist.** Unfair's card memory + dead-path penalties + speculation gates form an implicit planning system. Adding an explicit plan created a "two captains" problem — competing steering systems that couldn't be tuned independently. Every configuration that helped Unfair's plan hurt its implicit systems, and vice versa.
+
+**Corollary: Planning layers help tiers that lack information, not tiers that have it.** Normal (shallow memory, no dead-path detection) benefited most because the plan gave it structure it couldn't derive on its own. Unfair (perfect memory, complete information) already had that structure — the plan just got in the way.
+
+**Tier planning map (final):**
+| Tier | Plan | Pivot Model | Why |
+|------|------|-------------|-----|
+| Easy | None | — | Too unfocused to plan |
+| Normal | Confidence-gated | 40% early panic, 30% late stubborn, 30% correct | Fills information gap, plays like a real person |
+| Hard | Confidence-gated | Correct but 30% chance 1-turn late | Complements decaying memory |
+| Unfair | None | — | Implicit systems are already superior |
+
+### Hand Pressure Framework (new context dimension)
+
+| Round | Contract | Dealt | In Contract | Free Cards | Hand Pressure |
+|-------|----------|-------|-------------|------------|---------------|
+| R1 | 2 sets (6 cards) | 10 | 6 | 4 | Loose |
+| R2 | 1S + 1R (6 cards) | 10 | 6 | 4 | Loose |
+| R3 | 2 runs (6 cards) | 10 | 6 | 4 | Loose |
+| R4 | 3 sets (9 cards) | 10 | 9 | 1 | Tight |
+| R5 | 2S + 1R (9 cards) | 12 | 9 | 3 | Medium |
+| R6 | 1S + 2R (9 cards) | 12 | 9 | 3 | Medium |
+| R7 | 3 runs (all cards) | 12 | 12 | 0 | Must-meld-all |
+
+Feature suppression by hand pressure:
+- **Loose (3+ free):** Features can operate freely
+- **Medium (2-3 free):** Disable post-contract speculation, monitor feed payoff
+- **Tight (0-1 free):** Disable feed, post-contract spec, tighten speculation gates
+- **Must-meld-all:** Dedicated solver, all standard features off

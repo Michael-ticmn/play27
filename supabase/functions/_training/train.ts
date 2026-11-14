@@ -63,7 +63,7 @@ console.log('╚═════════════════════�
 console.log('');
 console.log(`  Label:    ${config.label}`);
 console.log(`  Games:    ${config.numGames}`);
-console.log(`  Round:    ${config.roundNumber}`);
+console.log(`  Mode:     ${config.roundNumber === 0 ? `Full game (rounds ${config.startRound}-7)` : `Round ${config.roundNumber}`}`);
 console.log(`  Seats:    ${config.seats.map(s => `${s.aiName}:${s.aiTier}`).join(', ')}`);
 console.log(`  Jokers:   ${config.gameSettings.numJokers}`);
 console.log(`  Max Buys: ${config.gameSettings.maxBuys ?? 'unlimited'}`);
@@ -72,9 +72,13 @@ console.log('');
 
 // ── Snapshot resolved profiles into config for reproducibility ──
 const profiles: Record<string, unknown> = {};
+const profileRounds = config.roundNumber === 0 ? [1,2,3,4,5,6,7] : [config.roundNumber];
 for (const seat of config.seats) {
-  if (!profiles[seat.aiTier]) {
-    profiles[seat.aiTier] = resolveProfile(getTier(seat.aiTier), config.roundNumber);
+  for (const rn of profileRounds) {
+    const key = config.roundNumber === 0 ? `${seat.aiTier}_r${rn}` : seat.aiTier;
+    if (!profiles[key]) {
+      profiles[key] = resolveProfile(getTier(seat.aiTier), rn);
+    }
   }
 }
 (config as any).profiles = profiles;
@@ -106,11 +110,21 @@ for (let i = 1; i <= config.numGames; i++) {
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       const winTier = result.winnerTier || '???';
       const turns = result.totalTurns;
-      console.log(
-        `  [${String(i).padStart(4)}/${config.numGames}] ` +
-        `Winner: ${winTier.padEnd(7)} | ${turns} turns | ${result.durationMs}ms | ` +
-        `elapsed: ${elapsed}s`
-      );
+      if (result.roundResults && result.roundResults.length > 1) {
+        // Full game: show round winners
+        const roundWins = result.roundResults.map(r => r.winnerTier?.[0]?.toUpperCase() || '?').join('');
+        console.log(
+          `  [${String(i).padStart(4)}/${config.numGames}] ` +
+          `Winner: ${winTier.padEnd(7)} | ${turns} turns | ${result.durationMs}ms | ` +
+          `rounds: ${roundWins} | elapsed: ${elapsed}s`
+        );
+      } else {
+        console.log(
+          `  [${String(i).padStart(4)}/${config.numGames}] ` +
+          `Winner: ${winTier.padEnd(7)} | ${turns} turns | ${result.durationMs}ms | ` +
+          `elapsed: ${elapsed}s`
+        );
+      }
     }
   } catch (e) {
     failed++;
@@ -199,7 +213,7 @@ if (webhookUrl) {
   const msg = [
     `**play27 Training Complete**`,
     ``,
-    `**${config.label}** — Round ${config.roundNumber}`,
+    `**${config.label}** — ${config.roundNumber === 0 ? 'Full Game' : `Round ${config.roundNumber}`}`,
     `Games: ${completed}/${config.numGames}  |  Failed: ${failed}  |  Time: ${timeStr}`,
     `Avg turns: ${(summary as any).avgTurns || '?'}`,
     `\`\`\``,

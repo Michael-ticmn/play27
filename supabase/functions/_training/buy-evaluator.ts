@@ -6,9 +6,10 @@
 // ============================================================
 
 import { CardId, cardValue, isJoker } from '../_shared/types.ts';
-import { groupByValue, groupBySuit, evaluateRound7Buy } from '../ai-turn/hand-analyzer.ts';
+import { groupByValue, groupBySuit, evaluateRound7Buy, r7SolverBuy } from '../ai-turn/hand-analyzer.ts';
 import { getRoundProfile } from '../ai-turn/round-profiles.ts';
 import { type CardMemory, availableCount } from '../ai-turn/card-memory.ts';
+import { type PlanState, getPlanTarget } from '../ai-turn/plan-state.ts';
 
 const BUY_THRESHOLDS: Record<string, number> = {
   easy: 70,     // only obvious completions
@@ -47,7 +48,8 @@ export function evaluateBuy(
   roundNumber: number,
   tier: string,
   memory?: CardMemory,
-  totalPerValue = 8   // cards per value in full deck (numDecks * 4)
+  totalPerValue = 8,   // cards per value in full deck (numDecks * 4)
+  plan?: PlanState
 ): { shouldBuy: boolean; score: number } {
   // Card memory: skip buying if not enough of this value remain to complete a set
   if (memory && !isJoker(topDiscard)) {
@@ -64,11 +66,41 @@ export function evaluateBuy(
   const rp = getRoundProfile(roundNumber);
 
   if (roundNumber === 7) {
-    buyScore = evaluateRound7Buy(hand, topDiscard);
+    buyScore = r7SolverBuy(hand, topDiscard, memory, totalPerValue);
   } else if (rp.useGapFillDraw) {
     buyScore = Math.max(evaluateRound7Buy(hand, topDiscard), standardBuyScore(hand, topDiscard));
   } else {
     buyScore = standardBuyScore(hand, topDiscard);
+  }
+
+  // Plan-aware buy scoring: tier-scaled influence
+  // Normal: gentle nudge. Hard: moderate. Unfair: strong directive.
+  // Plan buy influence: Normal = gentle, Hard = moderate
+  // Easy/Unfair have no plan (skipped in game-loop), zero entries for safety
+  const planBuyBonus: Record<string, { complete: number; advance: number; offPlan: number }> = {
+    easy:   { complete: 0,  advance: 0,  offPlan: 0 },
+    normal: { complete: 25, advance: 15, offPlan: -10 },
+    hard:   { complete: 55, advance: 30, offPlan: -20 },
+    unfair: { complete: 0,  advance: 0,  offPlan: 0 },
+  };
+  const buyBonus = planBuyBonus[tier] ?? planBuyBonus.normal;
+  if (plan && !isJoker(topDiscard) && (buyBonus.complete > 0)) {
+    const dv = cardValue(topDiscard);
+    const target = getPlanTarget(plan, dv);
+    const confidence = (t: { held: number }) =>
+      t.held >= 2 ? 1.0 : t.held === 1 ? 0.3 : 0.0;
+
+    if (target) {
+      if (target.held >= 2) buyScore += buyBonus.complete;
+      else if (target.held >= 1) buyScore += buyBonus.advance;
+    } else {
+      // Off-plan: scale penalty by average confidence of active targets
+      const activeTargets = plan.targets.filter(t => t.status === 'active');
+      const avgConf = activeTargets.length > 0
+        ? activeTargets.reduce((sum, t) => sum + confidence(t), 0) / activeTargets.length
+        : 0;
+      buyScore += buyBonus.offPlan * avgConf;
+    }
   }
 
   const threshold = (BUY_THRESHOLDS[tier] ?? 40) + rp.buyThresholdAdjust;
