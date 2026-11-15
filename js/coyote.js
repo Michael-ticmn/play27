@@ -4,9 +4,9 @@
 // ============================================================
 
 import { initTheme } from './theme.js?v=0.15.24';
-import { CoyoteGame, CARD_TYPES, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24-p7';
-import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24-p7';
-import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.24-p7';
+import { CoyoteGame, CARD_TYPES, CHARACTERS, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24-p9';
+import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24-p9';
+import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.24-p9';
 
 const HUMAN = 0;
 // Helper levels: coach tips + reads, reads only, or off (just the facts).
@@ -680,6 +680,7 @@ function introBody(g) {
     <p>${esc(info.goal)}</p>${pack}${shep}
     <div class="intro-kicker">Your character</div>
     <p><b>${esc(me.character.name)} the ${esc(me.character.animal)}.</b> <b>${esc(me.character.ability)}:</b> ${esc(me.character.text)}</p>
+    ${CHAR_TIPS[me.character.id] ? `<p class="intro-tip">${esc(CHAR_TIPS[me.character.id])}</p>` : ''}
     <p class="intro-note">Your role is your side, and it stays secret. Your character is just the animal you play, with one special ability. Any animal can have any role.</p>
     <p>${g.n} players · ${g.opt.nights} nights · coyotes need ${sheepWord(g.denTarget)} in the den · ${TIERS[g.tier]?.label ?? 'Normal'} opponents.</p>`;
 }
@@ -727,6 +728,7 @@ function rulesHTML() {
   return `<h3>How to play Lanterns Out</h3>
     <h4>Role and character</h4>
     <p>Everyone gets two things. A <b>role</b> is your side: it's secret (except the Shepherd's) and decides how you win. A <b>character</b> is the farm animal you play, with one special ability. Any animal can have any role: Mabel the goose might be a Sheepdog in one game and a Coyote in the next.</p>
+    <p><button class="btn-link rules-jump" data-act="rules-chars">Jump to the characters</button></p>
     <h4>The roles</h4>
     <ul>
       <li>${roleImg('shepherd', 'rb')}<b class="r-shepherd">Shepherd</b> (everyone knows who): survive to dawn, or knock out every Coyote.</li>
@@ -748,7 +750,39 @@ function rulesHTML() {
     <p>Distance is the number of seats between you, the short way round. Your Snap! reaches your range: 1, plus 1 for the Shepherd's Crook, plus 1 for a Hayloft.</p>
     <h4>Knockouts</h4>
     <p>At 0 lives you become a crow and your role is revealed. You stay on your team, and each night you draw a card and may drop it into the dark. Knocking out a Coyote brings a sheep home from the den. If the Shepherd knocks out one of the flock, a sheep runs off to the den.</p>
+    ${charactersHTML()}
     <div class="btns"><button class="btn primary" data-act="rules-close">Got it</button></div>`;
+}
+
+// What each character's ability is for, in plain words. Kept next to the
+// engine's one-line ability text; check both when an ability changes.
+const CHAR_TIPS = {
+  oldblue: "The card is picked at random from the other players' cards. A moon is close to proof; a lantern clears them. What you see is added to that player's list.",
+  mabel: "Hold on to Dodge! cards: they protect you and strip your attackers' hands.",
+  woolly: 'Everyone sees you do it, so it reads as a flock move. Careful at 1 life: it can knock you out.',
+  clementine: "That's double a normal Mend. Sitting next to the Shepherd makes you their best protector.",
+  tiny: "You need a Snap! card in hand. It doesn't use up your one Snap! for the turn, so attackers think twice.",
+  duke: 'Everyone sees those cards. Pick your top suspect: a face-up moon is hard to explain. Only 2 lives.',
+  hazel: "A face-up lantern shows everyone which side you're helping, and the extra card keeps your hand full. Only 2 lives.",
+  boots: 'Two lanterns cancel a whole moon; two moons can take two sheep. Putting in none keeps your hand full. Only 2 lives.',
+};
+
+function charactersHTML() {
+  const delta = game?.opt.lifeDelta ?? DEFAULTS.lifeDelta;
+  const rows = CHARACTERS.map(c => {
+    const lives = Math.max(1, c.lives + delta);
+    return `<div class="char-row">
+      <img class="char-pt" src="${ART}char-${c.id}.svg${ART_V}" alt="${esc(c.name)} the ${esc(c.animal)}">
+      <div class="char-info">
+        <div class="char-name"><b>${esc(c.name)}</b> the ${esc(c.animal)} <span class="lives" title="${livesWord(lives)}">${'♥'.repeat(lives)}</span></div>
+        <div class="char-ability"><b>${esc(c.ability)}:</b> ${esc(c.text)}</div>
+        <div class="char-tip">${esc(CHAR_TIPS[c.id] || '')}</div>
+      </div>
+    </div>`;
+  }).join('');
+  return `<h4 id="rulesChars">The characters</h4>
+    <p>Characters are dealt at random, and everyone can see who has which. Hearts show starting lives; the Shepherd gets 1 more. Duke, Hazel, and Boots have strong abilities but only 2 lives.</p>
+    <div class="char-list">${rows}</div>`;
 }
 
 // ── Input ──
@@ -767,6 +801,10 @@ function onCard(id) {
     else if (ui.selected.length < max) ui.selected.push(id);
     return render();
   }
+}
+
+function scrollToChars() {
+  document.getElementById('rulesChars')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function openSheet(which) {
@@ -807,6 +845,8 @@ function onAct(act) {
   switch (act) {
     case 'rules': ui.rulesOpen = true; closeDropdown(); return renderAny();
     case 'rules-close': ui.rulesOpen = false; releaseGate(); return renderAny();
+    case 'chars': ui.rulesOpen = true; closeDropdown(); renderAny(); return scrollToChars();
+    case 'rules-chars': return scrollToChars();
     case 'who': return openSheet('who');
     case 'sheet-close': ui.sheet = null; releaseGate(); return render();
     case 'coach-ok': ui.coach.shift(); return render();
