@@ -52,10 +52,11 @@ html, body { height:100%; overflow:hidden; }
 
 /* ── Setup Screen ── */
 #setupScreen {
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  height:100dvh; gap:20px; padding:16px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; justify-content:safe center;
+  height:100dvh; gap:16px; padding:16px; overflow-y:auto;
 }
-.setup-logo img { height:100px; border-radius:16px; }
+.setup-logo img { height:64px; border-radius:12px; }
+.setup-hero { width:min(360px, 100%); height:auto; border-radius:14px; box-shadow:0 6px 24px rgba(0,0,0,0.35); }
 .setup-title {
   font-family:'Courier New', Courier, monospace; font-size:1.6rem; font-weight:700;
   color:var(--amber); margin-top:8px;
@@ -122,9 +123,8 @@ html, body { height:100%; overflow:hidden; }
 .sheep.taken { color:var(--red); opacity:1; }
 .dark-pile { display:flex; align-items:center; min-height:48px; }
 .dark-pile .back {
-  width:34px; height:46px; border-radius:5px; border:1px solid var(--border);
-  background:repeating-linear-gradient(45deg, var(--bg3) 0 4px, var(--bg2) 4px 8px);
-  box-shadow:0 2px 4px var(--card-shadow);
+  width:34px; height:46px; border-radius:4px; display:block;
+  box-shadow:0 2px 5px var(--card-shadow);
 }
 .dark-pile .back + .back { margin-left:-24px; }
 .dark-pile .faceup {
@@ -155,6 +155,12 @@ html, body { height:100%; overflow:hidden; }
 .seat.target:hover { background:var(--bg3); }
 .seat.picked { background:var(--bg3); box-shadow:0 0 0 2px var(--green); }
 .seat.crow { opacity:0.45; }
+.seat-head { display:flex; align-items:center; gap:8px; }
+.seat-id { flex:1; min-width:0; }
+.pt-wrap { position:relative; flex-shrink:0; display:inline-block; line-height:0; }
+.pt { width:42px; height:42px; display:block; }
+.pt-role { position:absolute; right:-5px; bottom:-5px; width:20px; height:20px; }
+.seat.crow .pt, .you.crow .pt { filter:grayscale(1); }
 .seat-top { display:flex; justify-content:space-between; align-items:baseline; gap:6px; }
 .seat-name {
   font-family:'Courier New', Courier, monospace; font-size:0.82rem; font-weight:700; color:var(--text);
@@ -202,6 +208,7 @@ html, body { height:100%; overflow:hidden; }
   padding:7px 12px; background:var(--bg2);
 }
 .you-role { font-family:'Courier New', Courier, monospace; font-weight:700; font-size:0.8rem; }
+.you .pt { width:40px; height:40px; }
 .you-char { font-size:0.7rem; color:var(--muted); }
 .you-char b { color:var(--text); }
 .you .spacer { flex:1; }
@@ -287,7 +294,12 @@ html, body { height:100%; overflow:hidden; }
   text-transform:uppercase; letter-spacing:0.08em; margin:12px 0 4px;
 }
 .panel.rules p, .panel.rules li { font-size:0.76rem; color:var(--text); line-height:1.45; margin-bottom:4px; }
-.panel.rules ul { padding-left:18px; }
+.panel.rules ul { padding-left:0; list-style:none; }
+.panel.rules ul.steps { padding-left:18px; list-style:disc; }
+.panel.rules li .rb { width:22px; height:22px; vertical-align:-6px; margin-right:6px; }
+.intro-art { display:flex; justify-content:center; gap:14px; margin:4px 0 12px; }
+.intro-art img { width:84px; height:84px; }
+.results-table .rt-pt { width:26px; height:26px; vertical-align:middle; margin-right:6px; }
 .panel.rules .btns { justify-content:flex-end; }
 
 .reveal-counts { display:flex; justify-content:center; gap:18px; margin:6px 0 12px; }
@@ -335,6 +347,10 @@ html, body { height:100%; overflow:hidden; }
   .seats { grid-template-columns:1fr 1fr; gap:6px; padding:6px 8px; }
   .seat { padding:5px 7px; }
   .seat-name { font-size:0.74rem; }
+  .pt { width:34px; height:34px; }
+  .pt-role { width:17px; height:17px; }
+  .seat-head { gap:6px; }
+  .setup-hero { width:min(320px, 100%); }
   .lives { font-size:0.7rem; }
   .feed { padding:4px 8px; font-size:0.66rem; }
   .you { padding:6px 8px; }

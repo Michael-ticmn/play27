@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Shepherd">
+  <title>Shepherd</title>
+  <defs><clipPath id="c"><circle cx="60" cy="60" r="56"/></clipPath></defs>
+  <circle cx="60" cy="60" r="58" fill="#2a2517"/>
+  <g clip-path="url(#c)">
+
+    <path d="M0 92 C30 82 52 88 72 84 C92 80 108 86 120 90 L120 120 L0 120 Z" fill="#24402f"/>
+    <path d="M70 110 L70 42 C70 27 89 25 91 38 C92 47 84 50 80 44" stroke="#d4a027" stroke-width="6.5" fill="none" stroke-linecap="round"/>
+    <ellipse cx="44" cy="56" rx="25" ry="6.5" fill="#d9b25a"/>
+    <path d="M31 56 C31 40 57 40 57 56 Z" fill="#e6c370"/>
+    <rect x="31" y="50" width="26" height="4.5" fill="#a8452f"/>
+    <g transform="translate(36 94) scale(1.2)">
+      <g stroke="#2b2f36" stroke-width="2.4" stroke-linecap="round"><line x1="-7" y1="8" x2="-7" y2="15"/><line x1="7" y1="8" x2="7" y2="15"/></g>
+      <g fill="#f1eadb"><circle cx="-9" cy="0" r="7"/><circle cx="0" cy="-3" r="8"/><circle cx="9" cy="0" r="7"/><circle cx="-4" cy="5" r="6"/><circle cx="5" cy="5" r="6"/></g>
+      <ellipse cx="-15" cy="-1" rx="5" ry="4.2" fill="#2b2f36"/>
+    </g>
+
+  </g>
+  <circle cx="60" cy="60" r="57" fill="none" stroke="#d4a027" stroke-width="2.5"/>
+</svg>

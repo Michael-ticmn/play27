@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Tiny the bull">
+  <title>Tiny the bull</title>
+  <defs><clipPath id="c"><circle cx="60" cy="60" r="56"/></clipPath></defs>
+  <circle cx="60" cy="60" r="58" fill="#2a1d1d"/>
+  <g clip-path="url(#c)">
+
+    <path d="M8 120 C12 96 34 87 60 87 C86 87 108 96 112 120 Z" fill="#2c1f19"/>
+    <path d="M38 41 C25 41 13 34 9 19 C17 28 28 30 40 30 Z" fill="#ece3cd"/>
+    <path d="M82 41 C95 41 107 34 111 19 C103 28 92 30 80 30 Z" fill="#ece3cd"/>
+    <ellipse cx="29" cy="50" rx="11" ry="6" fill="#4a332a" transform="rotate(-12 29 50)"/>
+    <ellipse cx="91" cy="50" rx="11" ry="6" fill="#4a332a" transform="rotate(12 91 50)"/>
+    <path d="M60 25 C79 25 87 36 87 50 C87 62 83 72 79 80 L41 80 C37 72 33 62 33 50 C33 36 41 25 60 25 Z" fill="#5a3d30"/>
+    <path d="M48 30 C53 22 67 22 72 30 C67 27 63 32 60 27 C57 32 53 27 48 30 Z" fill="#3e2a22"/>
+    <path d="M41 47 L55 51" stroke="#2c1f19" stroke-width="4" stroke-linecap="round"/>
+    <path d="M79 47 L65 51" stroke="#2c1f19" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="49" cy="56" r="3.3" fill="#15171a"/><circle cx="50.0" cy="54.8" r="1.1" fill="#fff"/><circle cx="71" cy="56" r="3.3" fill="#15171a"/><circle cx="72.0" cy="54.8" r="1.1" fill="#fff"/>
+    <path d="M41 68 C41 61 50 59 60 59 C70 59 79 61 79 68 L79 83 C79 93 70 97 60 97 C50 97 41 93 41 83 Z" fill="#8a6a58"/>
+    <ellipse cx="51" cy="76" rx="3.6" ry="4.8" fill="#2c1f19"/><ellipse cx="69" cy="76" rx="3.6" ry="4.8" fill="#2c1f19"/>
+    <path d="M53 84 C53 95 67 95 67 84" stroke="#d4a027" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+
+  </g>
+  <circle cx="60" cy="60" r="57" fill="none" stroke="#3a3d44" stroke-width="2.5"/>
+</svg>

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Clementine the dairy cow">
+  <title>Clementine the dairy cow</title>
+  <defs><clipPath id="c"><circle cx="60" cy="60" r="56"/></clipPath></defs>
+  <circle cx="60" cy="60" r="58" fill="#2a231e"/>
+  <g clip-path="url(#c)">
+
+    <path d="M18 120 C22 100 40 94 60 94 C80 94 98 100 102 120 Z" fill="#f3efe6"/>
+    <path d="M71 96 C82 98 93 104 97 120 L73 120 C75 110 72 104 71 96 Z" fill="#26292e"/>
+    <path d="M44 31 C39 22 41 15 48 13 C46 20 48 26 53 31 Z" fill="#e6dcc4"/>
+    <path d="M76 31 C81 22 79 15 72 13 C74 20 72 26 67 31 Z" fill="#e6dcc4"/>
+    <ellipse cx="29" cy="45" rx="14" ry="7.5" fill="#f3efe6" transform="rotate(-15 29 45)"/>
+    <ellipse cx="30" cy="45" rx="8.5" ry="3.8" fill="#e9a3a3" transform="rotate(-15 30 45)"/>
+    <ellipse cx="91" cy="45" rx="14" ry="7.5" fill="#f3efe6" transform="rotate(15 91 45)"/>
+    <ellipse cx="90" cy="45" rx="8.5" ry="3.8" fill="#e9a3a3" transform="rotate(15 90 45)"/>
+    <path d="M60 26 C76 26 82 36 82 50 C82 62 80 70 78 76 L42 76 C40 70 38 62 38 50 C38 36 44 26 60 26 Z" fill="#f3efe6"/>
+    <path d="M64 27 C76 26 82 36 82 48 C80 57 71 59 65 52 C59 45 58 33 64 27 Z" fill="#26292e"/>
+    <circle cx="50" cy="48" r="3.7" fill="#15171a"/><circle cx="51.2" cy="46.8" r="1.2" fill="#fff"/>
+    <circle cx="70" cy="48" r="4.8" fill="#f3efe6"/><circle cx="70" cy="48" r="3.3" fill="#15171a"/><circle cx="71.0" cy="46.8" r="1.1" fill="#fff"/>
+    <rect x="40" y="63" width="40" height="30" rx="15" fill="#eaa5a5"/>
+    <ellipse cx="51" cy="77" rx="3.4" ry="4.6" fill="#9e5b5b"/><ellipse cx="69" cy="77" rx="3.4" ry="4.6" fill="#9e5b5b"/>
+    <g transform="translate(47 30)">
+      <g fill="#ef8f2f"><circle cx="0" cy="-5" r="3.4"/><circle cx="4.8" cy="-1.5" r="3.4"/><circle cx="3" cy="4" r="3.4"/><circle cx="-3" cy="4" r="3.4"/><circle cx="-4.8" cy="-1.5" r="3.4"/></g>
+      <circle r="2.6" fill="#f6d36b"/>
+    </g>
+
+  </g>
+  <circle cx="60" cy="60" r="57" fill="none" stroke="#3a3d44" stroke-width="2.5"/>
+</svg>

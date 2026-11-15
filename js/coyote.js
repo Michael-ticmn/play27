@@ -4,8 +4,8 @@
 // ============================================================
 
 import { initTheme } from './theme.js?v=0.15.24';
-import { CoyoteGame, CARD_TYPES, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24-p2';
-import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24-p2';
+import { CoyoteGame, CARD_TYPES, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24-p3';
+import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24-p3';
 
 const HUMAN = 0;
 const $ = id => document.getElementById(id);
@@ -32,6 +32,10 @@ const ICON_SVG = {
   blank: '<svg class="ico ico-blank" viewBox="0 0 24 24" role="img" aria-label="blank"><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>',
 };
 
+const ART = 'assets/coyote/';
+const ART_V = '?v=0.15.24-p3';
+const charImg = (p, cls = 'pt') => `<img class="${cls}" src="${ART}char-${p.character.id}.svg${ART_V}" alt="${p.character.name}">`;
+const roleImg = (role, cls = 'pt-role') => `<img class="${cls}" src="${ART}role-${role}.svg${ART_V}" alt="${ROLE_INFO[role].name}">`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const icon = (name, cls = 'ii') => `<span class="${cls}">${ICON_SVG[name]}</span>`;
 const delay = ms => new Promise(r => setTimeout(r, ms));
@@ -163,7 +167,7 @@ function renderYard() {
   const sheep = Array.from({ length: g.denTarget }, (_, i) =>
     `<span class="sheep ${i < g.den ? 'taken' : ''}">${ICON_SVG.sheep}</span>`).join('');
   const down = g.dark.filter(d => !d.faceUp).length;
-  const backs = Array.from({ length: Math.min(down, 10) }, () => '<span class="back"></span>').join('');
+  const backs = Array.from({ length: Math.min(down, 10) }, () => `<img class="back" src="${ART}card-back.svg${ART_V}" alt="">`).join('');
   const ups = g.dark.filter(d => d.faceUp).map(d =>
     `<span class="faceup" title="Put in face up by ${esc(g.players[d.by].name)}"><span class="fu-icon">${ICON_SVG[d.card.icon]}</span><span class="fu-name">${esc(cardName(d.card))}</span><span class="fu-by">${esc(g.players[d.by].name)}</span></span>`).join('');
   const flash = ui.flash ? `<div class="yard-flash ${ui.flash.cls}">${esc(ui.flash.text)}</div>` : '<div class="yard-flash"></div>';
@@ -212,8 +216,13 @@ function renderSeats() {
     if (g.dukeTarget === s) tags.push('<span class="tag woken" title="Their Dark cards tonight go in face up">Woken</span>');
     if (!p.crow) tags.push(`<span class="tag">${plural(p.hand.length, 'card')}</span>`);
     return `<div class="${cls.join(' ')}" data-seat="${s}">
-      <div class="seat-top"><span class="seat-name">${esc(p.name)}</span>${p.crow ? '<span class="tag">Crow</span>' : livesHTML(p)}</div>
-      <div class="seat-sub" title="${esc(p.character.text)}">${esc(p.character.animal)} · ${esc(p.character.ability)}</div>
+      <div class="seat-head">
+        <span class="pt-wrap">${charImg(p)}${known ? roleImg(known) : ''}</span>
+        <div class="seat-id">
+          <div class="seat-top"><span class="seat-name">${esc(p.name)}</span>${p.crow ? '<span class="tag">Crow</span>' : livesHTML(p)}</div>
+          <div class="seat-sub" title="${esc(p.character.text)}">${esc(p.character.animal)} · ${esc(p.character.ability)}</div>
+        </div>
+      </div>
       <div class="seat-row">${tags.join('')}</div>
     </div>`;
   }).join('');
@@ -239,8 +248,9 @@ function renderYou() {
   if (!me.crow) tags.push(`<span class="tag">range ${g.range(me)}</span>`);
   if (me.bell) tags.push('<span class="tag bell">Bell</span>');
   if (g.dukeTarget === HUMAN) tags.push('<span class="tag woken">Woken</span>');
-  $('youPanel').className = `you${g.turnSeat === HUMAN ? ' active' : ''}`;
+  $('youPanel').className = `you${g.turnSeat === HUMAN ? ' active' : ''}${me.crow ? ' crow' : ''}`;
   $('youPanel').innerHTML = `
+    <span class="pt-wrap">${charImg(me)}${roleImg(me.role)}</span>
     <span class="you-role ${ROLE_CLASS[me.role]}" title="${esc(info.goal)}">${info.name}</span>
     <span class="you-char"><b>${esc(me.character.name)}</b> (${esc(me.character.animal)}) · ${esc(me.character.ability)}: ${esc(me.character.text)}${pack ? ` · Pack: <b>${pack}</b>` : ''}</span>
     <span class="spacer"></span>
@@ -412,7 +422,8 @@ function overlayHTML(o) {
       ? `<p>Your pack: <b>${g.players.filter(p => p !== me && p.role === 'coyote').map(p => esc(p.name)).join(', ')}</b>. They know you too.</p>`
       : '';
     const shep = me.role === 'shepherd' ? '' : `<p>The Shepherd is <b>${esc(g.players[g.shepherdSeat].name)}</b>.</p>`;
-    return `<h3 class="${ROLE_CLASS[me.role]}">You are ${me.role === 'shepherd' ? 'the' : 'a'} ${info.name}</h3>
+    return `<div class="intro-art">${roleImg(me.role, '')}${charImg(me, '')}</div>
+      <h3 class="${ROLE_CLASS[me.role]}">You are ${me.role === 'shepherd' ? 'the' : 'a'} ${info.name}</h3>
       <p>${esc(info.goal)}</p>${pack}${shep}
       <p>You are <b>${esc(me.character.name)}</b>, the ${esc(me.character.animal)}. <b>${esc(me.character.ability)}:</b> ${esc(me.character.text)}</p>
       <p>${g.n} players · ${g.opt.nights} nights · coyotes need ${sheepWord(g.denTarget)} in the den · ${TIERS[g.tier]?.label ?? 'Normal'} opponents.</p>
@@ -438,7 +449,7 @@ function overlayHTML(o) {
     const won = ROLE_INFO[me.role].team === r.winner || (me.role === 'fox' && r.foxWin);
     const rows = g.turnOrder().map(s => {
       const p = g.players[s];
-      return `<tr><td><b>${esc(p.name)}</b></td><td class="${ROLE_CLASS[p.role]}">${ROLE_INFO[p.role].name}</td><td>${p.crow ? 'crow' : livesWord(p.lives)} · ${p.kills} KO</td></tr>`;
+      return `<tr><td>${charImg(p, 'rt-pt')}<b>${esc(p.name)}</b></td><td class="${ROLE_CLASS[p.role]}">${ROLE_INFO[p.role].name}</td><td>${p.crow ? 'crow' : livesWord(p.lives)} · ${p.kills} KO</td></tr>`;
     }).join('');
     return `<h3>${r.winner === 'flock' ? 'The flock wins' : 'The coyotes win'}</h3>
       <div class="big-result ${won ? 'win' : 'lose'}">${won ? 'You win' : 'You lose'}</div>
@@ -454,14 +465,14 @@ function rulesHTML() {
   return `<h3>How to play Coyote</h3>
     <h4>The sides</h4>
     <ul>
-      <li><b class="r-shepherd">Shepherd</b> (everyone knows who): survive to dawn, or knock out every Coyote.</li>
-      <li><b class="r-sheepdog">Sheepdogs</b> (hidden): win with the Shepherd, even after being knocked out.</li>
-      <li><b class="r-hunter">Hunter</b> (hidden, 5+ players, flock side): once a night may Snap! at any distance, which reveals them. When knocked out, gets one free last shot.</li>
-      <li><b class="r-coyote">Coyotes</b> (hidden, know each other): knock out the Shepherd, or get enough sheep into the den.</li>
-      <li><b class="r-fox">Fox</b> (hidden, 6+ players): be alive at the end with at least one knockout. Wins alongside whoever wins.</li>
+      <li>${roleImg('shepherd', 'rb')}<b class="r-shepherd">Shepherd</b> (everyone knows who): survive to dawn, or knock out every Coyote.</li>
+      <li>${roleImg('sheepdog', 'rb')}<b class="r-sheepdog">Sheepdogs</b> (hidden): win with the Shepherd, even after being knocked out.</li>
+      <li>${roleImg('hunter', 'rb')}<b class="r-hunter">Hunter</b> (hidden, 5+ players, flock side): once a night may Snap! at any distance, which reveals them. When knocked out, gets one free last shot.</li>
+      <li>${roleImg('coyote', 'rb')}<b class="r-coyote">Coyotes</b> (hidden, know each other): knock out the Shepherd, or get enough sheep into the den.</li>
+      <li>${roleImg('fox', 'rb')}<b class="r-fox">Fox</b> (hidden, 6+ players): be alive at the end with at least one knockout. Wins alongside whoever wins.</li>
     </ul>
     <h4>Your turn</h4>
-    <ul>
+    <ul class="steps">
       <li><b>Draw</b> 2 cards.</li>
       <li><b>Day:</b> play cards. Only one Snap! per turn.</li>
       <li><b>Dark:</b> put 1 card face down in the Dark pile.</li>

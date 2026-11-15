@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 350" width="250" height="350" role="img" aria-label="Coyote card back">
+  <title>Coyote card back</title>
+  <rect width="250" height="350" rx="12" fill="#14161a"/>
+  <rect x="0" y="0" width="250" height="5" rx="3" fill="#7b68c8"/>
+  <rect x="6" y="6" width="238" height="338" rx="9" fill="none" stroke="#2e3035" stroke-width="1.5"/>
+  <g fill="#c0c0bc" opacity=".55"><circle cx="40" cy="40" r="1.4"/><circle cx="70" cy="70" r="1"/><circle cx="110" cy="36" r="1.2"/><circle cx="30" cy="110" r="1"/><circle cx="60" cy="140" r="1.3"/><circle cx="130" cy="90" r="1"/><circle cx="210" cy="150" r="1.1"/><circle cx="100" cy="120" r="0.9"/><circle cx="226" cy="34" r="1"/></g>
+  <path d="M176 48 a40 40 0 1 0 34 66 a32 32 0 0 1 -34 -66 z" fill="#9a8ae6"/>
+  <path d="M6 236 C70 214 150 224 244 204 L244 335 C244 340 240 344 235 344 L15 344 C10 344 6 340 6 335 Z" fill="#1c2a24"/>
+  <rect x="22" y="201.7" width="206" height="4" rx="2" fill="#7a5a2a"/><rect x="22" y="217.5" width="206" height="4" rx="2" fill="#7a5a2a"/><rect x="19.0" y="192" width="6" height="44" rx="1.5" fill="#6b4a26"/><rect x="70.5" y="192" width="6" height="44" rx="1.5" fill="#6b4a26"/><rect x="122.0" y="192" width="6" height="44" rx="1.5" fill="#6b4a26"/><rect x="173.5" y="192" width="6" height="44" rx="1.5" fill="#6b4a26"/><rect x="225.0" y="192" width="6" height="44" rx="1.5" fill="#6b4a26"/>
+  <g transform="translate(70 268) scale(1.7)">
+      <g stroke="#2b2f36" stroke-width="2.4" stroke-linecap="round"><line x1="-7" y1="8" x2="-7" y2="15"/><line x1="7" y1="8" x2="7" y2="15"/></g>
+      <g fill="#f1eadb"><circle cx="-9" cy="0" r="7"/><circle cx="0" cy="-3" r="8"/><circle cx="9" cy="0" r="7"/><circle cx="-4" cy="5" r="6"/><circle cx="5" cy="5" r="6"/></g>
+      <ellipse cx="-15" cy="-1" rx="5" ry="4.2" fill="#2b2f36"/>
+    </g>
+  <g transform="translate(178 280) scale(1.5)">
+      <g stroke="#2b2f36" stroke-width="2.4" stroke-linecap="round"><line x1="-7" y1="8" x2="-7" y2="15"/><line x1="7" y1="8" x2="7" y2="15"/></g>
+      <g fill="#f1eadb"><circle cx="-9" cy="0" r="7"/><circle cx="0" cy="-3" r="8"/><circle cx="9" cy="0" r="7"/><circle cx="-4" cy="5" r="6"/><circle cx="5" cy="5" r="6"/></g>
+      <ellipse cx="15" cy="-1" rx="5" ry="4.2" fill="#2b2f36"/>
+    </g>
+  <path d="M6 300 C60 290 120 298 244 288 L244 335 C244 340 240 344 235 344 L15 344 C10 344 6 340 6 335 Z" fill="#17231e"/>
+  <ellipse cx="114.5" cy="312" rx="19.5" ry="9.0" fill="#e9c24a" opacity=".18"/><path d="M98.0 312 C101.0 308.1 107.0 308.1 110.0 312 C107.0 315.3 101.0 315.3 98.0 312 Z" fill="#f0c44a"/><ellipse cx="104" cy="312" rx="1.2000000000000002" ry="2.8499999999999996" fill="#15171a"/><path d="M119.0 312 C122.0 308.1 128.0 308.1 131.0 312 C128.0 315.3 122.0 315.3 119.0 312 Z" fill="#f0c44a"/><ellipse cx="125.0" cy="312" rx="1.2000000000000002" ry="2.8499999999999996" fill="#15171a"/>
+  <ellipse cx="183.7" cy="322" rx="14.3" ry="6.6000000000000005" fill="#e9c24a" opacity=".18"/><path d="M171.6 322 C173.8 319.14 178.2 319.14 180.4 322 C178.2 324.42 173.8 324.42 171.6 322 Z" fill="#f0c44a"/><ellipse cx="176" cy="322" rx="0.8800000000000001" ry="2.09" fill="#15171a"/><path d="M187.0 322 C189.20000000000002 319.14 193.6 319.14 195.8 322 C193.6 324.42 189.20000000000002 324.42 187.0 322 Z" fill="#f0c44a"/><ellipse cx="191.4" cy="322" rx="0.8800000000000001" ry="2.09" fill="#15171a"/>
+  <path d="M36 336 L28.2 315.2 M36 336 L36 307.4 M36 336 L45.1 316.5" stroke="#2e8a8c" stroke-width="3.9000000000000004" stroke-linecap="round" fill="none"/><path d="M92 330 L85.4 312.4 M92 330 L92 305.8 M92 330 L99.7 313.5" stroke="#2e8a8c" stroke-width="3.3000000000000003" stroke-linecap="round" fill="none"/><path d="M150 338 L142.8 318.8 M150 338 L150 311.6 M150 338 L158.4 320.0" stroke="#2e8a8c" stroke-width="3.5999999999999996" stroke-linecap="round" fill="none"/><path d="M214 332 L206.2 311.2 M214 332 L214 303.4 M214 332 L223.1 312.5" stroke="#2e8a8c" stroke-width="3.9000000000000004" stroke-linecap="round" fill="none"/><path d="M124 318 L118.6 303.6 M124 318 L124 298.2 M124 318 L130.3 304.5" stroke="#2e8a8c" stroke-width="2.7" stroke-linecap="round" fill="none"/>
+</svg>

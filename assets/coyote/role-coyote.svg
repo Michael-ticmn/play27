@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Coyote">
+  <title>Coyote</title>
+  <defs><clipPath id="c"><circle cx="60" cy="60" r="56"/></clipPath></defs>
+  <circle cx="60" cy="60" r="58" fill="#2b1d1d"/>
+  <g clip-path="url(#c)">
+
+    <path d="M30 54 L26 13 L55 37 Z" fill="#a8774a"/><path d="M33 47 L31 23 L48 37 Z" fill="#e2c9a6"/>
+    <path d="M90 54 L94 13 L65 37 Z" fill="#a8774a"/><path d="M87 47 L89 23 L72 37 Z" fill="#e2c9a6"/>
+    <path d="M60 30 C80 30 92 40 92 56 C92 66 84 72 76 78 L66 97 C64 101 56 101 54 97 L44 78 C36 72 28 66 28 56 C28 40 40 30 60 30 Z" fill="#b98a55"/>
+    <path d="M60 30 C64 40 64 52 60 64 C56 52 56 40 60 30 Z" fill="#9a6e43"/>
+    <path d="M42 66 C49 70 54 77 60 77 C66 77 71 70 78 66 L69 91 C67 97 53 97 51 91 Z" fill="#ead6b8"/>
+    <path d="M40 53 C44 49 52 50 56 55 C51 58 45 58 40 53 Z" fill="#e9c24a"/><ellipse cx="49" cy="54.3" rx="1.6" ry="2.4" fill="#15171a"/>
+    <path d="M80 53 C76 49 68 50 64 55 C69 58 75 58 80 53 Z" fill="#e9c24a"/><ellipse cx="71" cy="54.3" rx="1.6" ry="2.4" fill="#15171a"/>
+    <ellipse cx="60" cy="92" rx="5.2" ry="3.8" fill="#15171a"/>
+
+  </g>
+  <circle cx="60" cy="60" r="57" fill="none" stroke="#d45f5f" stroke-width="2.5"/>
+</svg>

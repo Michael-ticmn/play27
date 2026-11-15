@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Woolly the ram">
+  <title>Woolly the ram</title>
+  <defs><clipPath id="c"><circle cx="60" cy="60" r="56"/></clipPath></defs>
+  <circle cx="60" cy="60" r="58" fill="#2a2720"/>
+  <g clip-path="url(#c)">
+
+    <g fill="#e9e1cf"><circle cx="18" cy="114" r="17"/><circle cx="39" cy="108" r="17"/><circle cx="60" cy="106" r="18"/><circle cx="81" cy="108" r="17"/><circle cx="102" cy="114" r="17"/></g>
+    <path d="M47 40 C31 29 14 40 16 58 C18 73 33 77 39 67 C43 59 37 52 30 56" stroke="#a8844a" stroke-width="10" fill="none" stroke-linecap="round"/>
+    <path d="M73 40 C89 29 106 40 104 58 C102 73 87 77 81 67 C77 59 83 52 90 56" stroke="#a8844a" stroke-width="10" fill="none" stroke-linecap="round"/>
+    <path d="M47 40 C31 29 14 40 16 58" stroke="#c4a266" stroke-width="3" fill="none" stroke-linecap="round" stroke-dasharray="2 5"/>
+    <path d="M73 40 C89 29 106 40 104 58" stroke="#c4a266" stroke-width="3" fill="none" stroke-linecap="round" stroke-dasharray="2 5"/>
+    <ellipse cx="40" cy="54" rx="9" ry="4.2" fill="#cdbb98" transform="rotate(22 40 54)"/>
+    <ellipse cx="80" cy="54" rx="9" ry="4.2" fill="#cdbb98" transform="rotate(-22 80 54)"/>
+    <path d="M60 36 C72 36 76 46 76 58 C76 74 70 92 60 92 C50 92 44 74 44 58 C44 46 48 36 60 36 Z" fill="#d8c8a8"/>
+    <g fill="#f1eadb"><circle cx="48" cy="35" r="10"/><circle cx="60" cy="29" r="11"/><circle cx="72" cy="35" r="10"/><circle cx="54" cy="41" r="8"/><circle cx="66" cy="41" r="8"/></g>
+    <ellipse cx="52" cy="57" rx="4.4" ry="3.2" fill="#e9c46a"/><rect x="49" y="56.2" width="6" height="1.7" rx=".8" fill="#15171a"/>
+    <ellipse cx="68" cy="57" rx="4.4" ry="3.2" fill="#e9c46a"/><rect x="65" y="56.2" width="6" height="1.7" rx=".8" fill="#15171a"/>
+    <ellipse cx="56" cy="78" rx="2.2" ry="1.5" fill="#6d5a43"/><ellipse cx="64" cy="78" rx="2.2" ry="1.5" fill="#6d5a43"/>
+    <path d="M60 81 L60 85 M54 85 C56 88 64 88 66 85" stroke="#6d5a43" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+
+  </g>
+  <circle cx="60" cy="60" r="57" fill="none" stroke="#3a3d44" stroke-width="2.5"/>
+</svg>

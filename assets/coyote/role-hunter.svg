@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Hunter">
+  <title>Hunter</title>
+  <defs><clipPath id="c"><circle cx="60" cy="60" r="56"/></clipPath></defs>
+  <circle cx="60" cy="60" r="58" fill="#1c2c21"/>
+  <g clip-path="url(#c)">
+
+    <path d="M18 104 L88 34" stroke="#3a3f47" stroke-width="5" stroke-linecap="round"/>
+    <path d="M86 36 L94 28" stroke="#3a3f47" stroke-width="3" stroke-linecap="round"/>
+    <path d="M10 112 L30 94 L38 101 L19 118 Z" fill="#8a5a34"/>
+    <path d="M30 94 L44 80" stroke="#6b4426" stroke-width="7" stroke-linecap="round"/>
+    <path d="M36 78 C34 40 86 40 84 78 Z" fill="#e0712c"/>
+    <path d="M60 42 L60 78" stroke="#c25e1f" stroke-width="1.6"/>
+    <rect x="35" y="68" width="50" height="7" rx="1.5" fill="#2b2f36"/>
+    <path d="M33 78 C38 94 82 94 87 78 Z" fill="#c25e1f"/>
+    <circle cx="60" cy="43" r="3" fill="#c25e1f"/>
+    <path d="M78 70 C86 54 98 46 106 45 C100 54 92 64 81 72 Z" fill="#3ea8aa"/>
+    <path d="M80 70 C89 58 97 50 104 47" stroke="#2e8a8c" stroke-width="1.2" fill="none"/>
+
+  </g>
+  <circle cx="60" cy="60" r="57" fill="none" stroke="#3cb96a" stroke-width="2.5"/>
+</svg>

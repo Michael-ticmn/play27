@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Hazel the barn owl">
+  <title>Hazel the barn owl</title>
+  <defs><clipPath id="c"><circle cx="60" cy="60" r="56"/></clipPath></defs>
+  <circle cx="60" cy="60" r="58" fill="#23211c"/>
+  <g clip-path="url(#c)">
+
+    <path d="M20 120 C22 96 40 86 60 86 C80 86 98 96 100 120 Z" fill="#c99a63"/>
+    <g fill="#8a6a44"><circle cx="38" cy="104" r="1.6"/><circle cx="48" cy="98" r="1.4"/><circle cx="72" cy="98" r="1.4"/><circle cx="82" cy="104" r="1.6"/><circle cx="60" cy="110" r="1.4"/></g>
+    <path d="M60 17 C83 17 95 34 95 54 C95 75 81 91 60 91 C39 91 25 75 25 54 C25 34 37 17 60 17 Z" fill="#cf9f66"/>
+    <g fill="#8a6a44"><circle cx="46" cy="24" r="1.5"/><circle cx="60" cy="21" r="1.5"/><circle cx="74" cy="24" r="1.5"/><circle cx="33" cy="40" r="1.4"/><circle cx="87" cy="40" r="1.4"/></g>
+    <path d="M60 35 C66 25 87 23 89 44 C91 63 75 81 60 89 C45 81 29 63 31 44 C33 23 54 25 60 35 Z" fill="#f5efe4" stroke="#b8824a" stroke-width="2.2"/>
+    <ellipse cx="48.5" cy="54" rx="6" ry="7.2" fill="#15171a"/><circle cx="50.3" cy="51.6" r="1.8" fill="#fff"/>
+    <ellipse cx="71.5" cy="54" rx="6" ry="7.2" fill="#15171a"/><circle cx="73.3" cy="51.6" r="1.8" fill="#fff"/>
+    <path d="M57 63 C58 70 60 75 60 75 C60 75 62 70 63 63 C61 61 59 61 57 63 Z" fill="#d9b8a0"/>
+
+  </g>
+  <circle cx="60" cy="60" r="57" fill="none" stroke="#3a3d44" stroke-width="2.5"/>
+</svg>

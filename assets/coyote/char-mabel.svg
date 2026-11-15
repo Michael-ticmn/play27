@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Mabel the goose">
+  <title>Mabel the goose</title>
+  <defs><clipPath id="c"><circle cx="60" cy="60" r="56"/></clipPath></defs>
+  <circle cx="60" cy="60" r="58" fill="#1c2c2d"/>
+  <g clip-path="url(#c)">
+
+    <ellipse cx="44" cy="114" rx="42" ry="22" fill="#e2ddd1"/>
+    <path d="M40 104 C40 84 43 68 49 57 C53 49 57 43 60 37" stroke="#f3efe6" stroke-width="21" fill="none" stroke-linecap="round"/>
+    <ellipse cx="64" cy="36" rx="16.5" ry="13.5" fill="#f3efe6"/>
+    <path d="M76 31 C87 31 97 35 102 40 C97 45 87 47 76 45 Z" fill="#e8892b"/>
+    <path d="M78 40 C87 40 95 40.6 101 40.6" stroke="#b9661c" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <ellipse cx="80" cy="35" rx="2" ry="1.2" fill="#b9661c"/>
+    <circle cx="68" cy="32" r="2.9" fill="#15171a"/><circle cx="68.9" cy="31.0" r="0.9" fill="#fff"/>
+    <path d="M45 76 L34 69 L34 84 Z" fill="#3ea8aa"/>
+    <path d="M47 76 L58 69 L58 84 Z" fill="#3ea8aa"/>
+    <circle cx="46" cy="76" r="3.6" fill="#2e8a8c"/>
+
+  </g>
+  <circle cx="60" cy="60" r="57" fill="none" stroke="#3a3d44" stroke-width="2.5"/>
+</svg>
