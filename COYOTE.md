@@ -1,6 +1,10 @@
 # Coyote: Design Spec
 
-## As of 2026-11-14, draft v2 (branch `coyote`, based on v0.15.24)
+## As of 2026-11-14, draft v2.1 (branch `coyote`, based on v0.15.24)
+
+v2.1 = v2 plus the changes from the first simulation pass (see "Tuning log" at
+the end) and the rule details the code had to pin down. Playable preview:
+`coyote.html` (one human vs computer players). Simulator: `tools/coyote-sim.mjs`.
 
 A hidden-role card game for 4 to 7 players. A farm, dusk to dawn: the Shepherd
 has to hold the flock together while coyotes hide among the animals.
@@ -40,23 +44,23 @@ Everything below is original naming, flavor, and design. Keep it that way.
 
 | Players | Shepherd | Sheepdogs | Coyotes | Fox | Den target |
 |---|---|---|---|---|---|
-| 4 | 1 | 1 | 2 | 0 | 5 sheep |
-| 5 | 1 | 2 | 2 | 0 | 4 sheep |
+| 4 | 1 | 1 | 2 | 0 | 6 sheep |
+| 5 | 1 | 2 | 2 | 0 | 3 sheep |
 | 6 | 1 | 2 | 2 | 1 | 4 sheep |
-| 7 | 1 | 2 | 3 | 1 | 6 sheep |
+| 7 | 1 | 2 | 3 | 1 | 11 sheep |
 
 - **Shepherd** (public, flock team). +1 life. Starts with the Crook in play.
 - **Sheepdog** (hidden, flock team). Still wins with the flock after being knocked out.
-- **Coyote** (hidden, coyote team). Still wins with the coyotes after being knocked out.
+- **Coyote** (hidden, coyote team). Coyotes know each other (a pack). Still wins
+  with the coyotes after being knocked out.
 - **Fox** (hidden, 6+ players, plays for itself). Wins if it is alive when the game
-  ends and has knocked out at least 2 players, whichever team wins. The Fox's win
+  ends and has knocked out at least 1 player, whichever team wins. The Fox's win
   is in addition to the team win, not instead of it.
 
-The den targets come from rough supply math. Two draws a turn bring in about
-0.8 moons but only about 0.47 lanterns on average, so the flock can't cancel
-every moon and the sheep raid is a real threat at every player count. More
-coyotes per flock player means more moons a night, hence the higher targets at
-4 and 7 players. These are the first numbers to tune.
+The den targets look uneven because the moon rate depends on how many coyotes
+face how many flock players: 5 players (2 coyotes against 3 flock) loses sheep
+slowly, 7 players (3 against 3) loses them fast. Each target was set by
+simulation so coyotes win close to half the time at every count.
 
 ### How each side wins
 
@@ -82,9 +86,9 @@ clockwise. Everyone starts the game with 4 cards.
 
 After the last player's turn, shuffle the Dark pile and turn it over.
 
-- Each **moon** takes one sheep from the pen to the den.
-- Each **lantern** cancels one moon. Each Lantern kit in play adds one lantern.
-- Sheep lost = moons minus lanterns, never below 0.
+- Each **moon** takes one sheep to the den.
+- Every **2 lanterns** cancel one moon. Each Lantern kit in play adds one lantern.
+- Sheep lost = moons minus (lanterns ÷ 2, rounded down), never below 0.
 
 Everyone sees the icon counts, never who put in what. The revealed cards are
 discarded, so their day effects are gone. Then the moon marker moves on. After
@@ -131,7 +135,7 @@ Icon column is moon / lantern / blank.
 | **Snap!** | 17 | 7 / 3 / 7 | A player in range loses 1 life unless they Dodge!. One per turn. |
 | **Dodge!** | 10 | 3 / 3 / 4 | Cancel a Snap! aimed at you. Can't be used while you're in the Hayloft. |
 | **Bristle** | 2 | 1 / 0 / 1 | Play when a Snap! targets you: cancel it, and the attacker loses 1 life. |
-| **Pack Howl** | 2 | 1 / 0 / 1 | Name a player. Going clockwise from you, every other living player may Snap! them, ignoring range and their one-per-turn limit. The target may Dodge! each one. |
+| **Pack Howl** | 2 | 1 / 0 / 1 | Name a player. Going clockwise from you, every other living player (not you, not the target) may Snap! them, ignoring range and their one-per-turn limit. The target may Dodge! each one. |
 | **Frenzy** | 1 | 0 / 1 / 0 | You may play up to 2 more Snap!s this turn. |
 
 Pack Howl is a public vote: everyone sees who joins in and who holds back.
@@ -157,7 +161,7 @@ Pack Howl is a public vote: everyone sees who joins in and who holds back.
 |---|---|---|---|
 | **Bell** | 3 | 2 / 0 / 1 | Hang it on another player. Their next Dark card goes in face up, then the Bell is discarded. One Bell per player at a time. |
 | **Sniff** | 2 | 1 / 0 / 1 | Look at 2 random cards in a player's hand. |
-| **Headcount** | 1 | 1 / 0 / 0 | Look at the Dark pile so far tonight. Tell the table, lie, or say nothing. |
+| **Headcount** | 1 | 1 / 0 / 0 | See the icons in the Dark pile so far tonight (not who put them in). Tell the table, lie, or say nothing. |
 
 ### Kit (stays in front of you; at most 2, no duplicates)
 
@@ -170,7 +174,7 @@ Pack Howl is a public vote: everyone sees who joins in and who holds back.
 **Crook.** The Shepherd's starting kit, not in the deck. +1 range, can't be
 Spooked, and doesn't count toward the 2-kit limit.
 
-A coyote can put a Lantern in play to look trustworthy, at the cost of a sheep
+A coyote can put a Lantern in play to look trustworthy, at the cost of half a moon
 a night. That's the kind of bluff the design wants.
 
 ## Characters (8, dealt at random, public)
@@ -180,12 +184,12 @@ healing, and Snap!.
 
 | Character | Lives | Ability |
 |---|---|---|
-| **Old Blue** (hound) | 4 | *Nose for trouble.* Once per night, before the reveal, look at one random card in the Dark pile. |
+| **Old Blue** (hound) | 4 | *Nose for trouble.* Once per night, before the reveal, see one random face-down card in the Dark pile and who put it in. |
 | **Mabel** (goose) | 4 | *Hiss.* When you Dodge! a Snap!, the attacker discards a random card. |
 | **Woolly** (ram) | 4 | *Hold the gate.* Once per night, when the reveal would cost a sheep, you may lose 1 life to save it. |
 | **Clementine** (dairy cow) | 4 | *Warm milk.* Your Mend restores 2 lives, split as you like between you and players at distance 1. |
 | **Tiny** (bull) | 4 | *Charge.* When someone's Snap! costs you a life, you may play a Snap! back at them at once, ignoring range. It doesn't use your one Snap!. |
-| **Duke** (rooster) | 3 | *Wake-up call.* Once per night, pick another player before their turn. Their Dark card tonight goes in face up. |
+| **Duke** (rooster) | 3 | *Wake-up call.* At the start of each night, pick another player. Their Dark cards tonight go in face up. |
 | **Hazel** (barn owl) | 3 | *Watchful.* You may put your Dark card in face up. If you do, draw 1 card. |
 | **Boots** (barn cat) | 3 | *Prowler.* On your turn, put 0 or 2 cards in the Dark pile instead of 1. |
 
@@ -196,16 +200,22 @@ The Shepherd is dealt a character like everyone else.
 - Check for a win immediately after any life is lost and after each reveal.
 - When the deck runs out, shuffle the discards into a new deck.
 - Face-up Dark cards (from Bell, Duke, Hazel) still count in the reveal.
+- A Bell applies to the next card you put in the Dark pile, including a Forage card.
 - A cancelled Snap! still uses up your Snap! for the turn.
+- You can't put a third kit card in play; Spook one away first.
+- Night order: crows act, then Duke wakes someone, then turns from the Shepherd
+  clockwise, then Old Blue peeks, then Woolly may hold the gate, then the reveal.
 
 ## Platform plan
 
 1. **Landing tile.** Done, committed on `coyote`.
 2. **Spec.** This doc (v2). Card art in the play27 brand comes later; the first
    build uses text cards with icons.
-3. **Single page vs AI.** `coyote.html`, one human plus AI seats, all client-side.
-   Validates the rules, balance, and phone layout before any backend work.
-   (Pass-and-play was dropped: handing one device around exposes roles.)
+3. **Single page vs AI.** In progress. `coyote.html` + `js/coyote-engine.js`
+   (rules, no DOM) + `js/coyote-ai.js` (computer players) + `css/coyote.css`.
+   One human plus AI seats, all client-side. (Pass-and-play was dropped: handing
+   one device around exposes roles.) The engine is shared with the simulator, so
+   balance changes are tested headless before anyone plays them.
 4. **Multiplayer.** Supabase schema and RPCs following the contract-rummy pattern
    (games, seats, actions, Realtime), ready check, reconnection.
 5. **Server AI seats.** Move the phase-3 AI into an edge function with tier
@@ -219,5 +229,30 @@ The Shepherd is dealt a character like everyone else.
   2 Sheepdogs, 3 Coyotes, 2 Foxes?) and makes each night longer.
 - **Tile tagline.** The landing tile says "find the coyotes before dark", but the
   game now runs dusk to dawn. Something like "Keep the flock safe until dawn" fits.
-- **Phone layout.** Players around the barnyard edge; Dark pile, pen, and den in
-  the middle.
+- **Phone layout.** Built as a grid of seats in clockwise order from you, with
+  the night track, den, and Dark pile in the middle. A true circle around the
+  barnyard may read better on a tablet.
+- **Knockouts are rare in simulation** (0.4 to 1.0 per game) because the
+  computer players are cautious; most games are a race between the den and
+  dawn. Watch whether people fight more, and retune if so.
+
+## Tuning log
+
+**2026-11-14, first pass** (`node tools/coyote-sim.mjs`, 400 to 1,000 games per
+setting, phase-3 AI):
+
+- With 1 lantern cancelling 1 moon, flock players found a lantern on about 64% of
+  turns (well above the 47% estimate) and the den barely moved: 0.18 sheep a night
+  at 5 players. Flock won 58% to 94% depending on count, mostly by waiting for
+  dawn. Lantern kits were not the cause (about 0.04 moons a night).
+- Changed to 2 lanterns per moon, then set den targets per count, moved the Fox
+  to 1 knockout (at 2 it won 2%), and kept 3 coyotes at 7 players (2 coyotes
+  made the flock win 80%+).
+- Result, 1,000 games per count, card conservation checked every turn, 0 errors:
+
+| Players | Flock wins | Coyotes win (Shepherd / den) | Fox also wins |
+|---|---|---|---|
+| 4 | 50% | 50% (9% / 41%) | n/a |
+| 5 | 56% | 44% (3% / 41%) | n/a |
+| 6 | 50% | 50% (6% / 44%) | 17% |
+| 7 | 52% | 48% (18% / 30%) | 27% |

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<title>play27 — Coyote</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=0.15.24">
+<link rel="stylesheet" href="css/shared.css?v=0.15.24">
+<link rel="stylesheet" href="css/coyote.css?v=0.15.24">
+</head>
+<body>
+
+<!-- ── SETUP SCREEN ── -->
+<div id="setupScreen">
+  <div class="setup-logo"><a href="index.html"><img src="assets/logo-dark.svg?v=0.15.24" alt="play27"></a></div>
+  <div class="setup-title">Coyote</div>
+  <div class="setup-sub">hidden roles on the farm, dusk to dawn</div>
+  <div class="setup-form">
+    <div class="setup-row">
+      <label for="selPlayers">Players</label>
+      <select id="selPlayers">
+        <option value="4">4</option>
+        <option value="5" selected>5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+      </select>
+    </div>
+    <div class="setup-row">
+      <label for="selRole">Your role</label>
+      <select id="selRole">
+        <option value="random" selected>Random</option>
+        <option value="shepherd">Shepherd</option>
+        <option value="sheepdog">Sheepdog</option>
+        <option value="coyote">Coyote</option>
+        <option value="fox">Fox (6+)</option>
+      </select>
+    </div>
+    <button class="btn-start" id="btnStart">Start Game</button>
+    <button class="btn-link" data-act="rules">How to play</button>
+  </div>
+  <div class="setup-note">Preview: you against computer players, all in this browser.</div>
+</div>
+
+<!-- ── GAME BOARD ── -->
+<div id="gameBoard">
+  <div class="top-bar">
+    <div class="logo-wrap" id="logoWrap">
+      <img src="assets/logo-horizontal.svg?v=0.15.24" alt="play27" style="height:clamp(24px,3.5vw,36px);vertical-align:middle;">
+      <div class="settings-dropdown" id="settingsDropdown">
+        <div class="settings-title">Settings</div>
+        <div class="settings-row">
+          <span>Theme</span>
+          <div class="theme-toggle">
+            <button data-theme="dark" class="active">Dark</button>
+            <button data-theme="light">Light</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <span>Speed</span>
+          <div class="theme-toggle" id="speedToggle">
+            <button data-speed="fast">Fast</button>
+            <button data-speed="normal" class="active">Normal</button>
+            <button data-speed="slow">Slow</button>
+          </div>
+        </div>
+        <button class="settings-fullscreen" data-act="rules">How to play</button>
+        <button class="settings-end-game" data-act="new-game">New game</button>
+        <a href="index.html" class="settings-home">Back to Games</a>
+      </div>
+    </div>
+    <div class="top-title">Coyote</div>
+    <div class="top-right" id="topRight"></div>
+  </div>
+
+  <div class="seats" id="seats"></div>
+  <div class="yard" id="yard"></div>
+  <div class="feed" id="feed" title="Tap to expand the log"></div>
+  <div class="you" id="youPanel"></div>
+  <div class="prompt" id="prompt"></div>
+  <div class="hand" id="hand"></div>
+</div>
+
+<!-- ── Modal (decisions, reveal, rules, results) ── -->
+<div class="modal-overlay" id="modal">
+  <div class="panel" id="modalBox"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="version-tag">v0.15.24 · Coyote preview</div>
+<script type="module" src="js/coyote.js?v=0.15.24"></script>
+</body>
+</html>
