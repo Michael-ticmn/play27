@@ -22,7 +22,7 @@ const arg = (name, dflt) => {
 const games = Number(arg('games', 300));
 const counts = arg('players', 'all') === 'all' ? [4, 5, 6, 7] : [Number(arg('players'))];
 const tier = arg('tier', 'normal');
-const TEAM = { shepherd: 'flock', sheepdog: 'flock', hunter: 'flock', coyote: 'coyote', fox: 'fox' };
+const TEAM = { shepherd: 'flock', farmhand: 'flock', hunter: 'flock', coyote: 'coyote', fox: 'fox' };
 
 // tally[viewerTeam][readKey] = { n, coyote, fox, flock }; key 'all' = base rate
 const tally = {};

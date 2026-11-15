@@ -44,7 +44,7 @@ Everything below is original naming, flavor, and design. Keep it that way.
 
 ## Roles
 
-| Players | Shepherd | Sheepdogs | Hunter | Coyotes | Fox | Den target | Nights |
+| Players | Shepherd | Farmhands | Hunter | Coyotes | Fox | Den target | Nights |
 |---|---|---|---|---|---|---|---|
 | 4 | 1 | 1 | 0 | 2 | 0 | 7 sheep | 7 |
 | 5 | 1 | 1 | 1 | 2 | 0 | 3 sheep | 7 |
@@ -52,7 +52,9 @@ Everything below is original naming, flavor, and design. Keep it that way.
 | 7 | 1 | 1 | 1 | 3 | 1 | 11 sheep | 6 |
 
 - **Shepherd** (public, flock team). +1 life. Starts with the Crook in play.
-- **Sheepdog** (hidden, flock team). Still wins with the flock after being knocked out.
+- **Farmhand** (hidden, flock team). Still wins with the flock after being knocked out.
+  (Called the Sheepdog until 2026-11-14; renamed because roles and characters
+  were both animals, so a goose who was a Sheepdog read as a contradiction.)
 - **Hunter** (hidden, flock team, 5+ players). *Long gun:* once per night, may
   Snap! a player at any distance; the first long shot reveals the Hunter.
   *Last shot:* when knocked out, immediately Snap! any player (no card needed;
@@ -133,7 +135,7 @@ You become a **Crow** and stay on your team.
 - **Bounty:** when a Coyote is knocked out, one sheep comes home from the den.
   This is what makes finding the coyotes pay off; without it, coyote crows kept
   raiding and catching coyotes barely changed who won.
-- If the Shepherd knocks out one of the flock (Sheepdog or Hunter), one sheep
+- If the Shepherd knocks out one of the flock (Farmhand or Hunter), one sheep
   runs off to the den.
 
 ## Card list (60 cards)
@@ -267,7 +269,7 @@ but not what it means. The helper fixes that from your own seat's point of view.
   intro, your first day, first Dark card, first reveal, first knockout, the first
   coyote-like or flock-like move by someone else, a Shepherd down to 2 lives, the
   den one sheep from full. At most 3 queue up; older ones drop.
-- **Learn to play** (setup) starts the friendliest first game: Sheepdog, 5
+- **Learn to play** (setup) starts the friendliest first game: Farmhand, 5
   players, Easy opponents, coach on. A scripted tutorial was considered and
   passed over: rules are still being tuned, and a fixed script would break on
   every change.
@@ -314,7 +316,7 @@ They also make the flock's job easier, which is why the helper can be turned off
 - **Reveal detail.** Show only icon counts (current default), or the full cards?
   Full cards give more to argue about, but more to read on a phone.
 - **8 players.** Rummy supports 8 now. Would need a role row (maybe Shepherd,
-  2 Sheepdogs, 3 Coyotes, 2 Foxes?) and makes each night longer.
+  2 Farmhands, 3 Coyotes, 2 Foxes?) and makes each night longer.
 - **Tile tagline.** The landing tile says "find the coyotes before dark", but the
   game now runs dusk to dawn. Something like "Keep the flock safe until dawn" fits.
 - **Phone layout.** Built as a grid of seats in clockwise order from you, with
@@ -327,9 +329,11 @@ They also make the flock's job easier, which is why the helper can be turned off
   from anyone, so 1 stays for now. Revisit after people play it.
 - **Fragile characters.** Duke, Hazel, and Boots have 2 lives. Watch whether
   they feel too easy to knock out.
-- **Sheepdog name.** Roles and characters are both animals, so "a goose who is
-  a Sheepdog" confuses. The screens now label role and character separately;
-  renaming the role to something that isn't an animal would remove the clash.
+- **Game name.** "Coyote" is already a published card game, so it needs a new
+  name before any retail sale. Checked 2026-11-14 (web search, not a trademark
+  search): Prowl (two games, 2024 and 2025), Hunt/Hunted (several), and anything
+  with "Sheep's Clothing" are taken. No exact match found for "By the Moonlight",
+  "Lanterns Out", or "Dusk to Dawn". Run a USPTO search before printing.
 - **Helper vs challenge.** Reads are right about 90% of the time against the
   computer players. Consider defaulting experienced players to Reads only or
   Off, or hiding reads on Hard and Unfair.
@@ -364,7 +368,7 @@ setting, phase-3 AI):
 - Fixes: everyone has 1 fewer life (the Shepherd keeps +1, so the Shepherd
   drops from 4-5 to 3-4 lives), and knocking out a Coyote returns a sheep from
   the den (bounty 1 and 2 tested the same; kept 1).
-- Hunter replaces one Sheepdog at 5+ players. On its own it moved win rates by
+- Hunter replaces one Sheepdog (now Farmhand) at 5+ players. On its own it moved win rates by
   a point or two; long shots happen in 25 to 31% of games, last shots in 8 to 18%.
 - Den targets and nights retuned (7 nights at 4 to 6 players, 6 at 7 players).
 - Result, 1,000 games per count, Normal vs Normal, 0 errors:

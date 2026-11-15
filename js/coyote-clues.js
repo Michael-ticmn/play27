@@ -11,9 +11,9 @@
 // with tools/coyote-clue-check.mjs.
 // ============================================================
 
-const TEAM = { shepherd: 'flock', sheepdog: 'flock', hunter: 'flock', coyote: 'coyote', fox: 'fox' };
-const ROLE_NAME = { shepherd: 'Shepherd', sheepdog: 'Sheepdog', hunter: 'Hunter', coyote: 'Coyote', fox: 'Fox' };
-const ARTICLE = { shepherd: 'the', hunter: 'the', fox: 'the', sheepdog: 'a', coyote: 'a' };
+const TEAM = { shepherd: 'flock', farmhand: 'flock', hunter: 'flock', coyote: 'coyote', fox: 'fox' };
+const ROLE_NAME = { shepherd: 'Shepherd', farmhand: 'Farmhand', hunter: 'Hunter', coyote: 'Coyote', fox: 'Fox' };
+const ARTICLE = { shepherd: 'the', hunter: 'the', fox: 'the', farmhand: 'a', coyote: 'a' };
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 // Strongest coyote lean first; a score at or above `min` gets that read.

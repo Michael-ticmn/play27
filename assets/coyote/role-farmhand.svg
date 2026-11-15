@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Farmhand">
+  <title>Farmhand</title>
+  <defs><clipPath id="c"><circle cx="60" cy="60" r="56"/></clipPath></defs>
+  <circle cx="60" cy="60" r="58" fill="#1b3233"/>
+  <g clip-path="url(#c)">
+
+    <path d="M0 94 C28 86 50 90 72 86 C92 82 108 88 120 92 L120 120 L0 120 Z" fill="#24402f"/>
+    <path d="M82 112 L82 42" stroke="#8a5a34" stroke-width="5.5" stroke-linecap="round"/>
+    <path d="M70 18 L70 36 C70 44 94 44 94 36 L94 18" stroke="#c9ccd2" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M82 16 L82 42" stroke="#c9ccd2" stroke-width="3.6" stroke-linecap="round"/>
+    <ellipse cx="42" cy="70" rx="29" ry="7.5" fill="#d9b25a"/>
+    <path d="M27 70 C27 49 57 49 57 70 Z" fill="#e8c878"/>
+    <rect x="27" y="62" width="30" height="5" fill="#3ea8aa"/>
+    <path d="M33 56 L36 61 M42 53 L42 60 M51 56 L48 61" stroke="#c9a24f" stroke-width="1.4" stroke-linecap="round"/>
+    <path d="M18 72 L22 75 M30 76 L33 78 M54 76 L51 78 M66 72 L62 75" stroke="#c9a24f" stroke-width="1.4" stroke-linecap="round"/>
+    <g fill="#e2c35a"><rect x="14" y="98" width="30" height="13" rx="2"/></g>
+    <path d="M14 104 L44 104 M20 98 L20 111 M38 98 L38 111" stroke="#c9a24f" stroke-width="1.2"/>
+
+  </g>
+  <circle cx="60" cy="60" r="57" fill="none" stroke="#3ea8aa" stroke-width="2.5"/>
+</svg>

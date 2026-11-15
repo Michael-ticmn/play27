@@ -6,7 +6,7 @@
 // says it is known.
 // ============================================================
 
-const TEAM = { shepherd: 'flock', sheepdog: 'flock', hunter: 'flock', coyote: 'coyote', fox: 'fox' };
+const TEAM = { shepherd: 'flock', farmhand: 'flock', hunter: 'flock', coyote: 'coyote', fox: 'fox' };
 
 // Difficulty tiers, all behavior differences in one place (like rummy's tiers.ts).
 //   mistake    chance of a sloppy choice (random target, skipped play, missed Dodge!)

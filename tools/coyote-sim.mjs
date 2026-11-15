@@ -29,19 +29,19 @@ if (arg('fox-kills')) options.foxKills = Number(arg('fox-kills'));
 if (arg('life-delta')) options.lifeDelta = Number(arg('life-delta'));
 if (arg('bounty')) options.bounty = Number(arg('bounty'));
 if (arg('shep-bonus')) options.shepherdBonus = Number(arg('shep-bonus'));
-// --roles "5:1,1,1,2,0,3;6:..."  shepherd,sheepdog,hunter,coyote,fox,den per player count
+// --roles "5:1,1,1,2,0,3;6:..."  shepherd,farmhand,hunter,coyote,fox,den per player count
 if (arg('roles')) {
   options.roleTable = {};
   for (const part of arg('roles').split(';')) {
     const [n, list] = part.split(':');
-    const [shepherd, sheepdog, hunter, coyote, fox, den] = list.split(',').map(Number);
-    options.roleTable[n] = { shepherd, sheepdog, hunter, coyote, fox, den };
+    const [shepherd, farmhand, hunter, coyote, fox, den] = list.split(',').map(Number);
+    options.roleTable[n] = { shepherd, farmhand, hunter, coyote, fox, den };
   }
 }
 const tierAll = arg('tier', 'normal');
 const tierFlock = arg('tier-flock', tierAll);
 const tierCoyote = arg('tier-coyote', tierAll);
-if (arg('roles7')) { const [d, c, f, den] = arg('roles7').split(',').map(Number); options.roleTable = { 7: { shepherd: 1, sheepdog: d, coyote: c, fox: f, den } }; }
+if (arg('roles7')) { const [d, c, f, den] = arg('roles7').split(',').map(Number); options.roleTable = { 7: { shepherd: 1, farmhand: d, coyote: c, fox: f, den } }; }
 if (arg('lpm')) options.lanternsPerMoon = Number(arg('lpm'));
 if (arg('dens')) options.denTargets = Object.fromEntries(arg('dens').split(',').map((v, i) => [i + 4, Number(v)]));
 
