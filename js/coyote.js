@@ -4,8 +4,8 @@
 // ============================================================
 
 import { initTheme } from './theme.js?v=0.15.24';
-import { CoyoteGame, CARD_TYPES, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24';
-import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24';
+import { CoyoteGame, CARD_TYPES, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24-p2';
+import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24-p2';
 
 const HUMAN = 0;
 const $ = id => document.getElementById(id);
