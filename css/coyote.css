@@ -485,3 +485,4 @@ html, body { height:100%; overflow:hidden; }
 .char-ability { font-size:0.74rem; color:var(--text); line-height:1.4; margin-top:2px; }
 .char-tip { font-size:0.72rem; color:var(--muted); line-height:1.4; margin-top:3px; }
 .panel p.intro-tip { font-size:0.74rem; color:var(--text); background:var(--bg3); border-radius:6px; padding:7px 10px; text-align:left; }
+.panel p.intro-table { margin-bottom:6px; color:var(--text); }

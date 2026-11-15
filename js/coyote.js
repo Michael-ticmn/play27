@@ -4,9 +4,9 @@
 // ============================================================
 
 import { initTheme } from './theme.js?v=0.15.24';
-import { CoyoteGame, CARD_TYPES, CHARACTERS, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24-p9';
-import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24-p9';
-import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.24-p9';
+import { CoyoteGame, CARD_TYPES, CHARACTERS, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24-p10';
+import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24-p10';
+import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.24-p10';
 
 const HUMAN = 0;
 // Helper levels: coach tips + reads, reads only, or off (just the facts).
@@ -259,6 +259,7 @@ function renderSeats() {
     if (known) tags.push(`<span class="tag role ${ROLE_CLASS[known]}"${read.deduced ? ' title="Worked out: no other role is left"' : ''}>${ROLE_INFO[known].name}</span>`);
     else if (read.key === 'flockteam') tags.push('<span class="tag role r-sheepdog" title="Worked out: only flock roles are left">Flock</span>');
     else if (help !== 'off' && read.key !== 'none' && !p.crow) tags.push(`<span class="tag read read-${read.key}" title="Tap for why">${esc(read.label)}</span>`);
+    else if (!p.crow) tags.push(UNKNOWN_CHIP);
     if (!p.crow && !me.crow) tags.push(`<span class="tag ${g.inRange(me, p) ? 'inrange' : ''}" title="Seats between you, the short way round">dist ${g.distance(me, p)}</span>`);
     if (targets.includes(s) && ui.pending?.kind === 'day' && !me.crow && !g.inRange(me, p) && me.hand.find(c => c.id === ui.selected[0])?.type === 'snap') {
       tags.push('<span class="tag long" title="Uses your long gun and reveals you as the Hunter">long shot</span>');
@@ -558,6 +559,8 @@ function sheetHTML(seat) {
   else if (shading && (read.key !== 'none' || items.length)) {
     const foxNote = (read.key === 'coyote' || read.key === 'sus') && g.roleCounts.fox && clues.rolesLeft().coyote ? ' The Fox attacks for knockouts too, so it could be the Fox.' : '';
     readLine = `<div class="sheet-read read-${read.key}">${esc(read.label)}</div><p>${READ_HELP[read.key]}${foxNote}</p>`;
+  } else {
+    readLine = `<div class="sheet-read read-none">Flock or in disguise?</div><p>You don't know their role. To you, ${esc(p.name)} the ${esc(p.character.animal)} could be part of the flock or a coyote in disguise.</p>`;
   }
   const list = items.length
     ? `<ul class="clue-list">${items.map(it => {
@@ -585,8 +588,8 @@ function whoHTML() {
     let chip;
     if (read.key === 'known') chip = `<span class="tag role ${ROLE_CLASS[read.role]}">${ROLE_INFO[read.role].name}</span>`;
     else if (read.key === 'flockteam') chip = '<span class="tag role r-sheepdog">Flock</span>';
-    else if (help !== 'off') chip = `<span class="tag read read-${read.key}">${esc(read.label)}</span>`;
-    else chip = '<span class="tag">Unknown</span>';
+    else if (help !== 'off' && read.key !== 'none') chip = `<span class="tag read read-${read.key}">${esc(read.label)}</span>`;
+    else chip = UNKNOWN_CHIP;
     const items = clues.clues(s);
     let line;
     if (s === HUMAN) line = esc(ROLE_INFO[p.role].goal);
@@ -664,24 +667,71 @@ function kitChoiceHTML() {
     <div class="btns">${kits.map(k => `<button class="btn primary" data-act="kit:${k.id}">${esc(cardName(k))}</button>`).join('')}<button class="btn" data-act="kit-back">Back</button></div>`;
 }
 
+const roleArticle = role => (['shepherd', 'hunter', 'fox'].includes(role) ? 'the' : 'a');
+const UNKNOWN_CHIP = '<span class="tag read read-none" title="Role unknown">Flock or in disguise?</span>';
+const joinNames = names => (names.length < 3 ? names.join(' and ') : `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`);
+
+// Who you know, stated as known; everyone else is "part of the flock, or
+// in disguise", with how many of each are hiding among them.
+function tableHTML(g) {
+  const known = [];
+  const unknown = [];
+  for (const p of g.players) {
+    if (p.seat === HUMAN) continue;
+    const r = clues.read(p.seat);
+    (r.key === 'known' ? known : unknown).push({ p, r });
+  }
+  known.sort((a, b) => (b.p.seat === g.shepherdSeat) - (a.p.seat === g.shepherdSeat));
+  const lines = known.map(({ p, r }) => {
+    const name = `<b>${esc(p.name)}</b>`;
+    if (p.seat === g.shepherdSeat) return `${name} is the Shepherd. Everyone knows.`;
+    if (p.crow) return `${name} was ${roleArticle(r.role)} ${ROLE_INFO[r.role].name} (knocked out).`;
+    if (r.role === 'coyote' && !r.deduced) return `${name} is in your pack. They know you too.`;
+    if (r.deduced) return `${name} is ${roleArticle(r.role)} ${ROLE_INFO[r.role].name}: no other role is left.`;
+    return `${name} is the ${ROLE_INFO[r.role].name} (revealed).`;
+  });
+  if (unknown.length) {
+    const left = clues.rolesLeft();
+    const names = joinNames(unknown.map(({ p }) => `<b>${esc(p.name)}</b>`));
+    const flock = [];
+    if (left.sheepdog) flock.push(left.sheepdog === 1 ? 'a Sheepdog' : `${left.sheepdog} Sheepdogs`);
+    if (left.hunter) flock.push('the Hunter');
+    const hidden = [];
+    if (left.coyote) hidden.push(left.coyote === 1 ? 'a coyote' : `${left.coyote} coyotes`);
+    if (left.fox) hidden.push('the Fox');
+    const one = unknown.length === 1;
+    if (!hidden.length) lines.push(`${names} ${one ? 'is' : 'are'} part of the flock${flock.length > 1 ? ` (${joinNames(flock)}), but you don't know which is which` : ''}.`);
+    else if (!flock.length) lines.push(`${names} ${one ? 'is' : 'are all'} in disguise: ${joinNames(hidden)}.`);
+    else lines.push(`Everyone else is part of the flock, or in disguise. Hiding among ${names}: ${joinNames(flock)} on the flock's side, and ${joinNames(hidden)} in disguise.`);
+  }
+  return lines.map(l => `<p class="intro-table">${l}</p>`).join('');
+}
+
 function introBody(g) {
   const me = g.players[HUMAN];
   const info = ROLE_INFO[me.role];
-  const pack = me.role === 'coyote' && g.opt.coyotesKnow
-    ? `<p>Your pack: <b>${g.players.filter(p => p !== me && p.role === 'coyote').map(p => esc(p.name)).join(', ')}</b>. They know you too.</p>`
-    : '';
-  const shep = me.role === 'shepherd' ? '' : `<p>The Shepherd is <b>${esc(g.players[g.shepherdSeat].name)}</b>.</p>`;
+  const who = `${esc(me.character.name)} the ${esc(me.character.animal)}`;
   // Role (your secret side) and character (the animal you play) are
   // different things; keep them visibly separate so a goose who is a
-  // Sheepdog doesn't read as a contradiction.
+  // Sheepdog doesn't read as a contradiction. Hidden roles are framed as
+  // disguises: to the others you're just the animal.
+  const disguise = {
+    shepherd: 'Everyone knows you\'re the Shepherd.',
+    sheepdog: `Nobody knows you're with the flock. To the others, ${who} might be a coyote in disguise.`,
+    hunter: `Nobody knows you're the Hunter. To the others, ${who} might be a coyote in disguise.`,
+    coyote: `To everyone else you're just ${who}: a coyote in disguise. Stay that way.`,
+    fox: `To everyone else you're just ${who}. Nobody knows you're the Fox.`,
+  }[me.role];
   return `<div class="intro-art"><span class="pt-wrap">${charImg(me, 'intro-pt')}${roleImg(me.role, 'intro-badge')}</span></div>
     <div class="intro-kicker">Your secret role</div>
     <h3 class="${ROLE_CLASS[me.role]}">${info.name}</h3>
-    <p>${esc(info.goal)}</p>${pack}${shep}
+    <p>${esc(info.goal)}</p>
     <div class="intro-kicker">Your character</div>
-    <p><b>${esc(me.character.name)} the ${esc(me.character.animal)}.</b> <b>${esc(me.character.ability)}:</b> ${esc(me.character.text)}</p>
+    <p><b>${who}.</b> <b>${esc(me.character.ability)}:</b> ${esc(me.character.text)}</p>
     ${CHAR_TIPS[me.character.id] ? `<p class="intro-tip">${esc(CHAR_TIPS[me.character.id])}</p>` : ''}
-    <p class="intro-note">Your role is your side, and it stays secret. Your character is just the animal you play, with one special ability. Any animal can have any role.</p>
+    <p class="intro-note">Your role is your secret side; your character is just the animal you play, and any animal can have any role. ${disguise}</p>
+    <div class="intro-kicker">Around the table</div>
+    ${tableHTML(g)}
     <p>${g.n} players · ${g.opt.nights} nights · coyotes need ${sheepWord(g.denTarget)} in the den · ${TIERS[g.tier]?.label ?? 'Normal'} opponents.</p>`;
 }
 
@@ -727,7 +777,7 @@ function rulesHTML() {
   const lpm = game?.opt.lanternsPerMoon ?? DEFAULTS.lanternsPerMoon;
   return `<h3>How to play Lanterns Out</h3>
     <h4>Role and character</h4>
-    <p>Everyone gets two things. A <b>role</b> is your side: it's secret (except the Shepherd's) and decides how you win. A <b>character</b> is the farm animal you play, with one special ability. Any animal can have any role: Mabel the goose might be a Sheepdog in one game and a Coyote in the next.</p>
+    <p>Everyone gets two things. A <b>role</b> is your side: it's secret (except the Shepherd's) and decides how you win. A <b>character</b> is the farm animal you play, with one special ability. Any animal can have any role: Mabel the goose might be a Sheepdog in one game and a Coyote in the next. So anyone whose role you don't know is either part of the flock, or a coyote (or the Fox) in disguise.</p>
     <p><button class="btn-link rules-jump" data-act="rules-chars">Jump to the characters</button></p>
     <h4>The roles</h4>
     <ul>
