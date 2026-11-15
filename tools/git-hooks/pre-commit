@@ -1,0 +1,50 @@
+#!/bin/sh
+# play27 secret guard. This repo is PUBLIC: block any commit that would
+# publish a secret. Install (shared by every worktree of this clone):
+#   cp tools/git-hooks/pre-commit "$(git rev-parse --git-common-dir)/hooks/pre-commit"
+# Self-contained on purpose: it must work on branches that don't have
+# this file.
+#
+# Blocks: local settings and .env files, production Supabase keys with
+# more than anon access (the CLI's public "supabase-demo" keys and anon
+# keys are allowed), Supabase secret keys, private keys, database URLs
+# with a password, KEY=value lines for passwords/secrets, GitHub tokens.
+
+fail=0
+block() { echo "BLOCKED: $1"; fail=1; }
+
+for f in $(git diff --cached --name-only --diff-filter=ACMR); do
+  case "$f" in
+    *.env.example) ;;
+    .claude/settings.local.json|*/.claude/settings.local.json) block "$f must never be committed (local settings, can hold keys)" ;;
+    .env|*/.env|.env.*|*/.env.*|*.pem|*.key) block "$f must never be committed (secrets file)" ;;
+  esac
+done
+
+added=$(git diff --cached -U0 --no-color --diff-filter=ACMR | grep '^+' | grep -v '^+++')
+
+for t in $(printf '%s\n' "$added" | grep -o -E 'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}' | sort -u); do
+  p=$(echo "$t" | cut -d. -f2)
+  pad=$(( (4 - ${#p} % 4) % 4 ))
+  while [ "$pad" -gt 0 ]; do p="$p="; pad=$((pad - 1)); done
+  claims=$(echo "$p" | tr '_-' '/+' | base64 -d 2>/dev/null)
+  case "$claims" in
+    *'"iss":"supabase-demo"'*) continue ;;
+    *'"role":"anon"'*) continue ;;
+  esac
+  block "a Supabase key with more than anon access is in the staged changes"
+done
+
+printf '%s\n' "$added" | grep -q -E 'sb_secret_[A-Za-z0-9_-]{10,}' && block "a Supabase secret key (sb_secret_...)"
+printf '%s\n' "$added" | grep -q -E 'BEGIN [A-Z ]*PRIVATE KEY' && block "a private key"
+printf '%s\n' "$added" | grep -q -E 'postgres(ql)?://[^:/@ ]+:[^@ ]+@' && block "a database URL with a password"
+printf '%s\n' "$added" | grep -q -E '(ghp_|gho_|github_pat_)[A-Za-z0-9_]{20,}' && block "a GitHub token"
+printf '%s\n' "$added" | grep -E '^\+[[:space:]]*(export[[:space:]]+)?[A-Z0-9_]*(PASSWORD|SECRET|SERVICE_ROLE_KEY|PRIVATE_KEY)[A-Z0-9_]*=' \
+  | grep -v -q -E '=[[:space:]]*("|'"'"')?($|your|<|\$|xxx|changeme|example)' && block "a KEY=value line with a password or secret"
+
+if [ "$fail" -ne 0 ]; then
+  echo ""
+  echo "Commit stopped: this repo is public. Remove the secret from the staged changes."
+  exit 1
+fi
+exit 0
