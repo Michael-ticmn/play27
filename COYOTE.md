@@ -321,7 +321,7 @@ They also make the flock's job easier, which is why the helper can be turned off
 - **8 players.** Rummy supports 8 now. Would need a role row (maybe Shepherd,
   2 Sheepdogs, 3 Coyotes, 2 Foxes?) and makes each night longer.
 - **Tagline.** "Coyotes among the flock. Survive the night." on both the
-  landing tile and the start screen (Michael, 2026-11-14). A game spans several
+  landing tile and the start screen (chosen 2026-11-14). A game spans several
   nights, so "the night" is figurative.
 - **Phone layout.** Built as a grid of seats in clockwise order from you, with
   the night track, den, and Dark pile in the middle. A true circle around the
@@ -336,7 +336,7 @@ They also make the flock's job easier, which is why the helper can be turned off
 - **Sheepdog name.** Roles and characters are both animals, so "a goose who is
   a Sheepdog" confuses. The screens now label role and character separately.
   A rename to Farmhand (straw hat and pitchfork badge) was built and reverted
-  on 2026-11-14: Michael chose to keep Sheepdog for now. To bring it back,
+  on 2026-11-14: the call was to keep Sheepdog for now. To bring it back,
   see commit 33c76b0 on `coyote`.
 - **Game name.** Working title **Lanterns Out** (chosen 2026-11-14), because
   "Coyote" is already a published card game. Checked 2026-11-14 (web search, not
