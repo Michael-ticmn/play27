@@ -190,7 +190,7 @@ html, body { height:100%; overflow:hidden; }
 }
 .tag.role { border-color:currentColor; }
 .r-shepherd { color:var(--amber); }
-.r-farmhand { color:var(--teal); }
+.r-sheepdog { color:var(--teal); }
 .r-coyote { color:var(--red); }
 .r-fox { color:var(--purple); }
 .r-hunter { color:var(--green); }
@@ -328,7 +328,7 @@ html, body { height:100%; overflow:hidden; }
 }
 .panel p { font-size:0.8rem; color:var(--muted); margin-bottom:12px; line-height:1.45; }
 .panel p b { color:var(--text); }
-.panel h3.r-farmhand { color:var(--teal); }
+.panel h3.r-sheepdog { color:var(--teal); }
 .panel h3.r-coyote { color:var(--red); }
 .panel h3.r-fox { color:var(--purple); }
 .panel h3.r-hunter { color:var(--green); }

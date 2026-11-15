@@ -181,18 +181,18 @@ ROLES["shepherd"] = ("#2a2517", "#d4a027", "Shepherd", f"""
     <rect x="31" y="50" width="26" height="4.5" fill="#a8452f"/>
     {SHEEP.format(x=36, y=94, s=1.2, hx=-15)}
 """)
-ROLES["farmhand"] = ("#1b3233", "#3ea8aa", "Farmhand", f"""
-    <path d="M0 94 C28 86 50 90 72 86 C92 82 108 88 120 92 L120 120 L0 120 Z" fill="#24402f"/>
-    <path d="M82 112 L82 42" stroke="#8a5a34" stroke-width="5.5" stroke-linecap="round"/>
-    <path d="M70 18 L70 36 C70 44 94 44 94 36 L94 18" stroke="#c9ccd2" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M82 16 L82 42" stroke="#c9ccd2" stroke-width="3.6" stroke-linecap="round"/>
-    <ellipse cx="42" cy="70" rx="29" ry="7.5" fill="#d9b25a"/>
-    <path d="M27 70 C27 49 57 49 57 70 Z" fill="#e8c878"/>
-    <rect x="27" y="62" width="30" height="5" fill="#3ea8aa"/>
-    <path d="M33 56 L36 61 M42 53 L42 60 M51 56 L48 61" stroke="#c9a24f" stroke-width="1.4" stroke-linecap="round"/>
-    <path d="M18 72 L22 75 M30 76 L33 78 M54 76 L51 78 M66 72 L62 75" stroke="#c9a24f" stroke-width="1.4" stroke-linecap="round"/>
-    <g fill="#e2c35a"><rect x="14" y="98" width="30" height="13" rx="2"/></g>
-    <path d="M14 104 L44 104 M20 98 L20 111 M38 98 L38 111" stroke="#c9a24f" stroke-width="1.2"/>
+ROLES["sheepdog"] = ("#1b3233", "#3ea8aa", "Sheepdog", f"""
+    <path d="M16 120 C20 98 40 89 60 89 C80 89 100 98 104 120 Z" fill="#2b2f36"/>
+    <path d="M40 120 C42 102 50 94 60 94 C70 94 78 102 80 120 Z" fill="{WHITE}"/>
+    <path d="M33 50 L31 18 C38 22 46 30 52 38 Z" fill="#2b2f36"/><path d="M31 18 C35 18 40 22 41 28 C37 26 33 24 31 18 Z" fill="#454a54"/>
+    <path d="M87 50 L89 18 C82 22 74 30 68 38 Z" fill="#2b2f36"/><path d="M89 18 C85 18 80 22 79 28 C83 26 87 24 89 18 Z" fill="#454a54"/>
+    <ellipse cx="60" cy="56" rx="27" ry="27" fill="#2b2f36"/>
+    <path d="M60 30 C63 40 66 48 70 56 C76 64 78 70 76 78 C72 88 66 92 60 92 C54 92 48 88 44 78 C42 70 44 64 50 56 C54 48 57 40 60 30 Z" fill="{WHITE}"/>
+    <circle cx="45" cy="58" r="3" fill="#c8955a"/><circle cx="75" cy="58" r="3" fill="#c8955a"/>
+    <circle cx="47" cy="50" r="4.2" fill="#d9a441"/>{eye(47, 50, 2.6)}
+    <circle cx="73" cy="50" r="4.2" fill="#d9a441"/>{eye(73, 50, 2.6)}
+    <path d="M54 70 C54 66 66 66 66 70 C66 74 62 76 60 76 C58 76 54 74 54 70 Z" fill="{INK}"/>
+    <path d="M60 76 L60 81 M60 81 C57 84 53 83 51 81 M60 81 C63 84 67 83 69 81" stroke="{INK}" stroke-width="1.8" fill="none" stroke-linecap="round"/>
 """)
 ROLES["hunter"] = ("#1c2c21", "#3cb96a", "Hunter", f"""
     <path d="M18 104 L88 34" stroke="#3a3f47" stroke-width="5" stroke-linecap="round"/>

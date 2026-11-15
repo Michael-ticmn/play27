@@ -57,15 +57,15 @@ export const CHARACTERS = [
 // Spec v2.2, tuned 2026-11-14 with tools/coyote-sim.mjs (Normal AI on both sides):
 // coyotes win 43-53% at every count. See COYOTE.md "Tuning log".
 export const ROLE_TABLE = {
-  4: { shepherd: 1, farmhand: 1, hunter: 0, coyote: 2, fox: 0, den: 7,  nights: 7 },
-  5: { shepherd: 1, farmhand: 1, hunter: 1, coyote: 2, fox: 0, den: 3,  nights: 7 },
-  6: { shepherd: 1, farmhand: 1, hunter: 1, coyote: 2, fox: 1, den: 4,  nights: 7 },
-  7: { shepherd: 1, farmhand: 1, hunter: 1, coyote: 3, fox: 1, den: 11, nights: 6 },
+  4: { shepherd: 1, sheepdog: 1, hunter: 0, coyote: 2, fox: 0, den: 7,  nights: 7 },
+  5: { shepherd: 1, sheepdog: 1, hunter: 1, coyote: 2, fox: 0, den: 3,  nights: 7 },
+  6: { shepherd: 1, sheepdog: 1, hunter: 1, coyote: 2, fox: 1, den: 4,  nights: 7 },
+  7: { shepherd: 1, sheepdog: 1, hunter: 1, coyote: 3, fox: 1, den: 11, nights: 6 },
 };
 
 export const ROLE_INFO = {
   shepherd: { name: 'Shepherd', team: 'flock',  goal: 'Survive to dawn, or knock out every Coyote. Everyone knows you.' },
-  farmhand: { name: 'Farmhand', team: 'flock',  goal: 'Keep the Shepherd alive and the sheep out of the den. Find the Coyotes.' },
+  sheepdog: { name: 'Sheepdog', team: 'flock',  goal: 'Keep the Shepherd alive and the sheep out of the den. Find the Coyotes.' },
   hunter:   { name: 'Hunter',   team: 'flock',  goal: 'Hidden on the flock side. Long gun: once a night, Snap! at any distance (it reveals you). Last shot: when knocked out, Snap! anyone.' },
   coyote:   { name: 'Coyote',   team: 'coyote', goal: 'Knock out the Shepherd, or get enough sheep into the den before dawn.' },
   fox:      { name: 'Fox',      team: 'fox',    goal: 'Be alive at the end having knocked out a player. You win alongside whoever wins.' },
@@ -84,7 +84,7 @@ export const DEFAULTS = {
   denTarget: null,     // null = from ROLE_TABLE (or denTargets[n])
   denTargets: null,    // { 4: n, 5: n, ... } override for tuning
   lanternsPerMoon: 2,  // how many lanterns it takes to cancel one moon
-  roleTable: null,     // { 7: { shepherd, farmhand, hunter, coyote, fox, den } } override for tuning
+  roleTable: null,     // { 7: { shepherd, sheepdog, hunter, coyote, fox, den } } override for tuning
   debug: false,        // check card conservation after every turn
 };
 
@@ -133,7 +133,7 @@ export class CoyoteGame {
     this.opt = { ...DEFAULTS, ...options };
     const table = this.opt.roleTable?.[numPlayers] ?? ROLE_TABLE[numPlayers];
     // Public: everyone knows how many of each role are in the game.
-    this.roleCounts = Object.fromEntries(['shepherd', 'farmhand', 'hunter', 'coyote', 'fox'].map(r => [r, table[r] || 0]));
+    this.roleCounts = Object.fromEntries(['shepherd', 'sheepdog', 'hunter', 'coyote', 'fox'].map(r => [r, table[r] || 0]));
     this.denTarget = this.opt.denTarget ?? this.opt.denTargets?.[numPlayers] ?? table.den;
     this.opt.nights = this.opt.nights ?? table.nights ?? 6;
     this.controllers = controllers;
@@ -153,7 +153,7 @@ export class CoyoteGame {
     this.stats = { reshuffles: 0, snaps: 0, dodges: 0, knockouts: 0, sheepLost: 0, sheepSaved: 0, invalid: 0 };
 
     let roles = [];
-    for (const r of ['shepherd', 'farmhand', 'hunter', 'coyote', 'fox']) for (let i = 0; i < (table[r] || 0); i++) roles.push(r);
+    for (const r of ['shepherd', 'sheepdog', 'hunter', 'coyote', 'fox']) for (let i = 0; i < (table[r] || 0); i++) roles.push(r);
     roles = shuffleWith(roles, rng);
     if (forceRole) {
       const idx = roles.indexOf(forceRole);

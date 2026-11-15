@@ -4,9 +4,9 @@
 // ============================================================
 
 import { initTheme } from './theme.js?v=0.15.24';
-import { CoyoteGame, CARD_TYPES, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24-p5';
-import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24-p5';
-import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.24-p5';
+import { CoyoteGame, CARD_TYPES, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24-p6';
+import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24-p6';
+import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.24-p6';
 
 const HUMAN = 0;
 // Helper levels: coach tips + reads, reads only, or off (just the facts).
@@ -20,7 +20,7 @@ const READ_HELP = {
 };
 const $ = id => document.getElementById(id);
 const SPEEDS = { fast: 0.35, normal: 1, slow: 1.8 };
-const ROLE_CLASS = { shepherd: 'r-shepherd', farmhand: 'r-farmhand', hunter: 'r-hunter', coyote: 'r-coyote', fox: 'r-fox' };
+const ROLE_CLASS = { shepherd: 'r-shepherd', sheepdog: 'r-sheepdog', hunter: 'r-hunter', coyote: 'r-coyote', fox: 'r-fox' };
 const TIER_HINTS = {
   easy: 'Easy: computer players make mistakes and read the night poorly.',
   normal: 'Normal: the computer players the game is balanced around.',
@@ -257,7 +257,7 @@ function renderSeats() {
     if (ui.mendPicks.includes(s)) cls.push('picked');
     const tags = [];
     if (known) tags.push(`<span class="tag role ${ROLE_CLASS[known]}"${read.deduced ? ' title="Worked out: no other role is left"' : ''}>${ROLE_INFO[known].name}</span>`);
-    else if (read.key === 'flockteam') tags.push('<span class="tag role r-farmhand" title="Worked out: only flock roles are left">Flock</span>');
+    else if (read.key === 'flockteam') tags.push('<span class="tag role r-sheepdog" title="Worked out: only flock roles are left">Flock</span>');
     else if (help !== 'off' && read.key !== 'none' && !p.crow) tags.push(`<span class="tag read read-${read.key}" title="Tap for why">${esc(read.label)}</span>`);
     if (!p.crow && !me.crow) tags.push(`<span class="tag ${g.inRange(me, p) ? 'inrange' : ''}" title="Seats between you, the short way round">dist ${g.distance(me, p)}</span>`);
     if (targets.includes(s) && ui.pending?.kind === 'day' && !me.crow && !g.inRange(me, p) && me.hand.find(c => c.id === ui.selected[0])?.type === 'snap') {
@@ -431,7 +431,7 @@ function planTip(g) {
   switch (me.role) {
     case 'shepherd':
       return `Everyone knows you're the Shepherd, so the coyotes are coming for you. You win by lasting to ${nights}. Mend when you're hurt, keep a Dodge! for emergencies, and put lanterns in the dark. Seats marked <b>Likely coyote</b> are who to Snap!.`;
-    case 'farmhand':
+    case 'sheepdog':
       return `You're on the flock's side, but nobody knows it, and you don't know who the coyotes are. Watch who attacks the Shepherd: their seat turns <b>Likely coyote</b>. Snap! them, mend the Shepherd, and put lanterns in the dark.`;
     case 'hunter':
       return `You're the flock's hidden Hunter. Watch who attacks the Shepherd: their seat turns <b>Likely coyote</b>. Your long gun reaches anyone once a night, but using it tells everyone what you are, so save it for a sure target.`;
@@ -519,7 +519,7 @@ function renderModal() {
 function sideLines(g) {
   const c = g.roleCounts;
   const flock = [`Shepherd (${esc(g.players[g.shepherdSeat].name)})`];
-  if (c.farmhand) flock.push(plural(c.farmhand, 'Farmhand'));
+  if (c.sheepdog) flock.push(plural(c.sheepdog, 'Sheepdog'));
   if (c.hunter) flock.push(plural(c.hunter, 'Hunter'));
   const lines = [
     `<div class="side"><b class="r-shepherd">Flock</b> ${flock.join(', ')}. Only the Shepherd is known. They win if the Shepherd lasts to dawn (after night ${g.opt.nights}) or every coyote is knocked out.</div>`,
@@ -554,7 +554,7 @@ function sheetHTML(seat) {
   const shading = help !== 'off';
   let readLine = '';
   if (read.key === 'known') readLine = `<div class="sheet-read ${ROLE_CLASS[read.role]}">${ROLE_INFO[read.role].name}</div><p>${knownHow(g, p, read)}</p>`;
-  else if (read.key === 'flockteam') readLine = '<div class="sheet-read r-farmhand">Flock</div><p>Worked out: only flock roles are left among the players you don\'t know.</p>';
+  else if (read.key === 'flockteam') readLine = '<div class="sheet-read r-sheepdog">Flock</div><p>Worked out: only flock roles are left among the players you don\'t know.</p>';
   else if (shading && (read.key !== 'none' || items.length)) {
     const foxNote = (read.key === 'coyote' || read.key === 'sus') && g.roleCounts.fox && clues.rolesLeft().coyote ? ' The Fox attacks for knockouts too, so it could be the Fox.' : '';
     readLine = `<div class="sheet-read read-${read.key}">${esc(read.label)}</div><p>${READ_HELP[read.key]}${foxNote}</p>`;
@@ -584,7 +584,7 @@ function whoHTML() {
     const read = clues.read(s);
     let chip;
     if (read.key === 'known') chip = `<span class="tag role ${ROLE_CLASS[read.role]}">${ROLE_INFO[read.role].name}</span>`;
-    else if (read.key === 'flockteam') chip = '<span class="tag role r-farmhand">Flock</span>';
+    else if (read.key === 'flockteam') chip = '<span class="tag role r-sheepdog">Flock</span>';
     else if (help !== 'off') chip = `<span class="tag read read-${read.key}">${esc(read.label)}</span>`;
     else chip = '<span class="tag">Unknown</span>';
     const items = clues.clues(s);
@@ -672,8 +672,8 @@ function introBody(g) {
     : '';
   const shep = me.role === 'shepherd' ? '' : `<p>The Shepherd is <b>${esc(g.players[g.shepherdSeat].name)}</b>.</p>`;
   // Role (your secret side) and character (the animal you play) are
-  // different things; keep them visibly separate. (Playtest: "You are a
-  // Sheepdog" next to "You are Mabel the goose" read as a contradiction.)
+  // different things; keep them visibly separate so a goose who is a
+  // Sheepdog doesn't read as a contradiction.
   return `<div class="intro-art"><span class="pt-wrap">${charImg(me, 'intro-pt')}${roleImg(me.role, 'intro-badge')}</span></div>
     <div class="intro-kicker">Your secret role</div>
     <h3 class="${ROLE_CLASS[me.role]}">${info.name}</h3>
@@ -726,11 +726,11 @@ function rulesHTML() {
   const lpm = game?.opt.lanternsPerMoon ?? DEFAULTS.lanternsPerMoon;
   return `<h3>How to play Coyote</h3>
     <h4>Role and character</h4>
-    <p>Everyone gets two things. A <b>role</b> is your side: it's secret (except the Shepherd's) and decides how you win. A <b>character</b> is the farm animal you play, with one special ability. Any animal can have any role: Mabel the goose might be a Farmhand in one game and a Coyote in the next.</p>
+    <p>Everyone gets two things. A <b>role</b> is your side: it's secret (except the Shepherd's) and decides how you win. A <b>character</b> is the farm animal you play, with one special ability. Any animal can have any role: Mabel the goose might be a Sheepdog in one game and a Coyote in the next.</p>
     <h4>The roles</h4>
     <ul>
       <li>${roleImg('shepherd', 'rb')}<b class="r-shepherd">Shepherd</b> (everyone knows who): survive to dawn, or knock out every Coyote.</li>
-      <li>${roleImg('farmhand', 'rb')}<b class="r-farmhand">Farmhands</b> (hidden): win with the Shepherd, even after being knocked out.</li>
+      <li>${roleImg('sheepdog', 'rb')}<b class="r-sheepdog">Sheepdogs</b> (hidden): win with the Shepherd, even after being knocked out.</li>
       <li>${roleImg('hunter', 'rb')}<b class="r-hunter">Hunter</b> (hidden, 5+ players, flock side): once a night may Snap! at any distance, which reveals them. When knocked out, gets one free last shot.</li>
       <li>${roleImg('coyote', 'rb')}<b class="r-coyote">Coyotes</b> (hidden, know each other): knock out the Shepherd, or get enough sheep into the den.</li>
       <li>${roleImg('fox', 'rb')}<b class="r-fox">Fox</b> (hidden, 6+ players): be alive at the end with at least one knockout. Wins alongside whoever wins.</li>
@@ -891,12 +891,12 @@ async function startGame() {
   await g.run();
 }
 
-// "Learn to play": the friendliest first game. A Farmhand does the core
+// "Learn to play": the friendliest first game. A Sheepdog does the core
 // job (find the coyotes), 5 players includes the Hunter, Easy opponents
 // forgive mistakes, and the coach is on.
 function startLearn() {
   $('selPlayers').value = '5';
-  $('selRole').value = 'farmhand';
+  $('selRole').value = 'sheepdog';
   $('selTier').value = 'easy';
   showTierHint();
   setHelp('tips');

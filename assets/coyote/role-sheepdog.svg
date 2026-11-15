@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Sheepdog">
+  <title>Sheepdog</title>
+  <defs><clipPath id="c"><circle cx="60" cy="60" r="56"/></clipPath></defs>
+  <circle cx="60" cy="60" r="58" fill="#1b3233"/>
+  <g clip-path="url(#c)">
+
+    <path d="M16 120 C20 98 40 89 60 89 C80 89 100 98 104 120 Z" fill="#2b2f36"/>
+    <path d="M40 120 C42 102 50 94 60 94 C70 94 78 102 80 120 Z" fill="#f3efe6"/>
+    <path d="M33 50 L31 18 C38 22 46 30 52 38 Z" fill="#2b2f36"/><path d="M31 18 C35 18 40 22 41 28 C37 26 33 24 31 18 Z" fill="#454a54"/>
+    <path d="M87 50 L89 18 C82 22 74 30 68 38 Z" fill="#2b2f36"/><path d="M89 18 C85 18 80 22 79 28 C83 26 87 24 89 18 Z" fill="#454a54"/>
+    <ellipse cx="60" cy="56" rx="27" ry="27" fill="#2b2f36"/>
+    <path d="M60 30 C63 40 66 48 70 56 C76 64 78 70 76 78 C72 88 66 92 60 92 C54 92 48 88 44 78 C42 70 44 64 50 56 C54 48 57 40 60 30 Z" fill="#f3efe6"/>
+    <circle cx="45" cy="58" r="3" fill="#c8955a"/><circle cx="75" cy="58" r="3" fill="#c8955a"/>
+    <circle cx="47" cy="50" r="4.2" fill="#d9a441"/><circle cx="47" cy="50" r="2.6" fill="#15171a"/><circle cx="47.8" cy="49.1" r="0.8" fill="#fff"/>
+    <circle cx="73" cy="50" r="4.2" fill="#d9a441"/><circle cx="73" cy="50" r="2.6" fill="#15171a"/><circle cx="73.8" cy="49.1" r="0.8" fill="#fff"/>
+    <path d="M54 70 C54 66 66 66 66 70 C66 74 62 76 60 76 C58 76 54 74 54 70 Z" fill="#15171a"/>
+    <path d="M60 76 L60 81 M60 81 C57 84 53 83 51 81 M60 81 C63 84 67 83 69 81" stroke="#15171a" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+
+  </g>
+  <circle cx="60" cy="60" r="57" fill="none" stroke="#3ea8aa" stroke-width="2.5"/>
+</svg>
