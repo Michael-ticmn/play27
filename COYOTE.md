@@ -320,8 +320,9 @@ They also make the flock's job easier, which is why the helper can be turned off
   Full cards give more to argue about, but more to read on a phone.
 - **8 players.** Rummy supports 8 now. Would need a role row (maybe Shepherd,
   2 Sheepdogs, 3 Coyotes, 2 Foxes?) and makes each night longer.
-- **Tile tagline.** Now "Hidden roles on the farm. Coyotes hide among the
-  flock. Keep the lanterns lit until dawn." (the old one said "before dark").
+- **Tagline.** "Coyotes among the flock. Survive the night." on both the
+  landing tile and the start screen (Michael, 2026-11-14). A game spans several
+  nights, so "the night" is figurative.
 - **Phone layout.** Built as a grid of seats in clockwise order from you, with
   the night track, den, and Dark pile in the middle. A true circle around the
   barnyard may read better on a tablet.
