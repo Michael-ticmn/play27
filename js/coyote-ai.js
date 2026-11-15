@@ -7,6 +7,8 @@
 // ============================================================
 
 const TEAM = { shepherd: 'flock', sheepdog: 'flock', hunter: 'flock', coyote: 'coyote', fox: 'fox' };
+// How coyote-like a seat's play must look before a coyote treats it as a packmate.
+const PACK_READ = 2;
 
 // Difficulty tiers, all behavior differences in one place (like rummy's tiers.ts).
 //   mistake    chance of a sloppy choice (random target, skipped play, missed Dodge!)
@@ -64,9 +66,13 @@ export class CoyoteAI {
   bump(seat, v) { if (seat !== this.seat && seat != null) this.sus[seat] = (this.sus[seat] || 0) + v; }
   bumpThreat(seat, v) { if (seat !== this.seat && seat != null) this.threat[seat] = (this.threat[seat] || 0) + v; }
 
+  // Known teammates. A coyote that doesn't know its pack also spares any
+  // seat whose play so far looks like a coyote's: probably a packmate.
   isTeammate(game, q) {
+    if (q === this.me(game)) return false;
     const known = game.knownRole(this.me(game), q);
-    return !!known && q !== this.me(game) && TEAM[known] === this.team(game) && this.team(game) !== 'fox';
+    if (known) return TEAM[known] === this.team(game) && this.team(game) !== 'fox';
+    return this.team(game) === 'coyote' && (this.sus[q.seat] || 0) >= PACK_READ;
   }
 
   // ── Observation ──
@@ -164,7 +170,8 @@ export class CoyoteAI {
         break;
       }
       case 'reveal':
-        if (this.team(game) !== 'coyote') this.readReveal(game, ev);
+        // A coyote that knows its pack learns nothing new from the reveal.
+        if (this.team(game) !== 'coyote' || !game.opt.coyotesKnow) this.readReveal(game, ev);
         break;
     }
     void me;
@@ -257,7 +264,7 @@ export class CoyoteAI {
     const shep = game.players[game.shepherdSeat];
     if (shep.lives <= 2 || this.exposed || game.night >= 4) return true;
     if (this.t.coordinate) {
-      const pack = game.players.filter(q => q.role === 'coyote' && !q.crow && game.knownRole(this.me(game), q)).length;
+      const pack = game.alive().filter(q => q === this.me(game) || this.isTeammate(game, q)).length;
       if (shep.lives <= pack + 1) return true;
     }
     if (game.night >= 3 && this.rng() < 0.4) return true;
@@ -433,7 +440,8 @@ export class CoyoteAI {
       for (const s of seats) {
         const q = game.players[s];
         if (s === game.shepherdSeat || this.isTeammate(game, q)) continue;
-        const v = (this.threat[s] || 0) + (q.lives <= 1 ? 1.5 : 0);
+        // Prefer seats that play like the flock.
+        const v = (this.threat[s] || 0) + (q.lives <= 1 ? 1.5 : 0) - 0.3 * Math.max(-3, Math.min(3, this.suspicion(game, q)));
         if (v > bs) { bs = v; best = s; }
       }
       if (best != null && bs >= 1) return best;

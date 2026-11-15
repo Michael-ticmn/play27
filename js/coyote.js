@@ -3,10 +3,10 @@
 // Rules engine: coyote-engine.js. AI: coyote-ai.js. Spec: COYOTE.md.
 // ============================================================
 
-import { initTheme } from './theme.js?v=0.15.25';
-import { CoyoteGame, CARD_TYPES, CHARACTERS, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.25';
-import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.25';
-import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.25';
+import { initTheme } from './theme.js?v=0.15.26';
+import { CoyoteGame, CARD_TYPES, CHARACTERS, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.26';
+import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.26';
+import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.26';
 
 const HUMAN = 0;
 // Helper levels: coach tips + reads, reads only, or off (just the facts).
@@ -43,7 +43,7 @@ const ICON_SVG = {
 };
 
 const ART = 'assets/coyote/';
-const ART_V = '?v=0.15.25';
+const ART_V = '?v=0.15.26';
 const charImg = (p, cls = 'pt') => `<img class="${cls}" src="${ART}char-${p.character.id}.svg${ART_V}" alt="${p.character.name}">`;
 const roleImg = (role, cls = 'pt-role') => `<img class="${cls}" src="${ART}role-${role}.svg${ART_V}" alt="${ROLE_INFO[role].name}">`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -437,7 +437,8 @@ function planTip(g) {
     case 'hunter':
       return `You're the flock's hidden Hunter. Watch who attacks the Shepherd: their seat turns <b>Likely coyote</b>. Your long gun reaches anyone once a night, but using it tells everyone what you are, so save it for a sure target.`;
     case 'coyote':
-      return `You and ${pack} are the pack. Win by knocking out the Shepherd or getting ${sheepWord(g.denTarget)} into the den. Put moons in the dark face down: nobody can tell who did it. Attacking the Shepherd early gives you away, so wait until the pack can finish the job.`;
+      if (g.opt.coyotesKnow) return `You and ${pack} are the pack. Win by knocking out the Shepherd or getting ${sheepWord(g.denTarget)} into the den. Put moons in the dark face down: nobody can tell who did it. Attacking the Shepherd early gives you away, so wait until the pack can finish the job.`;
+      return `Coyotes don't know each other, so you have to find your pack too. Seats marked <b>Likely coyote</b> are probably on your side: leave them alone, and Snap! the ones that lean flock. Win by knocking out the Shepherd or getting ${sheepWord(g.denTarget)} into the den. Put moons in the dark face down: nobody can tell who did it. Attacking the Shepherd early gives you away, so wait until they're weak.`;
     case 'fox':
       return `You're on nobody's side. You win if you're alive at the end with at least ${plural(g.opt.foxKills, 'knockout')}. Pick on someone low on lives, and don't look too much like a coyote or the flock will hunt you.`;
   }
@@ -468,9 +469,9 @@ function coachOnEvent(g, ev, clue) {
     if (r.key === 'known' && r.role === 'coyote' && team === 'coyote' && clue.lean >= 2) {
       tip('pack-move', `Your packmate ${nameB(ev.by)} ${what}. The flock will suspect them now. Piling on finishes the Shepherd faster, but exposes you too.`);
     } else if (r.key !== 'known' && clue.lean >= 1.5) {
-      tip('coyote-move', `${nameB(ev.by)} ${what}. That's a coyote move, so their seat now reads <b>${esc(r.label)}</b>. Tap any player to see everything they've done.`);
+      tip('coyote-move', `${nameB(ev.by)} ${what}. That's a coyote move, so their seat now reads <b>${esc(r.label)}</b>.${team === 'coyote' ? ' They may be your packmate.' : ''} Tap any player to see everything they've done.`);
     } else if (r.key !== 'known' && clue.lean <= -1.2) {
-      tip('flock-move', `${nameB(ev.by)} ${what}. That's a flock move, so their seat leans flock. Coyotes sometimes do this to look innocent, so it's a lean, not proof.`);
+      tip('flock-move', `${nameB(ev.by)} ${what}. That's a flock move, so their seat leans flock${team === 'coyote' ? ': probably not your pack' : ''}. Coyotes sometimes do this to look innocent, so it's a lean, not proof.`);
     }
   }
   switch (ev.type) {
@@ -524,7 +525,7 @@ function sideLines(g) {
   if (c.hunter) flock.push(plural(c.hunter, 'Hunter'));
   const lines = [
     `<div class="side"><b class="r-shepherd">Flock</b> ${flock.join(', ')}. Only the Shepherd is known. They win if the Shepherd lasts to dawn (after night ${g.opt.nights}) or every coyote is knocked out.</div>`,
-    `<div class="side"><b class="r-coyote">Coyotes</b> ${c.coyote}, hidden, and they know each other. They win by knocking out the Shepherd or getting ${sheepWord(g.denTarget)} into the den (${g.den} so far).</div>`,
+    `<div class="side"><b class="r-coyote">Coyotes</b> ${c.coyote}, hidden${g.opt.coyotesKnow ? ', and they know each other' : ', even from each other'}. They win by knocking out the Shepherd or getting ${sheepWord(g.denTarget)} into the den (${g.den} so far).</div>`,
   ];
   if (c.fox) lines.push(`<div class="side"><b class="r-fox">Fox</b> 1, hidden, on nobody's side. Wins alongside whoever wins if alive at the end with ${plural(g.opt.foxKills, 'knockout')}.</div>`);
   return lines.join('');
@@ -557,10 +558,15 @@ function sheetHTML(seat) {
   if (read.key === 'known') readLine = `<div class="sheet-read ${ROLE_CLASS[read.role]}">${ROLE_INFO[read.role].name}</div><p>${knownHow(g, p, read)}</p>`;
   else if (read.key === 'flockteam') readLine = '<div class="sheet-read r-sheepdog">Flock</div><p>Worked out: only flock roles are left among the players you don\'t know.</p>';
   else if (shading && (read.key !== 'none' || items.length)) {
-    const foxNote = (read.key === 'coyote' || read.key === 'sus') && g.roleCounts.fox && clues.rolesLeft().coyote ? ' The Fox attacks for knockouts too, so it could be the Fox.' : '';
-    readLine = `<div class="sheet-read read-${read.key}">${esc(read.label)}</div><p>${READ_HELP[read.key]}${foxNote}</p>`;
+    const hostile = read.key === 'coyote' || read.key === 'sus';
+    const left = clues.rolesLeft();
+    const foxNote = hostile && g.roleCounts.fox && left.coyote ? ' The Fox attacks for knockouts too, so it could be the Fox.' : '';
+    const packNote = hostile && myTeam() === 'coyote' && left.coyote ? ' If they are a coyote, they are on your side.' : '';
+    readLine = `<div class="sheet-read read-${read.key}">${esc(read.label)}</div><p>${READ_HELP[read.key]}${foxNote}${packNote}</p>`;
   } else {
-    readLine = `<div class="sheet-read read-none">Flock or in disguise?</div><p>You don't know their role. To you, ${esc(p.name)} the ${esc(p.character.animal)} could be part of the flock or a coyote in disguise.</p>`;
+    const left = clues.rolesLeft();
+    const disguised = !left.coyote ? 'the Fox in disguise' : myTeam() === 'coyote' ? 'one of your pack in disguise' : 'a coyote in disguise';
+    readLine = `<div class="sheet-read read-none">Flock or in disguise?</div><p>You don't know their role. To you, ${esc(p.name)} the ${esc(p.character.animal)} could be part of the flock or ${disguised}.</p>`;
   }
   const list = items.length
     ? `<ul class="clue-list">${items.map(it => {
@@ -674,6 +680,7 @@ const joinNames = names => (names.length < 3 ? names.join(' and ') : `${names.sl
 // Who you know, stated as known; everyone else is "part of the flock, or
 // in disguise", with how many of each are hiding among them.
 function tableHTML(g) {
+  const me = g.players[HUMAN];
   const known = [];
   const unknown = [];
   for (const p of g.players) {
@@ -697,7 +704,11 @@ function tableHTML(g) {
     if (left.sheepdog) flock.push(left.sheepdog === 1 ? 'a Sheepdog' : `${left.sheepdog} Sheepdogs`);
     if (left.hunter) flock.push('the Hunter');
     const hidden = [];
-    if (left.coyote) hidden.push(left.coyote === 1 ? 'a coyote' : `${left.coyote} coyotes`);
+    // A coyote doesn't know its pack, but knows the pack is out there.
+    const packWord = me.role === 'coyote'
+      ? (left.coyote === 1 ? 'one more coyote (your packmate)' : `${left.coyote} more coyotes (your pack)`)
+      : (left.coyote === 1 ? 'a coyote' : `${left.coyote} coyotes`);
+    if (left.coyote) hidden.push(packWord);
     if (left.fox) hidden.push('the Fox');
     const one = unknown.length === 1;
     if (!hidden.length) lines.push(`${names} ${one ? 'is' : 'are'} part of the flock${flock.length > 1 ? ` (${joinNames(flock)}), but you don't know which is which` : ''}.`);
@@ -719,7 +730,9 @@ function introBody(g) {
     shepherd: 'Everyone knows you\'re the Shepherd.',
     sheepdog: `Nobody knows you're with the flock. To the others, ${who} might be a coyote in disguise.`,
     hunter: `Nobody knows you're the Hunter. To the others, ${who} might be a coyote in disguise.`,
-    coyote: `To everyone else you're just ${who}: a coyote in disguise. Stay that way.`,
+    coyote: g.opt.coyotesKnow
+      ? `To everyone else you're just ${who}: a coyote in disguise. Stay that way.`
+      : `To everyone else, even the other coyotes, you're just ${who}: a coyote in disguise.`,
     fox: `To everyone else you're just ${who}. Nobody knows you're the Fox.`,
   }[me.role];
   return `<div class="intro-art"><span class="pt-wrap">${charImg(me, 'intro-pt')}${roleImg(me.role, 'intro-badge')}</span></div>
@@ -784,7 +797,7 @@ function rulesHTML() {
       <li>${roleImg('shepherd', 'rb')}<b class="r-shepherd">Shepherd</b> (everyone knows who): survive to dawn, or knock out every Coyote.</li>
       <li>${roleImg('sheepdog', 'rb')}<b class="r-sheepdog">Sheepdogs</b> (hidden): win with the Shepherd, even after being knocked out.</li>
       <li>${roleImg('hunter', 'rb')}<b class="r-hunter">Hunter</b> (hidden, 5+ players, flock side): once a night may Snap! at any distance, which reveals them. When knocked out, gets one free last shot.</li>
-      <li>${roleImg('coyote', 'rb')}<b class="r-coyote">Coyotes</b> (hidden, know each other): knock out the Shepherd, or get enough sheep into the den.</li>
+      <li>${roleImg('coyote', 'rb')}<b class="r-coyote">Coyotes</b> (hidden, even from each other): knock out the Shepherd, or get enough sheep into the den.</li>
       <li>${roleImg('fox', 'rb')}<b class="r-fox">Fox</b> (hidden, 6+ players): be alive at the end with at least one knockout. Wins alongside whoever wins.</li>
     </ul>
     <h4>Your turn</h4>

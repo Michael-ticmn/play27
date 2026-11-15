@@ -76,7 +76,7 @@ export const DEFAULTS = {
   startHand: 4,
   handLimit: 5,
   draw: 2,
-  coyotesKnow: true,   // coyotes know each other (a pack)
+  coyotesKnow: false,  // true = coyotes know each other. Off: knowing your pack plus the public role counts gave a coyote every role at the start.
   foxKills: 1,
   shepherdBonus: 1,    // extra lives for the Shepherd
   bounty: 1,           // sheep that come home from the den when a Coyote is knocked out

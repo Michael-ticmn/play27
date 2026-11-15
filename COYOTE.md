@@ -4,7 +4,12 @@ Working title chosen 2026-11-14 (the game was called Coyote, which is
 already a published card game). Files, code, and the branch are still named
 `coyote`; the Coyote role keeps its name.
 
-## As of 2026-11-14, draft v2.2 (branch `coyote`, based on v0.15.24)
+## As of 2026-11-15, draft v2.3 (branch `coyote`)
+
+v2.3: coyotes no longer know each other. Knowing your pack, plus the public
+role counts and the public Shepherd, told a coyote every side at the start
+(at 5 players: the Shepherd, your packmate, and so the other two are flock).
+Now every role except the Shepherd's is hidden from everyone, coyotes included.
 
 v2.2 adds the Hunter, a weaker Shepherd (everyone lost a life, the Shepherd kept
 only its +1), the coyote bounty, per-count nights, and AI difficulty levels. Each
@@ -61,8 +66,10 @@ Everything below is original naming, flavor, and design. Keep it that way.
   Snap! a player at any distance; the first long shot reveals the Hunter.
   *Last shot:* when knocked out, immediately Snap! any player (no card needed;
   they may Dodge!). Still wins with the flock after being knocked out.
-- **Coyote** (hidden, coyote team). Coyotes know each other (a pack). Still wins
-  with the coyotes after being knocked out.
+- **Coyote** (hidden, coyote team). Coyotes do NOT know each other (changed in
+  v2.3; the engine option `coyotesKnow` brings the old rule back). A coyote has
+  to read the table to find its pack, the same way the flock reads it to find
+  coyotes. Still wins with the coyotes after being knocked out.
 - **Fox** (hidden, 6+ players, plays for itself). Wins if it is alive when the game
   ends and has knocked out at least 1 player, whichever team wins. The Fox's win
   is in addition to the team win, not instead of it.
@@ -72,7 +79,7 @@ face how many flock players: 5 players (2 coyotes against 3 flock) loses sheep
 slowly, 7 players (3 against 3) loses them fast. One sheep swings the 5 and 6
 player games by about 20 points, so the extra seventh night is the fine-tuning
 lever there. Each setting was chosen by simulation so coyotes win close to half
-the time at every count.
+the time at every count (5 players leans flock since v2.3; see Open questions).
 
 ### How each side wins
 
@@ -243,10 +250,16 @@ the chosen difficulty applies to your opponents; computer teammates play Normal.
 
 Measured against Normal opponents (500 games per count): an Easy flock wins only
 15 to 21%, a Hard or Unfair flock wins 51 to 67% (the gain shows at 5 and 6
-players). Easy coyotes win 27 to 32%. Hard and Unfair coyotes are no stronger
-than Normal: seeing who holds lanterns doesn't help fill the den, and attacking
-the Shepherd earlier only exposes them. So Hard and Unfair are a real step up
-when you play a Coyote or the Fox, but not yet when you play the flock.
+players). Since v2.3 (coyotes don't know each other), against a Normal flock
+(1,000 games per count): Easy coyotes win 23 to 31%, Normal 37 to 50%, Hard 41
+to 55%, Unfair 39 to 57%. Before v2.3, Hard and Unfair coyotes were no stronger
+than Normal, because a coyote that already knew every side gained nothing from
+seeing cards. Now reading the reveal better helps them find their pack.
+
+A Normal coyote that doesn't know its pack treats any seat whose play reads
+coyote-like (score 2 or more) as a packmate: it won't Snap!, Spook, or trick
+that seat, and it prefers to attack seats that lean flock. It also reads the
+nightly reveal, which it used to skip.
 
 ## The helper (reads and coach)
 
@@ -257,8 +270,10 @@ but not what it means. The helper fixes that from your own seat's point of view.
   turned into a clue about the player who did it ("Snapped the Shepherd",
   "Mended the Shepherd", "Put a moon in the Dark pile face up"), weighted the
   same way the Normal computer players weigh it. Each unknown seat shows a read:
-  Likely coyote, Suspicious, Seems flock, Likely flock (or none yet). A coyote
-  already knows its pack, so for a coyote a hostile read says "Likely Fox".
+  Likely coyote, Suspicious, Seems flock, Likely flock (or none yet). For a
+  coyote, "Likely coyote" points to its pack: in the clue check it was a real
+  coyote 83% of the time, the Fox 16%, flock 0%. Once every coyote is accounted
+  for, a hostile read says "Likely Fox".
 - **Elimination.** Role counts are public, so when only one role (or only flock
   roles) can be left among the seats you don't know, the seat shows that role.
 - **Player sheet.** Tap any player for everything you've seen them do, newest
@@ -326,8 +341,14 @@ They also make the flock's job easier, which is why the helper can be turned off
 - **Phone layout.** Built as a grid of seats in clockwise order from you, with
   the night track, den, and Dark pile in the middle. A true circle around the
   barnyard may read better on a tablet.
-- **Stronger computer coyotes.** Hard and Unfair coyotes need a real skill
-  edge (better den play or bluffing), not more information.
+- **5 players leans flock.** Since v2.3 coyotes win 37% at 5 players (42%
+  before). One sheep swings it too far either way: den 2 gives 52 to 57%
+  but games end by night 4, and an eighth night or no Hunter barely moves it.
+  The flock mostly wins by knocking out both coyotes (40%). Revisit after
+  real games.
+- **Stronger computer coyotes.** Partly fixed by v2.3 (Hard and Unfair
+  coyotes now gain 3 to 5 points over Normal). Better den play or bluffing
+  would still help.
 - **Fox is generous.** With knockouts more common in v2.2, a Fox that needs 1
   knockout wins 38 to 45% (2 knockouts: 4 to 11%). It never takes a win away
   from anyone, so 1 stays for now. Revisit after people play it.
@@ -390,3 +411,24 @@ setting, phase-3 AI):
 | 5 | 58% (20% / 38%) | 42% (7% / 35%) | n/a | 1.2 |
 | 6 | 51% (15% / 36%) | 49% (10% / 39%) | 38% | 1.4 |
 | 7 | 48% (40% / 9%) | 52% (33% / 19%) | 44% | 1.9 |
+
+**2026-11-15, third pass** (v2.3, coyotes don't know each other):
+
+- Turning off pack knowledge with the old coyote AI cost coyotes 3 to 11
+  points (5 players fell to 36%). The old AI picked targets only by who had
+  attacked it, so it could Snap! its own packmate, and it skipped the reveal.
+- The coyote AI now spares seats that read coyote-like (threshold 2; 1.5 and 3
+  tested the same), prefers flock-leaning targets, and reads the reveal. That
+  won back most of the loss without changing any den target or night count.
+- Den scan at 5 players (3,000 to 4,000 games each): den 3 with 7 nights 37%,
+  8 nights 39%; den 2 with 5 nights 52%, 6 nights 57%. No Hunter at 5: 34 to
+  38%. Kept den 3, 7 nights.
+- Result, 3,000 games per count, Normal vs Normal, card conservation checked,
+  0 errors:
+
+| Players | Flock wins (dawn / all coyotes out) | Coyotes win (Shepherd / den) | Fox also wins | Knockouts per game |
+|---|---|---|---|---|
+| 4 | 50% (40% / 10%) | 50% (23% / 27%) | n/a | 0.9 |
+| 5 | 63% (23% / 40%) | 37% (7% / 30%) | n/a | 1.3 |
+| 6 | 54% (17% / 37%) | 46% (11% / 35%) | 38% | 1.5 |
+| 7 | 51% (42% / 9%) | 49% (35% / 14%) | 45% | 1.9 |
