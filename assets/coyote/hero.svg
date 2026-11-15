@@ -1,12 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 180" width="360" height="180" role="img" aria-label="Coyotes hiding among the sheep at night">
-  <title>Coyotes hiding among the sheep at night</title>
-  <defs><clipPath id="r"><rect width="360" height="180" rx="14"/></clipPath></defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 180" width="360" height="180" role="img" aria-label="A lantern going out over the sheep pen at night, with coyote eyes in the grass">
+  <title>A lantern going out over the sheep pen at night, with coyote eyes in the grass</title>
+  <defs>
+    <clipPath id="r"><rect width="360" height="180" rx="14"/></clipPath>
+    <radialGradient id="lglow"><stop offset="0" stop-color="#e9c24a" stop-opacity=".28"/><stop offset="1" stop-color="#e9c24a" stop-opacity="0"/></radialGradient>
+    <linearGradient id="lsmoke" gradientUnits="userSpaceOnUse" x1="0" y1="41" x2="0" y2="0">
+      <stop offset="0" stop-color="#9a9da4" stop-opacity=".7"/><stop offset="1" stop-color="#9a9da4" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
   <g clip-path="url(#r)">
     <rect width="360" height="180" fill="#14161a"/>
-    <g fill="#c0c0bc" opacity=".55"><circle cx="30" cy="26" r="1.3"/><circle cx="80" cy="50" r="1"/><circle cx="140" cy="20" r="1.2"/><circle cx="190" cy="44" r="1"/><circle cx="250" cy="22" r="1.4"/><circle cx="300" cy="58" r="0.9"/><circle cx="40" cy="80" r="0.9"/><circle cx="118" cy="70" r="1.1"/><circle cx="226" cy="76" r="0.9"/><circle cx="340" cy="30" r="1.1"/></g>
+    <g fill="#c0c0bc" opacity=".55"><circle cx="30" cy="26" r="1.3"/><circle cx="80" cy="50" r="1"/><circle cx="160" cy="20" r="1.2"/><circle cx="190" cy="44" r="1"/><circle cx="250" cy="22" r="1.4"/><circle cx="300" cy="58" r="0.9"/><circle cx="40" cy="80" r="0.9"/><circle cx="92" cy="64" r="1.1"/><circle cx="226" cy="76" r="0.9"/><circle cx="340" cy="30" r="1.1"/></g>
     <path d="M286 22 a30 30 0 1 0 26 50 a24 24 0 0 1 -26 -50 z" fill="#9a8ae6"/>
     <path d="M0 112 C70 92 160 104 240 92 C290 85 330 90 360 96 L360 180 L0 180 Z" fill="#1c2a24"/>
     <rect x="14" y="82.4" width="332" height="4" rx="2" fill="#7a5a2a"/><rect x="14" y="96.0" width="332" height="4" rx="2" fill="#7a5a2a"/><rect x="11.0" y="74" width="6" height="38" rx="1.5" fill="#6b4a26"/><rect x="66.3" y="74" width="6" height="38" rx="1.5" fill="#6b4a26"/><rect x="121.7" y="74" width="6" height="38" rx="1.5" fill="#6b4a26"/><rect x="177.0" y="74" width="6" height="38" rx="1.5" fill="#6b4a26"/><rect x="232.3" y="74" width="6" height="38" rx="1.5" fill="#6b4a26"/><rect x="287.7" y="74" width="6" height="38" rx="1.5" fill="#6b4a26"/><rect x="343.0" y="74" width="6" height="38" rx="1.5" fill="#6b4a26"/>
+    <g transform="translate(124.7 74) scale(1.3) translate(-124.7 -74)">
+    <circle cx="124.7" cy="62" r="26" fill="url(#lglow)"/>
+    <path d="M124.7 41 C117.7 33 131.7 26 124.7 18 C118.7 12 128.7 6 123.7 0"
+          stroke="url(#lsmoke)" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M126.7 38 C132.7 32 127.7 27 131.7 22"
+          stroke="url(#lsmoke)" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+    <path d="M120.7 44 C120.7 37 128.7 37 128.7 44" stroke="#3a3f47" stroke-width="1.8" fill="none"/>
+    <path d="M114.7 52 L124.7 43 L134.7 52 Z" fill="#3a3f47"/>
+    <path d="M116.7 71 L117.7 52 L131.7 52 L132.7 71 Z" fill="#54461f"/>
+    <ellipse cx="124.7" cy="67" rx="2.4" ry="3.6" fill="#e9c24a" opacity=".85"/>
+    <ellipse cx="124.7" cy="68" rx="1.1" ry="1.6" fill="#f6e3a0"/>
+    <path d="M117.2 52 L116.2 71 M132.2 52 L133.2 71 M124.7 52 L124.7 61"
+          stroke="#2b2f36" stroke-width="1.6"/>
+    <rect x="114.7" y="70" width="20" height="4.5" rx="1.2" fill="#3a3f47"/></g>
     <g transform="translate(68 132) scale(1.5)">
       <g stroke="#2b2f36" stroke-width="2.4" stroke-linecap="round"><line x1="-7" y1="8" x2="-7" y2="15"/><line x1="7" y1="8" x2="7" y2="15"/></g>
       <g fill="#f1eadb"><circle cx="-9" cy="0" r="7"/><circle cx="0" cy="-3" r="8"/><circle cx="9" cy="0" r="7"/><circle cx="-4" cy="5" r="6"/><circle cx="5" cy="5" r="6"/></g>

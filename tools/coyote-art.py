@@ -281,17 +281,46 @@ card_back = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 350" wi
 """
 (OUT / "card-back.svg").write_text(card_back, encoding="utf-8")
 
+def dying_lantern(cx, base):
+    """A lantern standing on a fence post, nearly out: guttering flame,
+    faint glow, a curl of smoke. `base` is the y of the post top."""
+    m = "#3a3f47"  # metal
+    return f"""
+    <circle cx="{cx}" cy="{base - 12}" r="26" fill="url(#lglow)"/>
+    <path d="M{cx} {base - 33} C{cx - 7} {base - 41} {cx + 7} {base - 48} {cx} {base - 56} C{cx - 6} {base - 62} {cx + 4} {base - 68} {cx - 1} {base - 74}"
+          stroke="url(#lsmoke)" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M{cx + 2} {base - 36} C{cx + 8} {base - 42} {cx + 3} {base - 47} {cx + 7} {base - 52}"
+          stroke="url(#lsmoke)" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+    <path d="M{cx - 4} {base - 30} C{cx - 4} {base - 37} {cx + 4} {base - 37} {cx + 4} {base - 30}" stroke="{m}" stroke-width="1.8" fill="none"/>
+    <path d="M{cx - 10} {base - 22} L{cx} {base - 31} L{cx + 10} {base - 22} Z" fill="{m}"/>
+    <path d="M{cx - 8} {base - 3} L{cx - 7} {base - 22} L{cx + 7} {base - 22} L{cx + 8} {base - 3} Z" fill="#54461f"/>
+    <ellipse cx="{cx}" cy="{base - 7}" rx="2.4" ry="3.6" fill="#e9c24a" opacity=".85"/>
+    <ellipse cx="{cx}" cy="{base - 6}" rx="1.1" ry="1.6" fill="#f6e3a0"/>
+    <path d="M{cx - 7.5} {base - 22} L{cx - 8.5} {base - 3} M{cx + 7.5} {base - 22} L{cx + 8.5} {base - 3} M{cx} {base - 22} L{cx} {base - 13}"
+          stroke="#2b2f36" stroke-width="1.6"/>
+    <rect x="{cx - 10}" y="{base - 4}" width="20" height="4.5" rx="1.2" fill="{m}"/>"""
+
+
+# Post tops: fence(14, 346, 112, 38, 7) puts posts every 55.33 px, 38 tall.
+LANTERN_X = round(14 + 2 * (346 - 14) / 6, 1)
 stars_hero = "".join(f'<circle cx="{x}" cy="{y}" r="{r}"/>' for x, y, r in
-                     [(30, 26, 1.3), (80, 50, 1), (140, 20, 1.2), (190, 44, 1), (250, 22, 1.4), (300, 58, .9), (40, 80, .9), (118, 70, 1.1), (226, 76, .9), (340, 30, 1.1)])
-hero = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 180" width="360" height="180" role="img" aria-label="Coyotes hiding among the sheep at night">
-  <title>Coyotes hiding among the sheep at night</title>
-  <defs><clipPath id="r"><rect width="360" height="180" rx="14"/></clipPath></defs>
+                     [(30, 26, 1.3), (80, 50, 1), (160, 20, 1.2), (190, 44, 1), (250, 22, 1.4), (300, 58, .9), (40, 80, .9), (92, 64, 1.1), (226, 76, .9), (340, 30, 1.1)])
+hero = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 180" width="360" height="180" role="img" aria-label="A lantern going out over the sheep pen at night, with coyote eyes in the grass">
+  <title>A lantern going out over the sheep pen at night, with coyote eyes in the grass</title>
+  <defs>
+    <clipPath id="r"><rect width="360" height="180" rx="14"/></clipPath>
+    <radialGradient id="lglow"><stop offset="0" stop-color="#e9c24a" stop-opacity=".28"/><stop offset="1" stop-color="#e9c24a" stop-opacity="0"/></radialGradient>
+    <linearGradient id="lsmoke" gradientUnits="userSpaceOnUse" x1="0" y1="{112 - 38 - 33}" x2="0" y2="{112 - 38 - 74}">
+      <stop offset="0" stop-color="#9a9da4" stop-opacity=".7"/><stop offset="1" stop-color="#9a9da4" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
   <g clip-path="url(#r)">
     <rect width="360" height="180" fill="#14161a"/>
     <g fill="#c0c0bc" opacity=".55">{stars_hero}</g>
     <path d="M286 22 a30 30 0 1 0 26 50 a24 24 0 0 1 -26 -50 z" fill="#9a8ae6"/>
     <path d="M0 112 C70 92 160 104 240 92 C290 85 330 90 360 96 L360 180 L0 180 Z" fill="#1c2a24"/>
     {fence(14, 346, 112, 38, 7)}
+    <g transform="translate({LANTERN_X} 74) scale(1.3) translate({-LANTERN_X} -74)">{dying_lantern(LANTERN_X, 112 - 38)}</g>
     {sheep(68, 132, 1.5, True)}
     {sheep(150, 140, 1.3, True)}
     {sheep(262, 136, 1.45, False)}
