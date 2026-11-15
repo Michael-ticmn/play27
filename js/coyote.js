@@ -1,12 +1,12 @@
 // ============================================================
-// play27 — Coyote (phase 3 preview: one human vs AI seats)
+// play27 — Lanterns Out, files still named coyote (phase 3 preview: one human vs AI seats)
 // Rules engine: coyote-engine.js. AI: coyote-ai.js. Spec: COYOTE.md.
 // ============================================================
 
 import { initTheme } from './theme.js?v=0.15.24';
-import { CoyoteGame, CARD_TYPES, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24-p6';
-import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24-p6';
-import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.24-p6';
+import { CoyoteGame, CARD_TYPES, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24-p7';
+import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24-p7';
+import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.24-p7';
 
 const HUMAN = 0;
 // Helper levels: coach tips + reads, reads only, or off (just the facts).
@@ -724,7 +724,7 @@ function overlayHTML(o) {
 
 function rulesHTML() {
   const lpm = game?.opt.lanternsPerMoon ?? DEFAULTS.lanternsPerMoon;
-  return `<h3>How to play Coyote</h3>
+  return `<h3>How to play Lanterns Out</h3>
     <h4>Role and character</h4>
     <p>Everyone gets two things. A <b>role</b> is your side: it's secret (except the Shepherd's) and decides how you win. A <b>character</b> is the farm animal you play, with one special ability. Any animal can have any role: Mabel the goose might be a Sheepdog in one game and a Coyote in the next.</p>
     <h4>The roles</h4>

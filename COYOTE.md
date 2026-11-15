@@ -1,4 +1,8 @@
-# Coyote: Design Spec
+# Lanterns Out: Design Spec
+
+Working title chosen 2026-11-14 (the game was called Coyote, which is
+already a published card game). Files, code, and the branch are still named
+`coyote`; the Coyote role keeps its name.
 
 ## As of 2026-11-14, draft v2.2 (branch `coyote`, based on v0.15.24)
 
@@ -315,8 +319,8 @@ They also make the flock's job easier, which is why the helper can be turned off
   Full cards give more to argue about, but more to read on a phone.
 - **8 players.** Rummy supports 8 now. Would need a role row (maybe Shepherd,
   2 Sheepdogs, 3 Coyotes, 2 Foxes?) and makes each night longer.
-- **Tile tagline.** The landing tile says "find the coyotes before dark", but the
-  game now runs dusk to dawn. Something like "Keep the flock safe until dawn" fits.
+- **Tile tagline.** Now "Hidden roles on the farm. Coyotes hide among the
+  flock. Keep the lanterns lit until dawn." (the old one said "before dark").
 - **Phone layout.** Built as a grid of seats in clockwise order from you, with
   the night track, den, and Dark pile in the middle. A true circle around the
   barnyard may read better on a tablet.
@@ -332,11 +336,13 @@ They also make the flock's job easier, which is why the helper can be turned off
   A rename to Farmhand (straw hat and pitchfork badge) was built and reverted
   on 2026-11-14: Michael chose to keep Sheepdog for now. To bring it back,
   see commit 33c76b0 on `coyote`.
-- **Game name.** "Coyote" is already a published card game, so it needs a new
-  name before any retail sale. Checked 2026-11-14 (web search, not a trademark
-  search): Prowl (two games, 2024 and 2025), Hunt/Hunted (several), and anything
-  with "Sheep's Clothing" are taken. No exact match found for "By the Moonlight",
-  "Lanterns Out", or "Dusk to Dawn". Run a USPTO search before printing.
+- **Game name.** Working title **Lanterns Out** (chosen 2026-11-14), because
+  "Coyote" is already a published card game. Checked 2026-11-14 (web search, not
+  a trademark search): Prowl (two games, 2024 and 2025), Hunt/Hunted (several),
+  and anything with "Sheep's Clothing" are taken. No game found named "Lanterns
+  Out"; the nearest is Lanterns: The Harvest Festival (2015). Backup: "By the
+  Moonlight". Run a USPTO search before printing. Renaming files, code, and the
+  branch from `coyote` is deferred.
 - **Helper vs challenge.** Reads are right about 90% of the time against the
   computer players. Consider defaulting experienced players to Reads only or
   Off, or hiding reads on Hard and Unfair.

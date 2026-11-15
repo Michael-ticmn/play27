@@ -262,8 +262,8 @@ def fence(x0, x1, y, post_h, n):
 
 stars_back = "".join(f'<circle cx="{x}" cy="{y}" r="{r}"/>' for x, y, r in
                      [(40, 40, 1.4), (70, 70, 1), (110, 36, 1.2), (30, 110, 1), (60, 140, 1.3), (130, 90, 1), (210, 150, 1.1), (100, 120, .9), (226, 34, 1)])
-card_back = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 350" width="250" height="350" role="img" aria-label="Coyote card back">
-  <title>Coyote card back</title>
+card_back = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 350" width="250" height="350" role="img" aria-label="Lanterns Out card back">
+  <title>Lanterns Out card back</title>
   <rect width="250" height="350" rx="12" fill="#14161a"/>
   <rect x="0" y="0" width="250" height="5" rx="3" fill="#7b68c8"/>
   <rect x="6" y="6" width="238" height="338" rx="9" fill="none" stroke="#2e3035" stroke-width="1.5"/>
