@@ -4,10 +4,20 @@
 // ============================================================
 
 import { initTheme } from './theme.js?v=0.15.24';
-import { CoyoteGame, CARD_TYPES, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24-p3';
-import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24-p3';
+import { CoyoteGame, CARD_TYPES, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24-p4';
+import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24-p4';
+import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.24-p4';
 
 const HUMAN = 0;
+// Helper levels: coach tips + reads, reads only, or off (just the facts).
+const HELP_LEVELS = ['tips', 'reads', 'off'];
+const READ_HELP = {
+  coyote: 'Their moves are what a coyote would do.',
+  sus: 'Some coyote-like moves, but not proof yet.',
+  none: 'Nothing telling yet, or their moves point both ways.',
+  flockish: 'Mostly flock-like moves.',
+  flock: 'Their moves are what the flock would do. Coyotes sometimes help to look innocent, so it is a strong lean, not proof.',
+};
 const $ = id => document.getElementById(id);
 const SPEEDS = { fast: 0.35, normal: 1, slow: 1.8 };
 const ROLE_CLASS = { shepherd: 'r-shepherd', sheepdog: 'r-sheepdog', hunter: 'r-hunter', coyote: 'r-coyote', fox: 'r-fox' };
@@ -44,17 +54,39 @@ const livesWord = n => (n === 1 ? '1 life' : `${n} lives`);
 const sheepWord = n => `${n} sheep`;
 
 let game = null;
+let clues = null;
 let feed = [];
 let speed = loadSpeed();
+let help = loadHelp();
 let ui = freshUI();
+let gateWaiters = [];
 
 function freshUI(keep = {}) {
-  return { pending: null, selected: [], mendPicks: [], kitChoice: null, overlay: null, rulesOpen: false, logOpen: !!keep.logOpen };
+  return {
+    pending: null, selected: [], mendPicks: [], kitChoice: null, overlay: null, rulesOpen: false,
+    logOpen: !!keep.logOpen, sheet: null, coach: [], tipsShown: new Set(),
+  };
 }
 
 function loadSpeed() {
   try { return SPEEDS[localStorage.getItem('coyote-speed')] ? localStorage.getItem('coyote-speed') : 'normal'; }
   catch { return 'normal'; }
+}
+
+function loadHelp() {
+  try { const h = localStorage.getItem('coyote-help'); return HELP_LEVELS.includes(h) ? h : 'tips'; }
+  catch { return 'tips'; }
+}
+
+// The game waits while you read the rules or a player sheet.
+const reading = () => ui.sheet != null || ui.rulesOpen;
+async function pauseWhileReading() {
+  while (reading()) await new Promise(r => gateWaiters.push(r));
+}
+function releaseGate() {
+  const w = gateWaiters;
+  gateWaiters = [];
+  w.forEach(r => r());
 }
 
 // ── Human controller: every engine decision becomes a prompt ──
@@ -86,6 +118,7 @@ function ask(p) {
     ui.selected = [];
     ui.mendPicks = [];
     ui.kitChoice = null;
+    coachOnAsk(p);
     render();
   });
 }
@@ -112,11 +145,15 @@ function overlay(kind, data) {
 async function handleEvent(g, ev) {
   if (g !== game) return new Promise(() => {}); // abandoned game: freeze it
   if (ev.visibleTo && !ev.visibleTo.includes(HUMAN)) return;
+  const clue = clues.observe(ev);
   if (!(ev.type === 'draw' && ev.by === HUMAN) && ev.type !== 'start') {
-    feed.push({ text: ev.text, cls: ev.visibleTo ? 'f-private' : (FEED_CLASS[ev.type] || '') });
+    feed.push({ text: feedText(g, ev), cls: ev.visibleTo ? 'f-private' : (FEED_CLASS[ev.type] || ''), tag: clue && leanTag(clue.lean) });
     if (feed.length > 400) feed.shift();
   }
+  coachOnEvent(g, ev, clue);
   render();
+  await pauseWhileReading();
+  if (g !== game) return new Promise(() => {});
   switch (ev.type) {
     case 'night': toast(`Night ${ev.night} of ${g.opt.nights}`, 'night'); break;
     case 'snap': if (ev.target === HUMAN) toast(`${g.players[ev.by].name} snaps at you!`, 'warn'); break;
@@ -127,6 +164,17 @@ async function handleEvent(g, ev) {
     case 'over': await delay(500); await overlay('over', ev); return;
   }
   await delay(pace(ev));
+}
+
+// Name the Shepherd in feed lines aimed at them, so "snaps at Old Blue"
+// reads as the attack on the Shepherd that it is.
+const AT_TARGET = new Set(['snap', 'howl', 'howl-hold', 'heal', 'bell', 'spook', 'swipe', 'sniff', 'longshot', 'lastshot', 'duke']);
+function feedText(g, ev) {
+  const s = g.shepherdSeat;
+  if (!AT_TARGET.has(ev.type) || ev.target !== s || s === HUMAN || ev.by === s) return ev.text;
+  const name = g.players[s].name;
+  const i = ev.text.indexOf(name, ev.by != null ? g.players[ev.by].name.length : 0);
+  return i < 0 ? ev.text : `${ev.text.slice(0, i + name.length)} (Shepherd)${ev.text.slice(i + name.length)}`;
 }
 
 function pace(ev) {
@@ -148,6 +196,7 @@ function render() {
   renderSeats();
   renderFeed();
   renderYou();
+  renderCoach();
   renderPrompt();
   renderHand();
   renderModal();
@@ -199,14 +248,17 @@ function renderSeats() {
   const order = Array.from({ length: g.n - 1 }, (_, i) => (HUMAN + 1 + i) % g.n);
   $('seats').innerHTML = order.map(s => {
     const p = g.players[s];
-    const known = g.knownRole(me, p);
+    const read = clues.read(s);
+    const known = read.key === 'known' ? read.role : null;
     const cls = ['seat'];
     if (p.crow) cls.push('crow');
     if (g.turnSeat === s) cls.push('active');
     if (targets.includes(s)) cls.push('target');
     if (ui.mendPicks.includes(s)) cls.push('picked');
     const tags = [];
-    if (known) tags.push(`<span class="tag role ${ROLE_CLASS[known]}">${ROLE_INFO[known].name}</span>`);
+    if (known) tags.push(`<span class="tag role ${ROLE_CLASS[known]}"${read.deduced ? ' title="Worked out: no other role is left"' : ''}>${ROLE_INFO[known].name}</span>`);
+    else if (read.key === 'flockteam') tags.push('<span class="tag role r-sheepdog" title="Worked out: only flock roles are left">Flock</span>');
+    else if (help !== 'off' && read.key !== 'none' && !p.crow) tags.push(`<span class="tag read read-${read.key}" title="Tap for why">${esc(read.label)}</span>`);
     if (!p.crow && !me.crow) tags.push(`<span class="tag ${g.inRange(me, p) ? 'inrange' : ''}" title="Seats between you, the short way round">dist ${g.distance(me, p)}</span>`);
     if (targets.includes(s) && ui.pending?.kind === 'day' && !me.crow && !g.inRange(me, p) && me.hand.find(c => c.id === ui.selected[0])?.type === 'snap') {
       tags.push('<span class="tag long" title="Uses your long gun and reveals you as the Hunter">long shot</span>');
@@ -231,7 +283,7 @@ function renderSeats() {
 function renderFeed() {
   const el = $('feed');
   const items = ui.logOpen ? feed : feed.slice(-3);
-  el.innerHTML = items.map(f => `<div class="${f.cls}">${esc(f.text)}</div>`).join('') || '<div>The sun is setting…</div>';
+  el.innerHTML = items.map(f => `<div class="${f.cls}">${esc(f.text)}${f.tag && help !== 'off' ? ` <span class="f-tag ${f.tag.cls}">${f.tag.text}</span>` : ''}</div>`).join('') || '<div>The sun is setting…</div>';
   el.classList.toggle('open', ui.logOpen);
   if (ui.logOpen) el.scrollTop = el.scrollHeight;
 }
@@ -251,8 +303,8 @@ function renderYou() {
   $('youPanel').className = `you${g.turnSeat === HUMAN ? ' active' : ''}${me.crow ? ' crow' : ''}`;
   $('youPanel').innerHTML = `
     <span class="pt-wrap">${charImg(me)}${roleImg(me.role)}</span>
-    <span class="you-role ${ROLE_CLASS[me.role]}" title="${esc(info.goal)}">${info.name}</span>
-    <span class="you-char"><b>${esc(me.character.name)}</b> (${esc(me.character.animal)}) · ${esc(me.character.ability)}: ${esc(me.character.text)}${pack ? ` · Pack: <b>${pack}</b>` : ''}</span>
+    <span class="you-role ${ROLE_CLASS[me.role]}" title="${esc(info.goal)}"><span class="you-k">Role</span>${info.name}</span>
+    <span class="you-char"><span class="you-k">Character</span><b>${esc(me.character.name)}</b> the ${esc(me.character.animal)} · ${esc(me.character.ability)}: ${esc(me.character.text)}${pack ? ` · Pack: <b>${pack}</b>` : ''}</span>
     <span class="spacer"></span>
     ${tags.join('')}
     ${me.crow ? '<span class="tag">Crow</span>' : livesHTML(me)}`;
@@ -350,17 +402,209 @@ function renderHand() {
   }).join('');
 }
 
+// ── Coach (tips for a first game) ──
+function tip(key, html) {
+  if (help !== 'tips' || ui.tipsShown.has(key)) return;
+  ui.tipsShown.add(key);
+  ui.coach.push(html);
+  // Keep the tip on screen plus the 2 newest; older ones are stale.
+  while (ui.coach.length > 3) ui.coach.splice(1, 1);
+}
+
+function renderCoach() {
+  const el = $('coach');
+  const t = help === 'tips' ? ui.coach[0] : null;
+  el.style.display = t ? '' : 'none';
+  if (!t) return;
+  const more = ui.coach.length - 1;
+  el.innerHTML = `<span class="coach-label">Coach</span><span class="coach-text">${t}</span>
+    <button class="btn coach-ok" data-act="coach-ok">${more ? `Next (${more})` : 'Got it'}</button>`;
+}
+
+const nameB = seat => `<b>${esc(game.players[seat].name)}</b>`;
+const myTeam = () => ROLE_INFO[game.players[HUMAN].role].team;
+
+function planTip(g) {
+  const me = g.players[HUMAN];
+  const nights = `dawn (after night ${g.opt.nights})`;
+  const pack = g.players.filter(p => p !== me && p.role === 'coyote').map(p => esc(p.name)).join(' and ');
+  switch (me.role) {
+    case 'shepherd':
+      return `Everyone knows you're the Shepherd, so the coyotes are coming for you. You win by lasting to ${nights}. Mend when you're hurt, keep a Dodge! for emergencies, and put lanterns in the dark. Seats marked <b>Likely coyote</b> are who to Snap!.`;
+    case 'sheepdog':
+      return `You're on the flock's side, but nobody knows it, and you don't know who the coyotes are. Watch who attacks the Shepherd: their seat turns <b>Likely coyote</b>. Snap! them, mend the Shepherd, and put lanterns in the dark.`;
+    case 'hunter':
+      return `You're the flock's hidden Hunter. Watch who attacks the Shepherd: their seat turns <b>Likely coyote</b>. Your long gun reaches anyone once a night, but using it tells everyone what you are, so save it for a sure target.`;
+    case 'coyote':
+      return `You and ${pack} are the pack. Win by knocking out the Shepherd or getting ${sheepWord(g.denTarget)} into the den. Put moons in the dark face down: nobody can tell who did it. Attacking the Shepherd early gives you away, so wait until the pack can finish the job.`;
+    case 'fox':
+      return `You're on nobody's side. You win if you're alive at the end with at least ${plural(g.opt.foxKills, 'knockout')}. Pick on someone low on lives, and don't look too much like a coyote or the flock will hunt you.`;
+  }
+  return '';
+}
+
+function coachOnAsk(p) {
+  if (!game) return;
+  const team = myTeam();
+  if (p.kind === 'day') {
+    tip('day', 'Your day: tap a card to read it and see who it can reach (dim cards can\'t be played now). Play as many as you like, but only one Snap! a turn, then tap <b>End day</b>. Tap any player to see what they\'ve been up to.');
+  } else if (p.kind === 'dark') {
+    if (team === 'flock') tip('dark', `Night work: only the card's icon counts here. ${icon('lantern')} Lanterns help (every ${game.opt.lanternsPerMoon} cancel a moon), ${icon('moon')} moons take sheep. Face down, nobody sees what you put in, so put in your best lantern.`);
+    else if (team === 'coyote') tip('dark', `Night work: each ${icon('moon')} moon that isn't cancelled takes a sheep to the den. Face down, nobody knows it was you. If you're belled or woken, it goes in face up, so use a blank then.`);
+    else tip('dark', 'Night work: the Fox doesn\'t care about sheep. Put in a blank and keep your useful cards.');
+  } else if (p.kind === 'discard') {
+    tip('rest', `You can only keep ${game.opt.handLimit} cards overnight. Snap! and Dodge! are usually worth keeping.`);
+  }
+}
+
+function coachOnEvent(g, ev, clue) {
+  if (help !== 'tips') return;
+  const team = myTeam();
+  const me = g.players[HUMAN];
+  if (clue && ev.by != null && ev.by !== HUMAN) {
+    const r = clues.read(ev.by);
+    const what = clue.text.charAt(0).toLowerCase() + clue.text.slice(1);
+    if (r.key === 'known' && r.role === 'coyote' && team === 'coyote' && clue.lean >= 2) {
+      tip('pack-move', `Your packmate ${nameB(ev.by)} ${what}. The flock will suspect them now. Piling on finishes the Shepherd faster, but exposes you too.`);
+    } else if (r.key !== 'known' && clue.lean >= 1.5) {
+      tip('coyote-move', `${nameB(ev.by)} ${what}. That's a coyote move, so their seat now reads <b>${esc(r.label)}</b>. Tap any player to see everything they've done.`);
+    } else if (r.key !== 'known' && clue.lean <= -1.2) {
+      tip('flock-move', `${nameB(ev.by)} ${what}. That's a flock move, so their seat leans flock. Coyotes sometimes do this to look innocent, so it's a lean, not proof.`);
+    }
+  }
+  switch (ev.type) {
+    case 'reveal': {
+      tip('reveal', `The reveal: each moon takes a sheep unless ${game.opt.lanternsPerMoon} lanterns cancel it. Moons nobody showed came from face-down cards, so everyone who went face down tonight takes a share of the suspicion.`);
+      if (g.den === g.denTarget - 1 && !g.over) {
+        tip('den-1', team === 'coyote' ? 'One more sheep wins it for your pack. Get a moon in tonight.'
+          : team === 'flock' ? 'The coyotes need just one more sheep. Tonight, lanterns in the dark matter more than anything.'
+          : 'The coyotes are one sheep from winning.');
+      }
+      break;
+    }
+    case 'knockout':
+      if (ev.target === HUMAN) tip('crow', 'You\'re a crow now. You still win or lose with your side. Each night you draw a card and may drop it into the dark: a lantern helps the flock, a moon helps the coyotes.');
+      else tip('ko', `${nameB(ev.target)} was ${ev.role === 'shepherd' || ev.role === 'hunter' || ev.role === 'fox' ? 'the' : 'a'} ${ROLE_INFO[ev.role].name}. Knocked-out players become crows: they can't be attacked, but they still drop cards in the dark for their side.${ev.role === 'coyote' ? ' Knocking out a coyote brings a sheep home.' : ''}`);
+      break;
+    case 'hurt': {
+      const s = g.shepherdSeat;
+      const shep = g.players[s];
+      if (ev.target !== s || shep.lives > 2 || shep.crow) break;
+      if (s === HUMAN) tip('shep-low', `You're down to ${livesWord(shep.lives)}. Mend if you can, keep a Dodge! in hand, and Snap! whoever keeps coming at you.`);
+      else if (team === 'flock') tip('shep-low', `The Shepherd is down to ${livesWord(shep.lives)}. Mend them, and Snap! whoever keeps attacking.`);
+      else if (team === 'coyote') tip('shep-low', `The Shepherd is down to ${livesWord(shep.lives)}. A Pack Howl or a couple of Snap!s could end it now.`);
+      break;
+    }
+  }
+  void me;
+}
+
 // ── Modal ──
+let lastModal = '';
 function renderModal() {
   let html = '';
   let cls = 'panel';
   if (ui.rulesOpen) { html = rulesHTML(); cls += ' rules'; }
+  else if (ui.sheet != null && game) { html = ui.sheet === 'who' ? whoHTML() : sheetHTML(ui.sheet); cls += ' sheet'; }
   else if (ui.overlay) html = overlayHTML(ui.overlay);
   else if (ui.kitChoice) html = kitChoiceHTML();
   else if (ui.pending && MODAL_KINDS.has(ui.pending.kind)) html = decisionHTML(ui.pending);
   $('modal').classList.toggle('show', !!html);
   $('modalBox').className = cls;
-  if (html) $('modalBox').innerHTML = html;
+  // Only rewrite when something changed, so an open sheet keeps its scroll.
+  if (html && html !== lastModal) $('modalBox').innerHTML = html;
+  lastModal = html;
+}
+
+function sideLines(g) {
+  const c = g.roleCounts;
+  const flock = [`Shepherd (${esc(g.players[g.shepherdSeat].name)})`];
+  if (c.sheepdog) flock.push(plural(c.sheepdog, 'Sheepdog'));
+  if (c.hunter) flock.push(plural(c.hunter, 'Hunter'));
+  const lines = [
+    `<div class="side"><b class="r-shepherd">Flock</b> ${flock.join(', ')}. Only the Shepherd is known. They win if the Shepherd lasts to dawn (after night ${g.opt.nights}) or every coyote is knocked out.</div>`,
+    `<div class="side"><b class="r-coyote">Coyotes</b> ${c.coyote}, hidden, and they know each other. They win by knocking out the Shepherd or getting ${sheepWord(g.denTarget)} into the den (${g.den} so far).</div>`,
+  ];
+  if (c.fox) lines.push(`<div class="side"><b class="r-fox">Fox</b> 1, hidden, on nobody's side. Wins alongside whoever wins if alive at the end with ${plural(g.opt.foxKills, 'knockout')}.</div>`);
+  return lines.join('');
+}
+
+// How you know a known role, for the sheet.
+function knownHow(g, p, read) {
+  if (p.seat === g.shepherdSeat) return 'Everyone knows the Shepherd.';
+  if (p.crow) return 'Knocked out, so their role is showing.';
+  if (read.deduced) return 'Worked out: every other role in the game is already accounted for.';
+  if (p.revealed && p.role === 'hunter') return 'They used the long gun, which shows everyone they are the Hunter.';
+  if (p.revealed) return 'Their role has been revealed.';
+  if (p.role === 'coyote') return 'Your packmate: coyotes know each other.';
+  return '';
+}
+
+function selfSheetHTML(g) {
+  const plan = help !== 'off' ? `<p class="coach-inline">${planTip(g)}</p>` : '';
+  return `${introBody(g)}${plan}<div class="btns"><button class="btn primary" data-act="sheet-close">Close</button><button class="btn" data-act="who">Who's who</button></div>`;
+}
+
+function sheetHTML(seat) {
+  const g = game;
+  if (seat === HUMAN) return selfSheetHTML(g);
+  const p = g.players[seat];
+  const read = clues.read(seat);
+  const items = [...clues.clues(seat)].reverse();
+  const shading = help !== 'off';
+  let readLine = '';
+  if (read.key === 'known') readLine = `<div class="sheet-read ${ROLE_CLASS[read.role]}">${ROLE_INFO[read.role].name}</div><p>${knownHow(g, p, read)}</p>`;
+  else if (read.key === 'flockteam') readLine = '<div class="sheet-read r-sheepdog">Flock</div><p>Worked out: only flock roles are left among the players you don\'t know.</p>';
+  else if (shading && (read.key !== 'none' || items.length)) {
+    const foxNote = (read.key === 'coyote' || read.key === 'sus') && g.roleCounts.fox && clues.rolesLeft().coyote ? ' The Fox attacks for knockouts too, so it could be the Fox.' : '';
+    readLine = `<div class="sheet-read read-${read.key}">${esc(read.label)}</div><p>${READ_HELP[read.key]}${foxNote}</p>`;
+  }
+  const list = items.length
+    ? `<ul class="clue-list">${items.map(it => {
+      const lc = shading ? leanClass(it.lean) : 'lean-n';
+      const word = !shading ? '' : lc === 'lean-c' ? 'coyote-like' : lc === 'lean-f' ? 'flock-like' : '';
+      return `<li class="${lc}"><span class="cl-night">N${it.night}</span><span class="cl-text">${esc(it.text)}</span>${word ? `<span class="cl-lean">${word}</span>` : ''}</li>`;
+    }).join('')}</ul>`
+    : '<p class="muted">Nothing telling yet. Watch who they attack, who they help, and what they put in the dark face up.</p>';
+  return `<div class="sheet-head">
+      <span class="pt-wrap">${charImg(p, 'sheet-pt')}${read.key === 'known' ? roleImg(read.role) : ''}</span>
+      <div class="sheet-id"><h3>${esc(p.name)}</h3><div class="sheet-sub">${esc(p.character.animal)} · <b>${esc(p.character.ability)}:</b> ${esc(p.character.text)}</div>
+      <div class="sheet-sub">${p.crow ? 'Crow' : `${livesWord(p.lives)} of ${p.maxLives}`} · ${plural(p.kills, 'knockout')}</div></div>
+    </div>
+    ${readLine}
+    <h4>What you've seen them do</h4>
+    ${list}
+    <div class="btns"><button class="btn primary" data-act="sheet-close">Close</button><button class="btn" data-act="who">Who's who</button></div>`;
+}
+
+function whoHTML() {
+  const g = game;
+  const rows = g.turnOrder().map(s => {
+    const p = g.players[s];
+    const read = clues.read(s);
+    let chip;
+    if (read.key === 'known') chip = `<span class="tag role ${ROLE_CLASS[read.role]}">${ROLE_INFO[read.role].name}</span>`;
+    else if (read.key === 'flockteam') chip = '<span class="tag role r-sheepdog">Flock</span>';
+    else if (help !== 'off') chip = `<span class="tag read read-${read.key}">${esc(read.label)}</span>`;
+    else chip = '<span class="tag">Unknown</span>';
+    const items = clues.clues(s);
+    let line;
+    if (s === HUMAN) line = esc(ROLE_INFO[p.role].goal);
+    else if (!items.length) line = 'Nothing telling yet.';
+    else {
+      const top = items.reduce((a, b) => (Math.abs(b.lean) > Math.abs(a.lean) || (Math.abs(b.lean) === Math.abs(a.lean) && b.night >= a.night) ? b : a));
+      line = `${esc(top.text)}${items.length > 1 ? ` <span class="muted">(+${items.length - 1} more)</span>` : ''}`;
+    }
+    return `<button class="who-row${p.crow ? ' crow' : ''}" data-act="sheet:${s}">
+      <span class="pt-wrap">${charImg(p, 'who-pt')}</span>
+      <span class="who-main"><span class="who-name">${esc(p.name)}${p.crow ? ' · crow' : ''}</span>${chip}<span class="who-line">${line}</span></span>
+    </button>`;
+  }).join('');
+  return `<h3>Who's who</h3>
+    <div class="sides">${sideLines(g)}</div>
+    <div class="who-list">${rows}</div>
+    <p class="who-note">${help === 'off' ? 'Reads are off (Settings, Helper).' : 'Reads come only from what you have seen, the same way a Normal computer player reads the table.'} Tap a player for the full list.</p>
+    <div class="btns"><button class="btn primary" data-act="sheet-close">Close</button></div>`;
 }
 
 function decisionHTML(pd) {
@@ -372,9 +616,15 @@ function decisionHTML(pd) {
       const notes = [];
       if (g.hasKit(me, 'hayloft') && me.hand.some(c => c.type === 'dodge')) notes.push('You are up in the Hayloft, so you cannot Dodge!.');
       if (g.hasKit(me, 'thicket')) notes.push('If you take it, your Thicket absorbs the hit.');
+      let coach = '';
+      if (help === 'tips') {
+        if (me.lives === 1 && !g.hasKit(me, 'thicket')) coach = 'This hit would knock you out. Use a Dodge! or Bristle if you have one.';
+        else if (pd.canDodge || pd.canBristle) coach = 'Dodge! cancels the hit; Bristle cancels it and hurts the attacker. With lives to spare, some players take the hit and save the card.';
+      }
       return `<h3>Snap!</h3>
         <p><b>${esc(a.name)}</b> snaps at you. You have ${livesWord(me.lives)}.</p>
         ${notes.length ? `<p>${notes.join(' ')}</p>` : ''}
+        ${coach ? `<p class="coach-inline">${coach}</p>` : ''}
         <div class="btns">
           ${pd.canDodge ? '<button class="btn good" data-act="r-dodge">Dodge!</button>' : ''}
           ${pd.canBristle ? '<button class="btn good" data-act="r-bristle">Bristle</button>' : ''}
@@ -385,6 +635,7 @@ function decisionHTML(pd) {
       const t = g.players[pd.target];
       return `<h3>Pack Howl</h3>
         <p>The pack howls at <b>${esc(t.name)}</b>. Join in with a Snap! (ignores range)? Everyone sees who joins and who holds back.</p>
+        ${help === 'tips' && pd.target === g.shepherdSeat ? `<p class="coach-inline">${myTeam() === 'coyote' ? 'Joining helps the pack, but everyone will read it as a coyote move.' : 'Joining an attack on the Shepherd marks you as a coyote. Hold back.'}</p>` : ''}
         <div class="btns"><button class="btn bad" data-act="howl-yes">Snap them</button><button class="btn" data-act="howl-no">Hold back</button></div>`;
     }
     case 'crow':
@@ -413,20 +664,31 @@ function kitChoiceHTML() {
     <div class="btns">${kits.map(k => `<button class="btn primary" data-act="kit:${k.id}">${esc(cardName(k))}</button>`).join('')}<button class="btn" data-act="kit-back">Back</button></div>`;
 }
 
+function introBody(g) {
+  const me = g.players[HUMAN];
+  const info = ROLE_INFO[me.role];
+  const pack = me.role === 'coyote' && g.opt.coyotesKnow
+    ? `<p>Your pack: <b>${g.players.filter(p => p !== me && p.role === 'coyote').map(p => esc(p.name)).join(', ')}</b>. They know you too.</p>`
+    : '';
+  const shep = me.role === 'shepherd' ? '' : `<p>The Shepherd is <b>${esc(g.players[g.shepherdSeat].name)}</b>.</p>`;
+  // Role (your secret side) and character (the animal you play) are
+  // different things; keep them visibly separate so a goose who is a
+  // Sheepdog doesn't read as a contradiction.
+  return `<div class="intro-art"><span class="pt-wrap">${charImg(me, 'intro-pt')}${roleImg(me.role, 'intro-badge')}</span></div>
+    <div class="intro-kicker">Your secret role</div>
+    <h3 class="${ROLE_CLASS[me.role]}">${info.name}</h3>
+    <p>${esc(info.goal)}</p>${pack}${shep}
+    <div class="intro-kicker">Your character</div>
+    <p><b>${esc(me.character.name)} the ${esc(me.character.animal)}.</b> <b>${esc(me.character.ability)}:</b> ${esc(me.character.text)}</p>
+    <p class="intro-note">Your role is your side, and it stays secret. Your character is just the animal you play, with one special ability. Any animal can have any role.</p>
+    <p>${g.n} players · ${g.opt.nights} nights · coyotes need ${sheepWord(g.denTarget)} in the den · ${TIERS[g.tier]?.label ?? 'Normal'} opponents.</p>`;
+}
+
 function overlayHTML(o) {
   const g = game;
   if (o.kind === 'intro') {
-    const me = g.players[HUMAN];
-    const info = ROLE_INFO[me.role];
-    const pack = me.role === 'coyote' && g.opt.coyotesKnow
-      ? `<p>Your pack: <b>${g.players.filter(p => p !== me && p.role === 'coyote').map(p => esc(p.name)).join(', ')}</b>. They know you too.</p>`
-      : '';
-    const shep = me.role === 'shepherd' ? '' : `<p>The Shepherd is <b>${esc(g.players[g.shepherdSeat].name)}</b>.</p>`;
-    return `<div class="intro-art">${roleImg(me.role, '')}${charImg(me, '')}</div>
-      <h3 class="${ROLE_CLASS[me.role]}">You are ${me.role === 'shepherd' ? 'the' : 'a'} ${info.name}</h3>
-      <p>${esc(info.goal)}</p>${pack}${shep}
-      <p>You are <b>${esc(me.character.name)}</b>, the ${esc(me.character.animal)}. <b>${esc(me.character.ability)}:</b> ${esc(me.character.text)}</p>
-      <p>${g.n} players · ${g.opt.nights} nights · coyotes need ${sheepWord(g.denTarget)} in the den · ${TIERS[g.tier]?.label ?? 'Normal'} opponents.</p>
+    return `${introBody(g)}
+      ${help !== 'off' ? '<p class="coach-inline">Tap any player during the game to see what they\'ve done and which side it points to. <b>Who\'s who</b> (top right) sums up the table.</p>' : ''}
       <div class="btns"><button class="btn primary" data-act="overlay-ok">Begin</button></div>`;
   }
   if (o.kind === 'reveal') {
@@ -463,7 +725,9 @@ function overlayHTML(o) {
 function rulesHTML() {
   const lpm = game?.opt.lanternsPerMoon ?? DEFAULTS.lanternsPerMoon;
   return `<h3>How to play Coyote</h3>
-    <h4>The sides</h4>
+    <h4>Role and character</h4>
+    <p>Everyone gets two things. A <b>role</b> is your side: it's secret (except the Shepherd's) and decides how you win. A <b>character</b> is the farm animal you play, with one special ability. Any animal can have any role: Mabel the goose might be a Sheepdog in one game and a Coyote in the next.</p>
+    <h4>The roles</h4>
     <ul>
       <li>${roleImg('shepherd', 'rb')}<b class="r-shepherd">Shepherd</b> (everyone knows who): survive to dawn, or knock out every Coyote.</li>
       <li>${roleImg('sheepdog', 'rb')}<b class="r-sheepdog">Sheepdogs</b> (hidden): win with the Shepherd, even after being knocked out.</li>
@@ -505,9 +769,17 @@ function onCard(id) {
   }
 }
 
+function openSheet(which) {
+  if (!game) return;
+  ui.sheet = which;
+  closeDropdown();
+  renderModal();
+}
+
 function onSeat(s) {
   const pd = ui.pending;
-  if (!pd || !currentTargets().includes(s)) return;
+  // Not a target right now: show what this player has been doing.
+  if (!pd || !currentTargets().includes(s)) return openSheet(s);
   if (pd.kind === 'duke' || pd.kind === 'lastshot') return answer(s);
   if (pd.kind !== 'day') return;
   const me = game.players[HUMAN];
@@ -534,7 +806,11 @@ function onAct(act) {
   const snapId = () => me?.hand.find(c => c.type === 'snap')?.id ?? null;
   switch (act) {
     case 'rules': ui.rulesOpen = true; closeDropdown(); return renderAny();
-    case 'rules-close': ui.rulesOpen = false; return renderAny();
+    case 'rules-close': ui.rulesOpen = false; releaseGate(); return renderAny();
+    case 'who': return openSheet('who');
+    case 'sheet-close': ui.sheet = null; releaseGate(); return render();
+    case 'coach-ok': ui.coach.shift(); return render();
+    case 'learn': return startLearn();
     case 'new-game': closeDropdown(); return backToSetup();
     case 'play-again': return startGame();
     case 'overlay-ok': {
@@ -565,6 +841,8 @@ function onAct(act) {
     case 'woolly-no': return answer(false);
     case 'kit-back': ui.kitChoice = null; return render();
   }
+  if (act.startsWith('sheet:')) return openSheet(Number(act.slice(6)));
+  if (act.startsWith('help:')) return setHelp(act.slice(5));
   if (act.startsWith('kit:') && ui.kitChoice) {
     const kc = ui.kitChoice;
     ui.kitChoice = null;
@@ -599,19 +877,36 @@ async function startGame() {
   });
   g.tier = tier;
   game = g;
+  clues = new ClueTracker(g, HUMAN);
   feed = [];
+  gateWaiters = []; // a paused old game stays frozen
   ui = freshUI(ui);
   $('setupScreen').style.display = 'none';
   $('gameBoard').style.display = 'flex';
   render();
   await overlay('intro');
   if (g !== game) return;
+  tip('plan', planTip(g));
+  render();
   await g.run();
+}
+
+// "Learn to play": the friendliest first game. A Sheepdog does the core
+// job (find the coyotes), 5 players includes the Hunter, Easy opponents
+// forgive mistakes, and the coach is on.
+function startLearn() {
+  $('selPlayers').value = '5';
+  $('selRole').value = 'sheepdog';
+  $('selTier').value = 'easy';
+  showTierHint();
+  setHelp('tips');
+  return startGame();
 }
 
 function backToSetup() {
   ui.overlay?.resolve();
   game = null;
+  gateWaiters = [];
   ui = freshUI(ui);
   $('gameBoard').style.display = 'none';
   $('setupScreen').style.display = 'flex';
@@ -643,13 +938,25 @@ function setSpeed(s) {
   document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('active', b.dataset.speed === speed));
 }
 
+function setHelp(h) {
+  help = HELP_LEVELS.includes(h) ? h : 'tips';
+  try { localStorage.setItem('coyote-help', help); } catch { /* private mode */ }
+  document.querySelectorAll('[data-act^="help:"]').forEach(b => b.classList.toggle('active', b.dataset.act === `help:${help}`));
+  $('selHelp').value = help;
+  if (help !== 'tips') ui.coach = [];
+  if (game) render();
+}
+
 // ── Wiring ──
 initTheme();
 setSpeed(speed);
+setHelp(help);
 $('btnStart').addEventListener('click', startGame);
-const showTierHint = () => { $('tierHint').textContent = TIER_HINTS[$('selTier').value] || ''; };
+function showTierHint() { $('tierHint').textContent = TIER_HINTS[$('selTier').value] || ''; }
 $('selTier').addEventListener('change', showTierHint);
+$('selHelp').addEventListener('change', () => setHelp($('selHelp').value));
 showTierHint();
+$('youPanel').addEventListener('click', e => { if (!e.target.closest('[data-act]')) openSheet(HUMAN); });
 $('logoWrap').addEventListener('click', e => {
   if (e.target.closest('.settings-dropdown')) return;
   e.stopPropagation();

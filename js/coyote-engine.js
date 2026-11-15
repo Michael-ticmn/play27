@@ -132,6 +132,8 @@ export class CoyoteGame {
     this.rng = rng;
     this.opt = { ...DEFAULTS, ...options };
     const table = this.opt.roleTable?.[numPlayers] ?? ROLE_TABLE[numPlayers];
+    // Public: everyone knows how many of each role are in the game.
+    this.roleCounts = Object.fromEntries(['shepherd', 'sheepdog', 'hunter', 'coyote', 'fox'].map(r => [r, table[r] || 0]));
     this.denTarget = this.opt.denTarget ?? this.opt.denTargets?.[numPlayers] ?? table.den;
     this.opt.nights = this.opt.nights ?? table.nights ?? 6;
     this.controllers = controllers;

@@ -49,6 +49,13 @@ html, body { height:100%; overflow:hidden; }
   font-family:'Courier New', Courier, monospace; font-size:0.65rem; color:var(--muted);
   letter-spacing:0.05em;
 }
+.top-group { display:flex; align-items:center; gap:10px; }
+.top-btn {
+  background:transparent; border:1px solid var(--teal); color:var(--teal); border-radius:6px;
+  padding:5px 10px; font-family:'Courier New', Courier, monospace; font-size:0.68rem; font-weight:700;
+  letter-spacing:0.05em; cursor:pointer; white-space:nowrap;
+}
+.top-btn:hover { background:var(--teal); color:var(--bg); }
 
 /* ── Setup Screen ── */
 #setupScreen {
@@ -86,6 +93,12 @@ html, body { height:100%; overflow:hidden; }
   cursor:pointer; transition:all 0.15s;
 }
 .btn-start:hover { background:var(--amber); color:var(--bg); }
+.btn-learn {
+  padding:9px 0; border:1px solid var(--teal); background:transparent; color:var(--teal);
+  font-family:'Courier New', Courier, monospace; font-size:0.8rem; font-weight:700;
+  letter-spacing:0.08em; text-transform:uppercase; border-radius:8px; cursor:pointer;
+}
+.btn-learn:hover { background:var(--teal); color:var(--bg); }
 .btn-link {
   background:none; border:none; color:var(--muted); font-family:'Courier New', Courier, monospace;
   font-size:0.72rem; letter-spacing:0.06em; text-transform:uppercase; cursor:pointer; padding:4px;
@@ -186,6 +199,15 @@ html, body { height:100%; overflow:hidden; }
 .tag.woken { color:var(--moon); border-color:var(--moon); }
 .tag.inrange { color:var(--teal); border-color:var(--teal); }
 .tag.long { color:var(--green); border-color:var(--green); }
+/* Reads from the helper (js/coyote-clues.js) */
+.tag.read { border-style:dashed; }
+.read-coyote { color:var(--red); border-color:var(--red); }
+.read-sus { color:var(--amber); border-color:var(--amber); }
+.read-none { color:var(--muted); }
+.read-flockish { color:var(--teal); border-color:var(--teal); }
+.read-flock { color:var(--green); border-color:var(--green); }
+.seat { cursor:pointer; }
+.you { cursor:pointer; }
 
 /* Feed */
 .feed {
@@ -201,6 +223,29 @@ html, body { height:100%; overflow:hidden; }
 .feed .f-night { color:var(--moon); font-weight:700; }
 .feed .f-reveal { color:var(--amber); font-weight:700; }
 .feed .f-private { color:var(--teal); }
+.feed .f-tag {
+  font-family:'Courier New', Courier, monospace; font-size:0.85em; font-weight:700;
+  text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap;
+}
+.f-tag.lean-c { color:var(--red); }
+.f-tag.lean-f { color:var(--green); }
+
+/* Coach strip */
+.coach {
+  display:flex; align-items:center; gap:10px; flex-shrink:0; padding:7px 12px;
+  background:var(--bg3); border-left:3px solid var(--teal); font-size:0.74rem; line-height:1.4; color:var(--text);
+}
+.coach-label {
+  font-family:'Courier New', Courier, monospace; font-size:0.6rem; font-weight:700; color:var(--teal);
+  text-transform:uppercase; letter-spacing:0.12em; flex-shrink:0; align-self:flex-start; margin-top:2px;
+}
+.coach-text { flex:1; }
+.coach-text .ii { width:13px; height:13px; }
+.coach .coach-ok { flex-shrink:0; padding:5px 10px; min-height:30px; font-size:0.68rem; border-color:var(--teal); color:var(--teal); }
+.panel p.coach-inline {
+  border-left:3px solid var(--teal); background:var(--bg3); color:var(--text);
+  padding:7px 10px; border-radius:0 6px 6px 0; text-align:left; font-size:0.74rem;
+}
 
 /* You */
 .you {
@@ -298,9 +343,68 @@ html, body { height:100%; overflow:hidden; }
 .panel.rules ul.steps { padding-left:18px; list-style:disc; }
 .panel.rules li .rb { width:22px; height:22px; vertical-align:-6px; margin-right:6px; }
 .intro-art { display:flex; justify-content:center; gap:14px; margin:4px 0 12px; }
-.intro-art img { width:84px; height:84px; }
+.intro-art img.intro-pt { width:96px; height:96px; display:block; }
+.intro-art img.intro-badge { position:absolute; right:-8px; bottom:-8px; width:40px; height:40px; }
+.intro-kicker {
+  font-family:'Courier New', Courier, monospace; font-size:0.6rem; font-weight:700; color:var(--muted);
+  text-transform:uppercase; letter-spacing:0.14em; margin:4px 0 2px;
+}
+.panel .intro-kicker + h3 { margin-bottom:6px; }
+.panel p.intro-note { font-size:0.72rem; font-style:italic; }
+.you-k {
+  font-family:'Courier New', Courier, monospace; font-size:0.55rem; font-weight:700; color:var(--muted);
+  text-transform:uppercase; letter-spacing:0.12em; margin-right:6px; vertical-align:1px;
+}
 .results-table .rt-pt { width:26px; height:26px; vertical-align:middle; margin-right:6px; }
 .panel.rules .btns { justify-content:flex-end; }
+
+/* Player sheet and Who's who */
+.panel.sheet { text-align:left; }
+.panel.sheet h4 {
+  font-family:'Courier New', Courier, monospace; font-size:0.68rem; color:var(--muted);
+  text-transform:uppercase; letter-spacing:0.1em; margin:12px 0 6px;
+}
+.panel.sheet .btns { justify-content:flex-end; }
+.sheet-head { display:flex; gap:12px; align-items:center; margin-bottom:10px; }
+.sheet-head h3 { margin-bottom:3px; }
+.sheet-pt { width:64px; height:64px; display:block; }
+.sheet-head .pt-role { width:26px; height:26px; right:-6px; bottom:-6px; }
+.sheet-sub { font-size:0.7rem; color:var(--muted); line-height:1.35; }
+.sheet-sub b { color:var(--text); }
+.sheet-read {
+  font-family:'Courier New', Courier, monospace; font-size:0.9rem; font-weight:700;
+  text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px;
+}
+.panel.sheet p { margin-bottom:6px; }
+.panel .muted { color:var(--muted); }
+.clue-list { list-style:none; padding:0; margin:0 0 8px; display:flex; flex-direction:column; gap:5px; }
+.clue-list li {
+  display:flex; gap:8px; align-items:baseline; font-size:0.75rem; line-height:1.35; color:var(--text);
+  padding:5px 8px; border-radius:6px; background:var(--bg3); border-left:3px solid var(--border);
+}
+.clue-list li.lean-c { border-left-color:var(--red); }
+.clue-list li.lean-f { border-left-color:var(--green); }
+.cl-night { font-family:'Courier New', Courier, monospace; font-size:0.62rem; color:var(--muted); flex-shrink:0; }
+.cl-text { flex:1; }
+.cl-lean { font-family:'Courier New', Courier, monospace; font-size:0.58rem; font-weight:700; text-transform:uppercase; white-space:nowrap; }
+.lean-c .cl-lean { color:var(--red); }
+.lean-f .cl-lean { color:var(--green); }
+.sides { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+.side { font-size:0.74rem; line-height:1.4; color:var(--muted); background:var(--bg3); border-radius:6px; padding:6px 9px; }
+.side b { font-family:'Courier New', Courier, monospace; text-transform:uppercase; letter-spacing:0.05em; margin-right:4px; }
+.who-list { display:flex; flex-direction:column; gap:6px; }
+.who-row {
+  display:flex; gap:10px; align-items:center; text-align:left; width:100%;
+  background:transparent; border:1px solid var(--border); border-radius:8px; padding:6px 8px;
+  color:var(--text); cursor:pointer; font:inherit;
+}
+.who-row:hover { background:var(--bg3); }
+.who-row.crow { opacity:0.55; }
+.who-pt { width:38px; height:38px; display:block; }
+.who-main { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; flex:1; min-width:0; }
+.who-name { font-family:'Courier New', Courier, monospace; font-size:0.78rem; font-weight:700; }
+.who-line { flex-basis:100%; font-size:0.7rem; color:var(--muted); line-height:1.35; }
+.who-note { font-size:0.68rem !important; margin-top:10px; }
 
 .reveal-counts { display:flex; justify-content:center; gap:18px; margin:6px 0 12px; }
 .reveal-counts .rc { display:flex; flex-direction:column; align-items:center; gap:4px; font-family:'Courier New', Courier, monospace; }
@@ -362,4 +466,8 @@ html, body { height:100%; overflow:hidden; }
   .card .cname { font-size:0.66rem; }
   .card .cicon { width:20px; height:20px; }
   .version-tag { display:none; }
+  .top-title { display:none; }
+  .coach { padding:6px 8px; font-size:0.7rem; gap:8px; }
+  .coach-label { display:none; }
+  .modal-overlay .panel { padding:16px 14px; }
 }

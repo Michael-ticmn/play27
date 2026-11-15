@@ -8,7 +8,7 @@
 <title>play27 — Coyote</title>
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=0.15.24">
 <link rel="stylesheet" href="css/shared.css?v=0.15.24">
-<link rel="stylesheet" href="css/coyote.css?v=0.15.24-p3">
+<link rel="stylesheet" href="css/coyote.css?v=0.15.24-p4">
 </head>
 <body>
 
@@ -49,7 +49,17 @@
       </select>
     </div>
     <div class="setup-hint" id="tierHint"></div>
+    <div class="setup-row">
+      <label for="selHelp">Helper</label>
+      <select id="selHelp">
+        <option value="tips">Coach tips + reads</option>
+        <option value="reads">Reads only</option>
+        <option value="off">Off</option>
+      </select>
+    </div>
     <button class="btn-start" id="btnStart">Start Game</button>
+    <button class="btn-learn" data-act="learn">Learn to play</button>
+    <div class="setup-hint">First game? Learn to play makes you a Sheepdog against Easy opponents, with the coach explaining as you go.</div>
     <button class="btn-link" data-act="rules">How to play</button>
   </div>
   <div class="setup-note">Preview: you against computer players, all in this browser.</div>
@@ -77,19 +87,31 @@
             <button data-speed="slow">Slow</button>
           </div>
         </div>
+        <div class="settings-row">
+          <span>Helper</span>
+          <div class="theme-toggle">
+            <button data-act="help:tips">Tips</button>
+            <button data-act="help:reads">Reads</button>
+            <button data-act="help:off">Off</button>
+          </div>
+        </div>
         <button class="settings-fullscreen" data-act="rules">How to play</button>
         <button class="settings-end-game" data-act="new-game">New game</button>
         <a href="index.html" class="settings-home">Back to Games</a>
       </div>
     </div>
     <div class="top-title">Coyote</div>
-    <div class="top-right" id="topRight"></div>
+    <div class="top-group">
+      <button class="top-btn" data-act="who">Who's who</button>
+      <div class="top-right" id="topRight"></div>
+    </div>
   </div>
 
   <div class="seats" id="seats"></div>
   <div class="yard" id="yard"></div>
   <div class="feed" id="feed" title="Tap to expand the log"></div>
-  <div class="you" id="youPanel"></div>
+  <div class="coach" id="coach" style="display:none"></div>
+  <div class="you" id="youPanel" title="Tap to see your role and goal"></div>
   <div class="prompt" id="prompt"></div>
   <div class="hand" id="hand"></div>
 </div>
@@ -100,7 +122,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div class="version-tag">v0.15.24 · Coyote preview 3</div>
-<script type="module" src="js/coyote.js?v=0.15.24-p3"></script>
+<div class="version-tag">v0.15.24 · Coyote preview 4</div>
+<script type="module" src="js/coyote.js?v=0.15.24-p4"></script>
 </body>
 </html>

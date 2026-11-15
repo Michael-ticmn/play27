@@ -191,6 +191,12 @@ a night. That's the kind of bluff the design wants.
 
 ## Characters (8, dealt at random, public)
 
+A character is separate from a role. The role is your secret side; the
+character is the farm animal you play, with one ability. Any animal can have any
+role, so the game says so on the intro screen and in the rules, and always labels
+the two ("Role", "Character"). Playtest note: without those labels, "You are a
+Sheepdog" next to "You are Mabel the goose" read as a contradiction.
+
 Every ability ties into this game's own systems: the Dark pile, the sheep,
 healing, and Snap!.
 
@@ -238,6 +244,53 @@ than Normal: seeing who holds lanterns doesn't help fill the den, and attacking
 the Shepherd earlier only exposes them. So Hard and Unfair are a real step up
 when you play a Coyote or the Fox, but not yet when you play the flock.
 
+## The helper (reads and coach)
+
+Hidden-role games are hard to follow from a phone: the board shows what happened
+but not what it means. The helper fixes that from your own seat's point of view.
+
+- **Clues and reads** (`js/coyote-clues.js`, no DOM). Every event you can see is
+  turned into a clue about the player who did it ("Snapped the Shepherd",
+  "Mended the Shepherd", "Put a moon in the Dark pile face up"), weighted the
+  same way the Normal computer players weigh it. Each unknown seat shows a read:
+  Likely coyote, Suspicious, Seems flock, Likely flock (or none yet). A coyote
+  already knows its pack, so for a coyote a hostile read says "Likely Fox".
+- **Elimination.** Role counts are public, so when only one role (or only flock
+  roles) can be left among the seats you don't know, the seat shows that role.
+- **Player sheet.** Tap any player for everything you've seen them do, newest
+  first, each marked coyote-like or flock-like. Tap your own panel for your role,
+  goal, and a short plan. **Who's who** (top bar) shows each side's goal and
+  every player's read. The game pauses while a sheet or the rules are open.
+- **Feed tags.** Lines that matter get a "coyote move" or "flock move" tag, and
+  attacks on the Shepherd name the Shepherd.
+- **Coach.** First-game tips at the moments they matter: your plan after the
+  intro, your first day, first Dark card, first reveal, first knockout, the first
+  coyote-like or flock-like move by someone else, a Shepherd down to 2 lives, the
+  den one sheep from full. At most 3 queue up; older ones drop.
+- **Learn to play** (setup) starts the friendliest first game: Sheepdog, 5
+  players, Easy opponents, coach on. A scripted tutorial was considered and
+  passed over: rules are still being tuned, and a fixed script would break on
+  every change.
+- **Helper setting:** Coach tips + reads (default), Reads only, or Off (the
+  sheets still list what people did, with no reads or tags).
+
+Accuracy, from `node tools/coyote-clue-check.mjs` (1,200 games, all four
+player counts, Normal AI, reads sampled at every nightly reveal), for a viewer on
+the flock side:
+
+| Read | Share of reads | Really coyote | Really Fox | Really flock |
+|---|---|---|---|---|
+| (everyone unknown) | 100% | 53% | 15% | 31% |
+| Likely coyote | 33% | 88% | 12% | 0% |
+| Suspicious | 18% | 66% | 23% | 11% |
+| No read yet | 28% | 42% | 20% | 37% |
+| Seems flock | 9% | 8% | 10% | 82% |
+| Likely flock | 12% | 0% | 3% | 97% |
+
+13,394 roles worked out by elimination, 0 wrong. These numbers are against
+computer players, who don't bluff much. Against people, reads will be weaker.
+They also make the flock's job easier, which is why the helper can be turned off.
+
 ## Platform plan
 
 1. **Landing tile.** Done, committed on `coyote`.
@@ -274,6 +327,12 @@ when you play a Coyote or the Fox, but not yet when you play the flock.
   from anyone, so 1 stays for now. Revisit after people play it.
 - **Fragile characters.** Duke, Hazel, and Boots have 2 lives. Watch whether
   they feel too easy to knock out.
+- **Sheepdog name.** Roles and characters are both animals, so "a goose who is
+  a Sheepdog" confuses. The screens now label role and character separately;
+  renaming the role to something that isn't an animal would remove the clash.
+- **Helper vs challenge.** Reads are right about 90% of the time against the
+  computer players. Consider defaulting experienced players to Reads only or
+  Off, or hiding reads on Hard and Unfair.
 
 ## Tuning log
 
