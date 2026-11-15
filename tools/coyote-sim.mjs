@@ -26,6 +26,21 @@ if (arg('den')) options.denTarget = Number(arg('den'));
 if (arg('nights')) options.nights = Number(arg('nights'));
 if (flag('no-know')) options.coyotesKnow = false;
 if (arg('fox-kills')) options.foxKills = Number(arg('fox-kills'));
+if (arg('life-delta')) options.lifeDelta = Number(arg('life-delta'));
+if (arg('bounty')) options.bounty = Number(arg('bounty'));
+if (arg('shep-bonus')) options.shepherdBonus = Number(arg('shep-bonus'));
+// --roles "5:1,1,1,2,0,3;6:..."  shepherd,sheepdog,hunter,coyote,fox,den per player count
+if (arg('roles')) {
+  options.roleTable = {};
+  for (const part of arg('roles').split(';')) {
+    const [n, list] = part.split(':');
+    const [shepherd, sheepdog, hunter, coyote, fox, den] = list.split(',').map(Number);
+    options.roleTable[n] = { shepherd, sheepdog, hunter, coyote, fox, den };
+  }
+}
+const tierAll = arg('tier', 'normal');
+const tierFlock = arg('tier-flock', tierAll);
+const tierCoyote = arg('tier-coyote', tierAll);
 if (arg('roles7')) { const [d, c, f, den] = arg('roles7').split(',').map(Number); options.roleTable = { 7: { shepherd: 1, sheepdog: d, coyote: c, fox: f, den } }; }
 if (arg('lpm')) options.lanternsPerMoon = Number(arg('lpm'));
 if (arg('dens')) options.denTargets = Object.fromEntries(arg('dens').split(',').map((v, i) => [i + 4, Number(v)]));
@@ -33,7 +48,7 @@ if (arg('dens')) options.denTargets = Object.fromEntries(arg('dens').split(',').
 const pct = (a, b) => (b ? `${((100 * a) / b).toFixed(0)}%` : '-').padStart(5);
 const avg = (a, b) => (b ? (a / b).toFixed(1) : '-').padStart(5);
 
-console.log(`Coyote sim: ${games} games per player count, seed ${seed0}${Object.keys(options).length > 1 ? `, options ${JSON.stringify(options)}` : ''}`);
+console.log(`Coyote sim: ${games} games per player count, seed ${seed0}, tiers flock=${tierFlock} coyote=${tierCoyote}${Object.keys(options).length > 1 ? `, options ${JSON.stringify(options)}` : ''}`);
 console.log('');
 console.log('Plyrs | Flock win (dawn / all out) | Coyote win (shepherd / den) | Fox win | Night ends | Den | KOs | Snaps | Errors');
 console.log('------|----------------------------|-----------------------------|---------|------------|-----|-----|-------|-------');
@@ -46,6 +61,7 @@ for (const n of counts) {
     const rng = mulberry32(seed);
     const controllers = Array.from({ length: n }, (_, i) => new CoyoteAI({ rng: mulberry32(seed * 31 + i) }));
     const game = new CoyoteGame({ numPlayers: n, controllers, rng, options });
+    game.players.forEach((p, i) => controllers[i].setTier(p.role === 'coyote' ? tierCoyote : p.role === 'fox' ? tierAll : tierFlock));
     let r;
     try {
       r = await game.run();

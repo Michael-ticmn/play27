@@ -33,10 +33,21 @@
         <option value="random" selected>Random</option>
         <option value="shepherd">Shepherd</option>
         <option value="sheepdog">Sheepdog</option>
+        <option value="hunter">Hunter (5+)</option>
         <option value="coyote">Coyote</option>
         <option value="fox">Fox (6+)</option>
       </select>
     </div>
+    <div class="setup-row">
+      <label for="selTier">Difficulty</label>
+      <select id="selTier">
+        <option value="easy">Easy</option>
+        <option value="normal" selected>Normal</option>
+        <option value="hard">Hard</option>
+        <option value="unfair">Unfair</option>
+      </select>
+    </div>
+    <div class="setup-hint" id="tierHint"></div>
     <button class="btn-start" id="btnStart">Start Game</button>
     <button class="btn-link" data-act="rules">How to play</button>
   </div>

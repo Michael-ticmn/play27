@@ -4,20 +4,26 @@
 // ============================================================
 
 import { initTheme } from './theme.js?v=0.15.24';
-import { CoyoteGame, CARD_TYPES, ROLE_INFO, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24';
-import { CoyoteAI } from './coyote-ai.js?v=0.15.24';
+import { CoyoteGame, CARD_TYPES, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.24';
+import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.24';
 
 const HUMAN = 0;
 const $ = id => document.getElementById(id);
 const SPEEDS = { fast: 0.35, normal: 1, slow: 1.8 };
-const ROLE_CLASS = { shepherd: 'r-shepherd', sheepdog: 'r-sheepdog', coyote: 'r-coyote', fox: 'r-fox' };
+const ROLE_CLASS = { shepherd: 'r-shepherd', sheepdog: 'r-sheepdog', hunter: 'r-hunter', coyote: 'r-coyote', fox: 'r-fox' };
+const TIER_HINTS = {
+  easy: 'Easy: computer players make mistakes and read the night poorly.',
+  normal: 'Normal: the computer players the game is balanced around.',
+  hard: 'Hard: a sharper flock that sometimes peeks at face-down Dark cards. Toughest when you are a Coyote or the Fox.',
+  unfair: 'Unfair: the flock sees every face-down Dark card. Brutal when you are a Coyote or the Fox.',
+};
 const GROUP_CLASS = { Fighting: 'g-fight', Care: 'g-care', Tricks: 'g-tricks', Finding: 'g-find', Kit: 'g-kit' };
 const TYPE_ORDER = Object.keys(CARD_TYPES);
 const MODAL_KINDS = new Set(['snap', 'howl', 'crow', 'charge', 'woolly']);
 const FEED_CLASS = {
   turn: 'f-turn', snap: 'f-fight', hurt: 'f-fight', bristle: 'f-fight', howl: 'f-fight', charge: 'f-fight',
   knockout: 'f-ko', runoff: 'f-ko', reveal: 'f-reveal', over: 'f-reveal', night: 'f-night',
-  heal: 'f-care', roundup: 'f-care', woolly: 'f-care',
+  heal: 'f-care', roundup: 'f-care', woolly: 'f-care', bounty: 'f-care', longshot: 'f-fight', lastshot: 'f-fight',
 };
 const ICON_SVG = {
   moon: '<svg class="ico ico-moon" viewBox="0 0 24 24" role="img" aria-label="moon"><path fill="currentColor" d="M14.5 2.5a9.5 9.5 0 1 0 7 15.9A8 8 0 0 1 14.5 2.5z"/></svg>',
@@ -67,6 +73,7 @@ class HumanController {
   tinyCharge(g, me, attacker) { return ask({ kind: 'charge', attacker: attacker.seat }); }
   woollySave(g, me, lost) { return ask({ kind: 'woolly', lost }); }
   dukePick() { return ask({ kind: 'duke' }); }
+  lastShot() { return ask({ kind: 'lastshot' }); }
 }
 
 function ask(p) {
@@ -110,6 +117,8 @@ async function handleEvent(g, ev) {
     case 'night': toast(`Night ${ev.night} of ${g.opt.nights}`, 'night'); break;
     case 'snap': if (ev.target === HUMAN) toast(`${g.players[ev.by].name} snaps at you!`, 'warn'); break;
     case 'knockout': toast(ev.text, 'warn'); break;
+    case 'longshot': toast(ev.text, 'warn'); break;
+    case 'bounty': toast(ev.text); break;
     case 'reveal': await overlay('reveal', ev); return;
     case 'over': await delay(500); await overlay('over', ev); return;
   }
@@ -169,7 +178,7 @@ function currentTargets() {
   const pd = ui.pending;
   if (!pd || !game) return [];
   const me = game.players[HUMAN];
-  if (pd.kind === 'duke') return game.alive().filter(q => q !== me).map(q => q.seat);
+  if (pd.kind === 'duke' || pd.kind === 'lastshot') return game.alive().filter(q => q !== me).map(q => q.seat);
   if (pd.kind === 'day' && ui.selected.length === 1 && !ui.kitChoice) {
     const card = me.hand.find(c => c.id === ui.selected[0]);
     if (!card) return [];
@@ -195,6 +204,9 @@ function renderSeats() {
     const tags = [];
     if (known) tags.push(`<span class="tag role ${ROLE_CLASS[known]}">${ROLE_INFO[known].name}</span>`);
     if (!p.crow && !me.crow) tags.push(`<span class="tag ${g.inRange(me, p) ? 'inrange' : ''}" title="Seats between you, the short way round">dist ${g.distance(me, p)}</span>`);
+    if (targets.includes(s) && ui.pending?.kind === 'day' && !me.crow && !g.inRange(me, p) && me.hand.find(c => c.id === ui.selected[0])?.type === 'snap') {
+      tags.push('<span class="tag long" title="Uses your long gun and reveals you as the Hunter">long shot</span>');
+    }
     for (const k of p.kits) tags.push(`<span class="tag kit" title="${esc(k.type === 'crook' ? 'Shepherd\'s Crook: +1 range' : CARD_TYPES[k.type].text)}">${esc(cardName(k))}</span>`);
     if (p.bell) tags.push('<span class="tag bell" title="Their next Dark card goes in face up">Bell</span>');
     if (g.dukeTarget === s) tags.push('<span class="tag woken" title="Their Dark cards tonight go in face up">Woken</span>');
@@ -258,9 +270,10 @@ function renderPrompt() {
         btns += `<button class="btn good" data-act="play">Play ${esc(def.name)}</button>`;
       } else {
         const clem = sel.type === 'mend' && me.character.id === 'clementine';
+        const longGun = sel.type === 'snap' && g.hasLongGun(me);
         const note = clem
           ? (ui.mendPicks.length ? 'Warm milk: tap where the second life goes, or mend now (both lives to your first pick).' : 'Warm milk: tap who gets the first life.')
-          : 'Tap a highlighted player.';
+          : longGun ? `Tap a highlighted player. A long shot (out of range) ${me.revealed ? 'uses your long gun for tonight' : 'reveals you as the Hunter'}.` : 'Tap a highlighted player.';
         line += `<div class="prompt-note">${note}</div>`;
         if (o.targets.includes(HUMAN)) btns += `<button class="btn good" data-act="self">${clem ? 'You' : 'On yourself'}</button>`;
         if (clem && ui.mendPicks.length) btns += '<button class="btn good" data-act="mend-now">Mend now</button>';
@@ -285,6 +298,9 @@ function renderPrompt() {
   } else if (pd?.kind === 'discard') {
     html = `<div class="prompt-text">Rest: discard ${pd.n} to get down to ${g.opt.handLimit}. Tap ${pd.n === 1 ? 'a card' : 'cards'}.</div>
       <div class="btns"><button class="btn primary" data-act="discard" ${ui.selected.length === pd.n ? '' : 'disabled'}>Discard</button></div>`;
+  } else if (pd?.kind === 'lastshot') {
+    html = `<div class="prompt-text">Last shot: you're knocked out, but you get one free Snap! at anyone. Tap a player.</div>
+      <div class="btns"><button class="btn" data-act="duke-skip">Hold fire</button></div>`;
   } else if (pd?.kind === 'duke') {
     html = `<div class="prompt-text">Wake-up call: tap a player. Their Dark cards tonight go in face up.</div>
       <div class="btns"><button class="btn" data-act="duke-skip">Skip</button></div>`;
@@ -399,7 +415,7 @@ function overlayHTML(o) {
     return `<h3 class="${ROLE_CLASS[me.role]}">You are ${me.role === 'shepherd' ? 'the' : 'a'} ${info.name}</h3>
       <p>${esc(info.goal)}</p>${pack}${shep}
       <p>You are <b>${esc(me.character.name)}</b>, the ${esc(me.character.animal)}. <b>${esc(me.character.ability)}:</b> ${esc(me.character.text)}</p>
-      <p>${g.n} players · ${g.opt.nights} nights · coyotes need ${sheepWord(g.denTarget)} in the den.</p>
+      <p>${g.n} players · ${g.opt.nights} nights · coyotes need ${sheepWord(g.denTarget)} in the den · ${TIERS[g.tier]?.label ?? 'Normal'} opponents.</p>
       <div class="btns"><button class="btn primary" data-act="overlay-ok">Begin</button></div>`;
   }
   if (o.kind === 'reveal') {
@@ -440,6 +456,7 @@ function rulesHTML() {
     <ul>
       <li><b class="r-shepherd">Shepherd</b> (everyone knows who): survive to dawn, or knock out every Coyote.</li>
       <li><b class="r-sheepdog">Sheepdogs</b> (hidden): win with the Shepherd, even after being knocked out.</li>
+      <li><b class="r-hunter">Hunter</b> (hidden, 5+ players, flock side): once a night may Snap! at any distance, which reveals them. When knocked out, gets one free last shot.</li>
       <li><b class="r-coyote">Coyotes</b> (hidden, know each other): knock out the Shepherd, or get enough sheep into the den.</li>
       <li><b class="r-fox">Fox</b> (hidden, 6+ players): be alive at the end with at least one knockout. Wins alongside whoever wins.</li>
     </ul>
@@ -454,8 +471,8 @@ function rulesHTML() {
     <p>When every player has had a turn, the Dark pile is shuffled and counted. Each ${icon('moon')} moon takes a sheep to the den. Every ${lpm} ${icon('lantern')} lanterns cancel a moon (Lantern kits count). Nobody sees who put in what, but you know your own card.</p>
     <h4>Range</h4>
     <p>Distance is the number of seats between you, the short way round. Your Snap! reaches your range: 1, plus 1 for the Shepherd's Crook, plus 1 for a Hayloft.</p>
-    <h4>Crows</h4>
-    <p>At 0 lives you become a crow and your role is revealed. You stay on your team, and each night you draw a card and may drop it into the dark.</p>
+    <h4>Knockouts</h4>
+    <p>At 0 lives you become a crow and your role is revealed. You stay on your team, and each night you draw a card and may drop it into the dark. Knocking out a Coyote brings a sheep home from the den. If the Shepherd knocks out one of the flock, a sheep runs off to the den.</p>
     <div class="btns"><button class="btn primary" data-act="rules-close">Got it</button></div>`;
 }
 
@@ -480,7 +497,7 @@ function onCard(id) {
 function onSeat(s) {
   const pd = ui.pending;
   if (!pd || !currentTargets().includes(s)) return;
-  if (pd.kind === 'duke') return answer(s);
+  if (pd.kind === 'duke' || pd.kind === 'lastshot') return answer(s);
   if (pd.kind !== 'day') return;
   const me = game.players[HUMAN];
   const card = me.hand.find(c => c.id === ui.selected[0]);
@@ -548,9 +565,10 @@ function onAct(act) {
 async function startGame() {
   ui.overlay?.resolve();
   const n = Number($('selPlayers').value);
+  const tier = $('selTier').value;
   let role = $('selRole').value;
-  if (role === 'fox' && n < 6) {
-    toast('The Fox only plays at 6 or 7 players. Your role is random.');
+  if (role !== 'random' && !ROLE_TABLE[n][role]) {
+    toast(`There is no ${ROLE_INFO[role].name} at ${n} players. Your role is random.`);
     role = 'random';
   }
   const ctrls = [new HumanController(), ...Array.from({ length: n - 1 }, () => new CoyoteAI())];
@@ -561,6 +579,14 @@ async function startGame() {
     forceRole: role === 'random' ? null : role,
   });
   g.players[HUMAN].name = `${g.players[HUMAN].character.name} (you)`;
+  // Difficulty applies to your opponents; computer teammates stay Normal.
+  const myTeam = ROLE_INFO[g.players[HUMAN].role].team;
+  g.players.forEach((p, i) => {
+    if (i === HUMAN) return;
+    const team = ROLE_INFO[p.role].team;
+    ctrls[i].setTier(team === myTeam && team !== 'fox' ? 'normal' : tier);
+  });
+  g.tier = tier;
   game = g;
   feed = [];
   ui = freshUI(ui);
@@ -610,6 +636,9 @@ function setSpeed(s) {
 initTheme();
 setSpeed(speed);
 $('btnStart').addEventListener('click', startGame);
+const showTierHint = () => { $('tierHint').textContent = TIER_HINTS[$('selTier').value] || ''; };
+$('selTier').addEventListener('change', showTierHint);
+showTierHint();
 $('logoWrap').addEventListener('click', e => {
   if (e.target.closest('.settings-dropdown')) return;
   e.stopPropagation();

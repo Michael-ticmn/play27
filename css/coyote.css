@@ -62,6 +62,7 @@ html, body { height:100%; overflow:hidden; }
 }
 .setup-sub { font-size:0.8rem; color:var(--muted); }
 .setup-note { font-size:0.7rem; color:var(--muted); text-align:center; }
+.setup-hint { font-size:0.68rem; color:var(--muted); line-height:1.35; max-width:260px; margin-top:-6px; }
 .setup-form {
   display:flex; flex-direction:column; gap:14px;
   background:var(--bg2); border:1px solid var(--border); border-radius:12px;
@@ -173,10 +174,12 @@ html, body { height:100%; overflow:hidden; }
 .r-sheepdog { color:var(--teal); }
 .r-coyote { color:var(--red); }
 .r-fox { color:var(--purple); }
+.r-hunter { color:var(--green); }
 .tag.kit { color:var(--purple); border-color:var(--purple); }
 .tag.bell { color:var(--amber); border-color:var(--amber); }
 .tag.woken { color:var(--moon); border-color:var(--moon); }
 .tag.inrange { color:var(--teal); border-color:var(--teal); }
+.tag.long { color:var(--green); border-color:var(--green); }
 
 /* Feed */
 .feed {
@@ -276,6 +279,7 @@ html, body { height:100%; overflow:hidden; }
 .panel h3.r-sheepdog { color:var(--teal); }
 .panel h3.r-coyote { color:var(--red); }
 .panel h3.r-fox { color:var(--purple); }
+.panel h3.r-hunter { color:var(--green); }
 .panel .btns { justify-content:center; margin-top:6px; }
 .panel.rules { text-align:left; }
 .panel.rules h4 {

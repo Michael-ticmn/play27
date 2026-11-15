@@ -6,17 +6,40 @@
 // says it is known.
 // ============================================================
 
-const TEAM = { shepherd: 'flock', sheepdog: 'flock', coyote: 'coyote', fox: 'fox' };
+const TEAM = { shepherd: 'flock', sheepdog: 'flock', hunter: 'flock', coyote: 'coyote', fox: 'fox' };
+
+// Difficulty tiers, all behavior differences in one place (like rummy's tiers.ts).
+//   mistake    chance of a sloppy choice (random target, skipped play, missed Dodge!)
+//   noise      random jitter when ranking suspects
+//   readReveal weight on the night's reveal counts
+//   threshold  shift to how sure the flock must be before attacking (lower = bolder)
+//   darkSkill  chance of putting the best card in the Dark pile
+//   coordinate coyotes gang up on a weak Shepherd
+//   seesDark   cheats: chance to see each face-down Dark card as it goes in
+export const TIERS = {
+  easy:   { label: 'Easy',   mistake: 0.25, noise: 1.5,  readReveal: 0.4, threshold: 0.8,  darkSkill: 0.6, coordinate: false, seesDark: 0 },
+  normal: { label: 'Normal', mistake: 0,    noise: 0.01, readReveal: 1.0, threshold: 0,    darkSkill: 1,   coordinate: false, seesDark: 0 },
+  hard:   { label: 'Hard',   mistake: 0,    noise: 0.01, readReveal: 1.3, threshold: -0.3, darkSkill: 1,   coordinate: true,  seesDark: 0.35 },
+  unfair: { label: 'Unfair', mistake: 0,    noise: 0.01, readReveal: 1.3, threshold: -0.3, darkSkill: 1,   coordinate: true,  seesDark: 1 },
+};
 
 export class CoyoteAI {
-  constructor({ rng = Math.random } = {}) {
+  constructor({ rng = Math.random, tier = 'normal' } = {}) {
     this.rng = rng;
+    this.setTier(tier);
     this.sus = {};       // seat -> coyote-likelihood score (flock/fox view)
     this.threat = {};    // seat -> how much they hunt coyotes (coyote view)
     this.attacks = [];   // { by, target }
     this.exposed = false;
     this.tonight = this.freshNight();
   }
+
+  setTier(name) {
+    this.tierName = TIERS[name] ? name : 'normal';
+    this.t = TIERS[this.tierName];
+  }
+
+  slip(scale = 1) { return this.t.mistake > 0 && this.rng() < this.t.mistake * scale; }
 
   freshNight() {
     return { hidden: {}, crowDrops: [], faceUp: { moon: 0, lantern: 0, blank: 0 }, own: { moon: 0, lantern: 0, blank: 0 }, peek: null };
@@ -63,8 +86,18 @@ export class CoyoteAI {
             if (ev.icon === 'lantern') this.bumpThreat(ev.by, 0.5);
           } else if (ev.icon === 'moon' && this.team(game) === 'coyote') this.exposed = true;
         } else if (!mine) {
-          this.tonight.hidden[ev.by] = (this.tonight.hidden[ev.by] || 0) + 1;
+          const last = this.t.seesDark && this.rng() < this.t.seesDark ? game.dark[game.dark.length - 1] : null;
+          if (last && last.by === ev.by) {
+            this.tonight.faceUp[last.card.icon]++;
+            this.bump(ev.by, { moon: 2.0, lantern: -1.2, blank: -0.2 }[last.card.icon]);
+            if (last.card.icon === 'lantern') this.bumpThreat(ev.by, 0.8);
+          } else {
+            this.tonight.hidden[ev.by] = (this.tonight.hidden[ev.by] || 0) + 1;
+          }
         }
+        break;
+      case 'longshot':
+        this.bumpThreat(ev.by, 2);
         break;
       case 'dark-private':
         this.tonight.own[ev.icon]++;
@@ -160,7 +193,7 @@ export class CoyoteAI {
     if (!total) return;
     for (const [seat, n] of Object.entries(hidden)) {
       const share = n / total;
-      this.bump(Number(seat), 1.4 * moons * share - 0.7 * lanterns * share);
+      this.bump(Number(seat), this.t.readReveal * (1.4 * moons * share - 0.7 * lanterns * share));
     }
   }
 
@@ -215,7 +248,7 @@ export class CoyoteAI {
     let th = me.role === 'shepherd' ? 2.4 : 1.6;
     th -= 0.12 * (game.night - 1);
     if (game.den >= game.denTarget - 1) th -= 0.4;
-    return th;
+    return th + this.t.threshold;
   }
 
   // Coyotes stay hidden early and raid sheep; they show their teeth
@@ -223,6 +256,10 @@ export class CoyoteAI {
   shouldHitShepherd(game) {
     const shep = game.players[game.shepherdSeat];
     if (shep.lives <= 2 || this.exposed || game.night >= 4) return true;
+    if (this.t.coordinate) {
+      const pack = game.players.filter(q => q.role === 'coyote' && !q.crow && game.knownRole(this.me(game), q)).length;
+      if (shep.lives <= pack + 1) return true;
+    }
     if (game.night >= 3 && this.rng() < 0.4) return true;
     return false;
   }
@@ -232,7 +269,7 @@ export class CoyoteAI {
     for (const s of seats || []) {
       const q = game.players[s];
       if (q === me || s === game.shepherdSeat || this.isTeammate(game, q)) continue;
-      const v = this.suspicion(game, q) + this.rng() * 0.01;
+      const v = this.suspicion(game, q) + this.rng() * this.t.noise;
       if (v > bs) { bs = v; best = s; }
     }
     return bs >= min ? best : null;
@@ -244,6 +281,7 @@ export class CoyoteAI {
   }
 
   planDay(game, me) {
+    if (this.slip(0.5)) return null;
     const team = this.team(game);
     const reserve = this.reserveDark(game, me);
     const usable = me.hand.filter(c => !reserve.has(c.id));
@@ -376,7 +414,19 @@ export class CoyoteAI {
 
   snapTarget(game, me, seats) {
     const team = this.team(game);
-    if (team === 'flock') return this.mostSuspicious(game, me, seats, this.attackThreshold(game, me));
+    if (this.slip()) {
+      const pool = seats.filter(s => s !== game.shepherdSeat && !this.isTeammate(game, game.players[s]) && game.inRange(me, game.players[s]));
+      if (pool.length) return pool[Math.floor(this.rng() * pool.length)];
+    }
+    if (team === 'flock') {
+      const th = this.attackThreshold(game, me);
+      const near = seats.filter(s => game.inRange(me, game.players[s]));
+      const t = this.mostSuspicious(game, me, near, th);
+      if (t != null || me.role !== 'hunter') return t;
+      // Long gun: only for a strong suspect, since it gives the Hunter away.
+      const far = seats.filter(s => !near.includes(s));
+      return this.mostSuspicious(game, me, far, th + (me.revealed ? 0 : 0.8));
+    }
     if (team === 'coyote') {
       if (seats.includes(game.shepherdSeat) && this.shouldHitShepherd(game)) return game.shepherdSeat;
       let best = null, bs = -Infinity;
@@ -439,6 +489,7 @@ export class CoyoteAI {
   // ── Dark and rest ──
   async chooseDark(game, me, { count, forced, canFaceUp }) {
     const ranked = [...me.hand].sort((a, b) => this.darkScore(game, me, b, forced) - this.darkScore(game, me, a, forced));
+    if (this.t.darkSkill < 1 && this.rng() > this.t.darkSkill) ranked.sort(() => this.rng() - 0.5);
     const cards = ranked.slice(0, count);
     let faceUp = false;
     if (canFaceUp && !forced && cards.length) {
@@ -465,6 +516,7 @@ export class CoyoteAI {
 
   // ── Reactions ──
   async respondSnap(game, me, attacker, { canDodge, canBristle }) {
+    if (this.slip(0.5)) return 'none';
     if (canBristle && (!canDodge || me.lives <= 2)) return 'bristle';
     if (canDodge) return 'dodge';
     if (canBristle) return 'bristle';
@@ -508,6 +560,11 @@ export class CoyoteAI {
     }
     if (team === 'coyote') return me.lives >= 3 && game.den + lost < game.denTarget && this.rng() < 0.25;
     return false;
+  }
+
+  async lastShot(game, me) {
+    const others = game.alive().filter(q => q !== me).map(q => q.seat);
+    return this.mostSuspicious(game, me, others, 0.3);
   }
 
   async dukePick(game, me) {

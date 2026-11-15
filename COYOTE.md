@@ -1,10 +1,12 @@
 # Coyote: Design Spec
 
-## As of 2026-11-14, draft v2.1 (branch `coyote`, based on v0.15.24)
+## As of 2026-11-14, draft v2.2 (branch `coyote`, based on v0.15.24)
 
-v2.1 = v2 plus the changes from the first simulation pass (see "Tuning log" at
-the end) and the rule details the code had to pin down. Playable preview:
-`coyote.html` (one human vs computer players). Simulator: `tools/coyote-sim.mjs`.
+v2.2 adds the Hunter, a weaker Shepherd (everyone lost a life, the Shepherd kept
+only its +1), the coyote bounty, per-count nights, and AI difficulty levels. Each
+change was tested in simulation first (see "Tuning log" at the end). Playable
+preview: `coyote.html` (one human vs computer players). Simulator:
+`tools/coyote-sim.mjs`.
 
 A hidden-role card game for 4 to 7 players. A farm, dusk to dawn: the Shepherd
 has to hold the flock together while coyotes hide among the animals.
@@ -15,8 +17,8 @@ keeps only the genre structure (a public leader with hidden teams, seat distance
 and range, attack and dodge, gear in front of you) and replaces the rest with an
 original design built on four farm ideas:
 
-- **Dawn clock.** The game lasts 6 nights. If the Shepherd survives to dawn, the
-  flock wins. Games have a fixed length.
+- **Dawn clock.** The game lasts 7 nights (6 at 7 players). If the Shepherd
+  survives to dawn, the flock wins. Games have a fixed length.
 - **The flock.** Coyotes can win by raiding sheep, not only by killing the Shepherd.
   That gives the game a second front.
 - **The Dark pile.** Every turn, every player puts one card face down into a shared
@@ -42,15 +44,19 @@ Everything below is original naming, flavor, and design. Keep it that way.
 
 ## Roles
 
-| Players | Shepherd | Sheepdogs | Coyotes | Fox | Den target |
-|---|---|---|---|---|---|
-| 4 | 1 | 1 | 2 | 0 | 6 sheep |
-| 5 | 1 | 2 | 2 | 0 | 3 sheep |
-| 6 | 1 | 2 | 2 | 1 | 4 sheep |
-| 7 | 1 | 2 | 3 | 1 | 11 sheep |
+| Players | Shepherd | Sheepdogs | Hunter | Coyotes | Fox | Den target | Nights |
+|---|---|---|---|---|---|---|---|
+| 4 | 1 | 1 | 0 | 2 | 0 | 7 sheep | 7 |
+| 5 | 1 | 1 | 1 | 2 | 0 | 3 sheep | 7 |
+| 6 | 1 | 1 | 1 | 2 | 1 | 4 sheep | 7 |
+| 7 | 1 | 1 | 1 | 3 | 1 | 11 sheep | 6 |
 
 - **Shepherd** (public, flock team). +1 life. Starts with the Crook in play.
 - **Sheepdog** (hidden, flock team). Still wins with the flock after being knocked out.
+- **Hunter** (hidden, flock team, 5+ players). *Long gun:* once per night, may
+  Snap! a player at any distance; the first long shot reveals the Hunter.
+  *Last shot:* when knocked out, immediately Snap! any player (no card needed;
+  they may Dodge!). Still wins with the flock after being knocked out.
 - **Coyote** (hidden, coyote team). Coyotes know each other (a pack). Still wins
   with the coyotes after being knocked out.
 - **Fox** (hidden, 6+ players, plays for itself). Wins if it is alive when the game
@@ -59,15 +65,17 @@ Everything below is original naming, flavor, and design. Keep it that way.
 
 The den targets look uneven because the moon rate depends on how many coyotes
 face how many flock players: 5 players (2 coyotes against 3 flock) loses sheep
-slowly, 7 players (3 against 3) loses them fast. Each target was set by
-simulation so coyotes win close to half the time at every count.
+slowly, 7 players (3 against 3) loses them fast. One sheep swings the 5 and 6
+player games by about 20 points, so the extra seventh night is the fine-tuning
+lever there. Each setting was chosen by simulation so coyotes win close to half
+the time at every count.
 
 ### How each side wins
 
 - **Coyotes** win immediately when the Shepherd is knocked out, or when the den
   reaches the target.
 - **Flock** wins immediately when every Coyote is knocked out, or at dawn (after
-  night 6's reveal) if the coyotes haven't won.
+  the last night's reveal) if the coyotes haven't won.
 
 ## A night
 
@@ -92,7 +100,7 @@ After the last player's turn, shuffle the Dark pile and turn it over.
 
 Everyone sees the icon counts, never who put in what. The revealed cards are
 discarded, so their day effects are gone. Then the moon marker moves on. After
-night 6's reveal, dawn breaks.
+the last night's reveal, dawn breaks.
 
 ### Night icons
 
@@ -111,7 +119,7 @@ move, and claim they were "just getting rid of a card."
   the shorter way. Crows don't count.
 - You can Snap! a player whose distance is no more than your range. Base range
   is 1. The Crook and the Hayloft each add 1.
-- Characters have 3 or 4 lives (Shepherd +1). Healing can't go above your
+- Characters have 2 or 3 lives (Shepherd +1). Healing can't go above your
   starting total.
 
 ## Knocked out: crows
@@ -122,7 +130,11 @@ You become a **Crow** and stay on your team.
 - At the start of each night, before the Shepherd's turn, each Crow draws 1 card,
   looks at it, and either drops it face down into the Dark pile or discards it.
 - Crows don't take turns, can't be targeted, and don't count for distance.
-- If the Shepherd knocks out a Sheepdog, one sheep runs off to the den.
+- **Bounty:** when a Coyote is knocked out, one sheep comes home from the den.
+  This is what makes finding the coyotes pay off; without it, coyote crows kept
+  raiding and catching coyotes barely changed who won.
+- If the Shepherd knocks out one of the flock (Sheepdog or Hunter), one sheep
+  runs off to the den.
 
 ## Card list (60 cards)
 
@@ -184,14 +196,14 @@ healing, and Snap!.
 
 | Character | Lives | Ability |
 |---|---|---|
-| **Old Blue** (hound) | 4 | *Nose for trouble.* Once per night, before the reveal, see one random face-down card in the Dark pile and who put it in. |
-| **Mabel** (goose) | 4 | *Hiss.* When you Dodge! a Snap!, the attacker discards a random card. |
-| **Woolly** (ram) | 4 | *Hold the gate.* Once per night, when the reveal would cost a sheep, you may lose 1 life to save it. |
-| **Clementine** (dairy cow) | 4 | *Warm milk.* Your Mend restores 2 lives, split as you like between you and players at distance 1. |
-| **Tiny** (bull) | 4 | *Charge.* When someone's Snap! costs you a life, you may play a Snap! back at them at once, ignoring range. It doesn't use your one Snap!. |
-| **Duke** (rooster) | 3 | *Wake-up call.* At the start of each night, pick another player. Their Dark cards tonight go in face up. |
-| **Hazel** (barn owl) | 3 | *Watchful.* You may put your Dark card in face up. If you do, draw 1 card. |
-| **Boots** (barn cat) | 3 | *Prowler.* On your turn, put 0 or 2 cards in the Dark pile instead of 1. |
+| **Old Blue** (hound) | 3 | *Nose for trouble.* Once per night, before the reveal, see one random face-down card in the Dark pile and who put it in. |
+| **Mabel** (goose) | 3 | *Hiss.* When you Dodge! a Snap!, the attacker discards a random card. |
+| **Woolly** (ram) | 3 | *Hold the gate.* Once per night, when the reveal would cost a sheep, you may lose 1 life to save it. |
+| **Clementine** (dairy cow) | 3 | *Warm milk.* Your Mend restores 2 lives, split as you like between you and players at distance 1. |
+| **Tiny** (bull) | 3 | *Charge.* When someone's Snap! costs you a life, you may play a Snap! back at them at once, ignoring range. It doesn't use your one Snap!. |
+| **Duke** (rooster) | 2 | *Wake-up call.* At the start of each night, pick another player. Their Dark cards tonight go in face up. |
+| **Hazel** (barn owl) | 2 | *Watchful.* You may put your Dark card in face up. If you do, draw 1 card. |
+| **Boots** (barn cat) | 2 | *Prowler.* On your turn, put 0 or 2 cards in the Dark pile instead of 1. |
 
 The Shepherd is dealt a character like everyone else.
 
@@ -205,6 +217,26 @@ The Shepherd is dealt a character like everyone else.
 - You can't put a third kit card in play; Spook one away first.
 - Night order: crows act, then Duke wakes someone, then turns from the Shepherd
   clockwise, then Old Blue peeks, then Woolly may hold the gate, then the reveal.
+- A Hunter's last shot happens right after the knockout, before play continues.
+
+## Computer players and difficulty
+
+Tiers live in one table in `js/coyote-ai.js` (like rummy's `tiers.ts`). In a game
+the chosen difficulty applies to your opponents; computer teammates play Normal.
+
+| Tier | What changes |
+|---|---|
+| Easy | 25% sloppy choices (random targets, skipped plays, missed Dodge!s), reads the reveal poorly, timid attacks |
+| Normal | The baseline everything is balanced around |
+| Hard | Bolder attacks, weighs the reveal more, coyotes gang up on a weak Shepherd, and peeks at about 1 in 3 face-down Dark cards |
+| Unfair | Hard, plus sees every face-down Dark card |
+
+Measured against Normal opponents (500 games per count): an Easy flock wins only
+15 to 21%, a Hard or Unfair flock wins 51 to 67% (the gain shows at 5 and 6
+players). Easy coyotes win 27 to 32%. Hard and Unfair coyotes are no stronger
+than Normal: seeing who holds lanterns doesn't help fill the den, and attacking
+the Shepherd earlier only exposes them. So Hard and Unfair are a real step up
+when you play a Coyote or the Fox, but not yet when you play the flock.
 
 ## Platform plan
 
@@ -232,9 +264,13 @@ The Shepherd is dealt a character like everyone else.
 - **Phone layout.** Built as a grid of seats in clockwise order from you, with
   the night track, den, and Dark pile in the middle. A true circle around the
   barnyard may read better on a tablet.
-- **Knockouts are rare in simulation** (0.4 to 1.0 per game) because the
-  computer players are cautious; most games are a race between the den and
-  dawn. Watch whether people fight more, and retune if so.
+- **Stronger computer coyotes.** Hard and Unfair coyotes need a real skill
+  edge (better den play or bluffing), not more information.
+- **Fox is generous.** With knockouts more common in v2.2, a Fox that needs 1
+  knockout wins 38 to 45% (2 knockouts: 4 to 11%). It never takes a win away
+  from anyone, so 1 stays for now. Revisit after people play it.
+- **Fragile characters.** Duke, Hazel, and Boots have 2 lives. Watch whether
+  they feel too easy to knock out.
 
 ## Tuning log
 
@@ -256,3 +292,24 @@ setting, phase-3 AI):
 | 5 | 56% | 44% (3% / 41%) | n/a |
 | 6 | 50% | 50% (6% / 44%) | 17% |
 | 7 | 52% | 48% (18% / 30%) | 27% |
+
+**2026-11-14, second pass** (Hunter, weaker Shepherd, difficulty):
+
+- Difficulty tiers exposed a design flaw: a flock that could see every
+  face-down card knocked out 3 times as many coyotes but won no more often,
+  because knockouts were rare (0.4 to 1.0 per game) and coyote crows kept the
+  den filling. Finding the coyotes, the point of the game, barely mattered.
+- Fixes: everyone has 1 fewer life (the Shepherd keeps +1, so the Shepherd
+  drops from 4-5 to 3-4 lives), and knocking out a Coyote returns a sheep from
+  the den (bounty 1 and 2 tested the same; kept 1).
+- Hunter replaces one Sheepdog at 5+ players. On its own it moved win rates by
+  a point or two; long shots happen in 25 to 31% of games, last shots in 8 to 18%.
+- Den targets and nights retuned (7 nights at 4 to 6 players, 6 at 7 players).
+- Result, 1,000 games per count, Normal vs Normal, 0 errors:
+
+| Players | Flock wins (dawn / all coyotes out) | Coyotes win (Shepherd / den) | Fox also wins | Knockouts per game |
+|---|---|---|---|---|
+| 4 | 47% (35% / 12%) | 54% (24% / 29%) | n/a | 1.0 |
+| 5 | 58% (20% / 38%) | 42% (7% / 35%) | n/a | 1.2 |
+| 6 | 51% (15% / 36%) | 49% (10% / 39%) | 38% | 1.4 |
+| 7 | 48% (40% / 9%) | 52% (33% / 19%) | 44% | 1.9 |

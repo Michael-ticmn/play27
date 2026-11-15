@@ -15,6 +15,7 @@
 //   tinyCharge(game, me, attacker)              -> cardId | null
 //   woollySave(game, me, lost)                  -> bool
 //   dukePick(game, me)                          -> seat | null
+//   lastShot(game, me)                          -> seat | null   (Hunter, when knocked out)
 //   bootsCount(game, me)                        -> 0 | 1 | 2
 //   observe(game, event)                        (optional, sync)
 // ============================================================
@@ -43,43 +44,47 @@ export const CARD_TYPES = {
 export const KIT_TYPES = ['hayloft', 'thicket', 'lantern'];
 
 export const CHARACTERS = [
-  { id: 'oldblue',    name: 'Old Blue',   animal: 'hound',      lives: 4, ability: 'Nose for trouble', text: 'Once per night, before the reveal, see one face-down card in the Dark pile and who put it in.' },
-  { id: 'mabel',      name: 'Mabel',      animal: 'goose',      lives: 4, ability: 'Hiss',             text: 'When you Dodge! a Snap!, the attacker discards a random card.' },
-  { id: 'woolly',     name: 'Woolly',     animal: 'ram',        lives: 4, ability: 'Hold the gate',    text: 'Once per night, when the reveal would cost a sheep, you may lose 1 life to save it.' },
-  { id: 'clementine', name: 'Clementine', animal: 'dairy cow',  lives: 4, ability: 'Warm milk',        text: 'Your Mend restores 2 lives, split between you and players at distance 1.' },
-  { id: 'tiny',       name: 'Tiny',       animal: 'bull',       lives: 4, ability: 'Charge',           text: 'When a Snap! costs you a life, you may Snap! the attacker back at once, ignoring range.' },
-  { id: 'duke',       name: 'Duke',       animal: 'rooster',    lives: 3, ability: 'Wake-up call',     text: 'At the start of each night, pick another player. Their Dark cards tonight go in face up.' },
-  { id: 'hazel',      name: 'Hazel',      animal: 'barn owl',   lives: 3, ability: 'Watchful',         text: 'You may put your Dark card in face up. If you do, draw 1 card.' },
-  { id: 'boots',      name: 'Boots',      animal: 'barn cat',   lives: 3, ability: 'Prowler',          text: 'Put 0 or 2 cards in the Dark pile instead of 1.' },
+  { id: 'oldblue',    name: 'Old Blue',   animal: 'hound',      lives: 3, ability: 'Nose for trouble', text: 'Once per night, before the reveal, see one face-down card in the Dark pile and who put it in.' },
+  { id: 'mabel',      name: 'Mabel',      animal: 'goose',      lives: 3, ability: 'Hiss',             text: 'When you Dodge! a Snap!, the attacker discards a random card.' },
+  { id: 'woolly',     name: 'Woolly',     animal: 'ram',        lives: 3, ability: 'Hold the gate',    text: 'Once per night, when the reveal would cost a sheep, you may lose 1 life to save it.' },
+  { id: 'clementine', name: 'Clementine', animal: 'dairy cow',  lives: 3, ability: 'Warm milk',        text: 'Your Mend restores 2 lives, split between you and players at distance 1.' },
+  { id: 'tiny',       name: 'Tiny',       animal: 'bull',       lives: 3, ability: 'Charge',           text: 'When a Snap! costs you a life, you may Snap! the attacker back at once, ignoring range.' },
+  { id: 'duke',       name: 'Duke',       animal: 'rooster',    lives: 2, ability: 'Wake-up call',     text: 'At the start of each night, pick another player. Their Dark cards tonight go in face up.' },
+  { id: 'hazel',      name: 'Hazel',      animal: 'barn owl',   lives: 2, ability: 'Watchful',         text: 'You may put your Dark card in face up. If you do, draw 1 card.' },
+  { id: 'boots',      name: 'Boots',      animal: 'barn cat',   lives: 2, ability: 'Prowler',          text: 'Put 0 or 2 cards in the Dark pile instead of 1.' },
 ];
 
+// Spec v2.2, tuned 2026-11-14 with tools/coyote-sim.mjs (Normal AI on both sides):
+// coyotes win 43-53% at every count. See COYOTE.md "Tuning log".
 export const ROLE_TABLE = {
-// Den targets tuned 2026-11-14 with tools/coyote-sim.mjs (lanternsPerMoon 2):
-// coyotes win about 46-48% at every count against the phase-3 AI.
-  4: { shepherd: 1, sheepdog: 1, coyote: 2, fox: 0, den: 6 },
-  5: { shepherd: 1, sheepdog: 2, coyote: 2, fox: 0, den: 3 },
-  6: { shepherd: 1, sheepdog: 2, coyote: 2, fox: 1, den: 4 },
-  7: { shepherd: 1, sheepdog: 2, coyote: 3, fox: 1, den: 11 },
+  4: { shepherd: 1, sheepdog: 1, hunter: 0, coyote: 2, fox: 0, den: 7,  nights: 7 },
+  5: { shepherd: 1, sheepdog: 1, hunter: 1, coyote: 2, fox: 0, den: 3,  nights: 7 },
+  6: { shepherd: 1, sheepdog: 1, hunter: 1, coyote: 2, fox: 1, den: 4,  nights: 7 },
+  7: { shepherd: 1, sheepdog: 1, hunter: 1, coyote: 3, fox: 1, den: 11, nights: 6 },
 };
 
 export const ROLE_INFO = {
   shepherd: { name: 'Shepherd', team: 'flock',  goal: 'Survive to dawn, or knock out every Coyote. Everyone knows you.' },
   sheepdog: { name: 'Sheepdog', team: 'flock',  goal: 'Keep the Shepherd alive and the sheep out of the den. Find the Coyotes.' },
+  hunter:   { name: 'Hunter',   team: 'flock',  goal: 'Hidden on the flock side. Long gun: once a night, Snap! at any distance (it reveals you). Last shot: when knocked out, Snap! anyone.' },
   coyote:   { name: 'Coyote',   team: 'coyote', goal: 'Knock out the Shepherd, or get enough sheep into the den before dawn.' },
   fox:      { name: 'Fox',      team: 'fox',    goal: 'Be alive at the end having knocked out a player. You win alongside whoever wins.' },
 };
 
 export const DEFAULTS = {
-  nights: 6,
+  nights: null,        // null = from ROLE_TABLE
   startHand: 4,
   handLimit: 5,
   draw: 2,
   coyotesKnow: true,   // coyotes know each other (a pack)
   foxKills: 1,
+  shepherdBonus: 1,    // extra lives for the Shepherd
+  bounty: 1,           // sheep that come home from the den when a Coyote is knocked out
+  lifeDelta: 0,        // added to every character's lives (tuning)
   denTarget: null,     // null = from ROLE_TABLE (or denTargets[n])
   denTargets: null,    // { 4: n, 5: n, ... } override for tuning
   lanternsPerMoon: 2,  // how many lanterns it takes to cancel one moon
-  roleTable: null,     // { 7: { shepherd, sheepdog, coyote, fox, den } } override for tuning
+  roleTable: null,     // { 7: { shepherd, sheepdog, hunter, coyote, fox, den } } override for tuning
   debug: false,        // check card conservation after every turn
 };
 
@@ -128,6 +133,7 @@ export class CoyoteGame {
     this.opt = { ...DEFAULTS, ...options };
     const table = this.opt.roleTable?.[numPlayers] ?? ROLE_TABLE[numPlayers];
     this.denTarget = this.opt.denTarget ?? this.opt.denTargets?.[numPlayers] ?? table.den;
+    this.opt.nights = this.opt.nights ?? table.nights ?? 6;
     this.controllers = controllers;
     controllers.forEach((c, i) => { if (c) c.seat = i; });
     this.onEvent = onEvent;
@@ -145,7 +151,7 @@ export class CoyoteGame {
     this.stats = { reshuffles: 0, snaps: 0, dodges: 0, knockouts: 0, sheepLost: 0, sheepSaved: 0, invalid: 0 };
 
     let roles = [];
-    for (const r of ['shepherd', 'sheepdog', 'coyote', 'fox']) for (let i = 0; i < table[r]; i++) roles.push(r);
+    for (const r of ['shepherd', 'sheepdog', 'hunter', 'coyote', 'fox']) for (let i = 0; i < (table[r] || 0); i++) roles.push(r);
     roles = shuffleWith(roles, rng);
     if (forceRole) {
       const idx = roles.indexOf(forceRole);
@@ -154,7 +160,7 @@ export class CoyoteGame {
     const chars = shuffleWith([...CHARACTERS], rng);
     this.players = roles.map((role, seat) => {
       const ch = chars[seat];
-      const max = ch.lives + (role === 'shepherd' ? 1 : 0);
+      const max = Math.max(1, ch.lives + this.opt.lifeDelta) + (role === 'shepherd' ? this.opt.shepherdBonus : 0);
       return {
         seat, role, character: ch,
         name: names?.[seat] ?? ch.name,
@@ -162,7 +168,7 @@ export class CoyoteGame {
         hand: [],
         kits: role === 'shepherd' ? [{ id: 0, type: 'crook', icon: 'blank' }] : [],
         crow: false, revealed: role === 'shepherd',
-        kills: 0, bell: false, snapsLeft: 0,
+        kills: 0, bell: false, snapsLeft: 0, longGunNight: 0,
       };
     });
     this.shepherdSeat = this.players.find(p => p.role === 'shepherd').seat;
@@ -187,6 +193,11 @@ export class CoyoteGame {
     let total = 0;
     for (let i = 0; i < this.n; i++) if (counts(i)) total++;
     return Math.min(cw, total - cw);
+  }
+
+  // Hunter: once per night, a Snap! at any distance (reveals the Hunter).
+  hasLongGun(p) {
+    return p.role === 'hunter' && !p.crow && p.longGunNight !== this.night;
   }
 
   inRange(a, b) {
@@ -369,7 +380,7 @@ export class CoyoteGame {
         return no('You play this when someone Snaps at you.');
       case 'snap': {
         if (p.snapsLeft <= 0) return no('You have already Snapped this turn.');
-        const ts = others.filter(q => this.inRange(p, q));
+        const ts = this.hasLongGun(p) ? others : others.filter(q => this.inRange(p, q));
         return ts.length ? { ok: true, targets: seats(ts) } : no('Nobody is in range.');
       }
       case 'packhowl':
@@ -438,6 +449,12 @@ export class CoyoteGame {
     switch (card.type) {
       case 'snap':
         p.snapsLeft--;
+        if (!this.inRange(p, target)) {
+          p.longGunNight = this.night;
+          const first = !p.revealed;
+          p.revealed = true;
+          await this.emit('longshot', { by: p.seat, target: target.seat, text: first ? `${p.name} raises a long gun. ${p.name} is the Hunter!` : `${p.name} the Hunter takes a long shot.` });
+        }
         await this.snap(p, target, {});
         break;
 
@@ -620,12 +637,27 @@ export class CoyoteGame {
     p.kits = [];
     if (source && source !== p) source.kills++;
     await this.emit('knockout', { by: source?.seat ?? null, target: p.seat, role: p.role, text: `${p.name} is knocked out and becomes a crow. They were a ${ROLE_INFO[p.role].name}.` });
-    if (source && source.role === 'shepherd' && p.role === 'sheepdog') {
+    if (source && source.role === 'shepherd' && ROLE_INFO[p.role].team === 'flock') {
       this.den++;
       this.stats.sheepLost++;
-      await this.emit('runoff', { text: `The Shepherd knocked out a Sheepdog. A sheep runs off to the den. Den: ${this.den}/${this.denTarget}.` });
+      await this.emit('runoff', { text: `The Shepherd knocked out one of the flock. A sheep runs off to the den. Den: ${this.den}/${this.denTarget}.` });
+    }
+    if (p.role === 'coyote' && this.opt.bounty > 0 && this.den > 0) {
+      const back = Math.min(this.opt.bounty, this.den);
+      this.den -= back;
+      this.stats.bountySheep = (this.stats.bountySheep || 0) + back;
+      await this.emit('bounty', { by: source?.seat ?? null, text: `With a coyote gone, ${back === 1 ? 'a sheep finds its' : `${back} sheep find their`} way home. Den: ${this.den}/${this.denTarget}.` });
     }
     await this.checkWin();
+    if (p.role === 'hunter' && !this.over) {
+      const pick = await this.ctrl(p).lastShot(this, p);
+      const t = this.players[pick];
+      if (t && t !== p && !t.crow) {
+        this.stats.lastShots = (this.stats.lastShots || 0) + 1;
+        await this.emit('lastshot', { by: p.seat, target: t.seat, text: `With a last shot, the Hunter fires at ${t.name}!` });
+        await this.snap(p, t, { charge: true });
+      }
+    }
   }
 
   // ── The dark ──
