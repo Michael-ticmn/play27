@@ -3,6 +3,7 @@
 # Edit shapes here and rerun rather than hand-editing the SVG files.
 """Generates Coyote art (SVG) into <repo>/assets/coyote/.
 Flat, geometric, play27 house style (see assets/card-back.svg)."""
+import re
 import pathlib, sys
 
 OUT = pathlib.Path(sys.argv[1]) / "assets" / "coyote"
@@ -286,7 +287,7 @@ def dying_lantern(cx, base):
     faint glow, a curl of smoke. `base` is the y of the post top."""
     m = "#3a3f47"  # metal
     return f"""
-    <circle cx="{cx}" cy="{base - 12}" r="26" fill="url(#lglow)"/>
+    <circle class="lg" cx="{cx}" cy="{base - 12}" r="26" fill="url(#lglow)"/>
     <path d="M{cx} {base - 33} C{cx - 7} {base - 41} {cx + 7} {base - 48} {cx} {base - 56} C{cx - 6} {base - 62} {cx + 4} {base - 68} {cx - 1} {base - 74}"
           stroke="url(#lsmoke)" stroke-width="2.2" fill="none" stroke-linecap="round"/>
     <path d="M{cx + 2} {base - 36} C{cx + 8} {base - 42} {cx + 3} {base - 47} {cx + 7} {base - 52}"
@@ -294,8 +295,8 @@ def dying_lantern(cx, base):
     <path d="M{cx - 4} {base - 30} C{cx - 4} {base - 37} {cx + 4} {base - 37} {cx + 4} {base - 30}" stroke="{m}" stroke-width="1.8" fill="none"/>
     <path d="M{cx - 10} {base - 22} L{cx} {base - 31} L{cx + 10} {base - 22} Z" fill="{m}"/>
     <path d="M{cx - 8} {base - 3} L{cx - 7} {base - 22} L{cx + 7} {base - 22} L{cx + 8} {base - 3} Z" fill="#54461f"/>
-    <ellipse cx="{cx}" cy="{base - 7}" rx="2.4" ry="3.6" fill="#e9c24a" opacity=".85"/>
-    <ellipse cx="{cx}" cy="{base - 6}" rx="1.1" ry="1.6" fill="#f6e3a0"/>
+    <ellipse class="lf" cx="{cx}" cy="{base - 7}" rx="2.4" ry="3.6" fill="#e9c24a"/>
+    <ellipse class="lf core" cx="{cx}" cy="{base - 6}" rx="1.1" ry="1.6" fill="#f6e3a0"/>
     <path d="M{cx - 7.5} {base - 22} L{cx - 8.5} {base - 3} M{cx + 7.5} {base - 22} L{cx + 8.5} {base - 3} M{cx} {base - 22} L{cx} {base - 13}"
           stroke="#2b2f36" stroke-width="1.6"/>
     <rect x="{cx - 10}" y="{base - 4}" width="20" height="4.5" rx="1.2" fill="{m}"/>"""
@@ -307,6 +308,34 @@ stars_hero = "".join(f'<circle cx="{x}" cy="{y}" r="{r}"/>' for x, y, r in
                      [(30, 26, 1.3), (80, 50, 1), (160, 20, 1.2), (190, 44, 1), (250, 22, 1.4), (300, 58, .9), (40, 80, .9), (92, 64, 1.1), (226, 76, .9), (340, 30, 1.1)])
 hero = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 180" width="360" height="180" role="img" aria-label="A lantern going out over the sheep pen at night, with coyote eyes in the grass">
   <title>A lantern going out over the sheep pen at night, with coyote eyes in the grass</title>
+  <style>
+    /* The lantern flickers, dips as if it's about to go out, then recovers.
+       Runs even when the SVG is shown with an img tag; off for reduced motion. */
+    @keyframes flick {{
+      0%, 100% {{ transform: scale(1, 1); opacity: .9; }}
+      11% {{ transform: scale(.92, 1.07); opacity: 1; }}
+      23% {{ transform: scale(1.05, .93); opacity: .82; }}
+      36% {{ transform: scale(.95, 1.08); opacity: .97; }}
+      50% {{ transform: scale(1.02, .97); opacity: .9; }}
+      64% {{ transform: scale(.74, .66); opacity: .4; }}
+      69% {{ transform: scale(.82, .76); opacity: .55; }}
+      78% {{ transform: scale(1.03, 1.05); opacity: .95; }}
+      89% {{ transform: scale(.96, 1.01); opacity: .86; }}
+    }}
+    @keyframes glow {{
+      0%, 100% {{ opacity: .9; }}
+      11% {{ opacity: 1; }}
+      23% {{ opacity: .78; }}
+      36% {{ opacity: .95; }}
+      64% {{ opacity: .4; }}
+      69% {{ opacity: .55; }}
+      78% {{ opacity: .97; }}
+    }}
+    .lf {{ transform-box: fill-box; transform-origin: 50% 100%; animation: flick 2.8s ease-in-out infinite; }}
+    .lf.core {{ animation-delay: -.25s; }}
+    .lg {{ animation: glow 2.8s ease-in-out infinite; }}
+    @media (prefers-reduced-motion: reduce) {{ .lf, .lg {{ animation: none; }} }}
+  </style>
   <defs>
     <clipPath id="r"><rect width="360" height="180" rx="14"/></clipPath>
     <radialGradient id="lglow"><stop offset="0" stop-color="#e9c24a" stop-opacity=".28"/><stop offset="1" stop-color="#e9c24a" stop-opacity="0"/></radialGradient>
@@ -332,4 +361,10 @@ hero = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 180" width="
 </svg>
 """
 (OUT / "hero.svg").write_text(hero, encoding="utf-8")
+# Still copy for people who turn on "reduce motion": the page picks it with
+# <picture media="(prefers-reduced-motion: reduce)">, because a media query
+# inside an SVG shown by an img tag isn't reliably honored.
+hero_still = re.sub(r"  <style>.*?</style>\n", "", hero, flags=re.S)
+assert "@keyframes" not in hero_still
+(OUT / "hero-still.svg").write_text(hero_still, encoding="utf-8")
 print("wrote", sorted(p.name for p in OUT.iterdir()))

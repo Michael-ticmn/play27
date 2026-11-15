@@ -1,5 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 180" width="360" height="180" role="img" aria-label="A lantern going out over the sheep pen at night, with coyote eyes in the grass">
   <title>A lantern going out over the sheep pen at night, with coyote eyes in the grass</title>
+  <style>
+    /* The lantern flickers, dips as if it's about to go out, then recovers.
+       Runs even when the SVG is shown with an img tag; off for reduced motion. */
+    @keyframes flick {
+      0%, 100% { transform: scale(1, 1); opacity: .9; }
+      11% { transform: scale(.92, 1.07); opacity: 1; }
+      23% { transform: scale(1.05, .93); opacity: .82; }
+      36% { transform: scale(.95, 1.08); opacity: .97; }
+      50% { transform: scale(1.02, .97); opacity: .9; }
+      64% { transform: scale(.74, .66); opacity: .4; }
+      69% { transform: scale(.82, .76); opacity: .55; }
+      78% { transform: scale(1.03, 1.05); opacity: .95; }
+      89% { transform: scale(.96, 1.01); opacity: .86; }
+    }
+    @keyframes glow {
+      0%, 100% { opacity: .9; }
+      11% { opacity: 1; }
+      23% { opacity: .78; }
+      36% { opacity: .95; }
+      64% { opacity: .4; }
+      69% { opacity: .55; }
+      78% { opacity: .97; }
+    }
+    .lf { transform-box: fill-box; transform-origin: 50% 100%; animation: flick 2.8s ease-in-out infinite; }
+    .lf.core { animation-delay: -.25s; }
+    .lg { animation: glow 2.8s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .lf, .lg { animation: none; } }
+  </style>
   <defs>
     <clipPath id="r"><rect width="360" height="180" rx="14"/></clipPath>
     <radialGradient id="lglow"><stop offset="0" stop-color="#e9c24a" stop-opacity=".28"/><stop offset="1" stop-color="#e9c24a" stop-opacity="0"/></radialGradient>
@@ -14,7 +42,7 @@
     <path d="M0 112 C70 92 160 104 240 92 C290 85 330 90 360 96 L360 180 L0 180 Z" fill="#1c2a24"/>
     <rect x="14" y="82.4" width="332" height="4" rx="2" fill="#7a5a2a"/><rect x="14" y="96.0" width="332" height="4" rx="2" fill="#7a5a2a"/><rect x="11.0" y="74" width="6" height="38" rx="1.5" fill="#6b4a26"/><rect x="66.3" y="74" width="6" height="38" rx="1.5" fill="#6b4a26"/><rect x="121.7" y="74" width="6" height="38" rx="1.5" fill="#6b4a26"/><rect x="177.0" y="74" width="6" height="38" rx="1.5" fill="#6b4a26"/><rect x="232.3" y="74" width="6" height="38" rx="1.5" fill="#6b4a26"/><rect x="287.7" y="74" width="6" height="38" rx="1.5" fill="#6b4a26"/><rect x="343.0" y="74" width="6" height="38" rx="1.5" fill="#6b4a26"/>
     <g transform="translate(124.7 74) scale(1.3) translate(-124.7 -74)">
-    <circle cx="124.7" cy="62" r="26" fill="url(#lglow)"/>
+    <circle class="lg" cx="124.7" cy="62" r="26" fill="url(#lglow)"/>
     <path d="M124.7 41 C117.7 33 131.7 26 124.7 18 C118.7 12 128.7 6 123.7 0"
           stroke="url(#lsmoke)" stroke-width="2.2" fill="none" stroke-linecap="round"/>
     <path d="M126.7 38 C132.7 32 127.7 27 131.7 22"
@@ -22,8 +50,8 @@
     <path d="M120.7 44 C120.7 37 128.7 37 128.7 44" stroke="#3a3f47" stroke-width="1.8" fill="none"/>
     <path d="M114.7 52 L124.7 43 L134.7 52 Z" fill="#3a3f47"/>
     <path d="M116.7 71 L117.7 52 L131.7 52 L132.7 71 Z" fill="#54461f"/>
-    <ellipse cx="124.7" cy="67" rx="2.4" ry="3.6" fill="#e9c24a" opacity=".85"/>
-    <ellipse cx="124.7" cy="68" rx="1.1" ry="1.6" fill="#f6e3a0"/>
+    <ellipse class="lf" cx="124.7" cy="67" rx="2.4" ry="3.6" fill="#e9c24a"/>
+    <ellipse class="lf core" cx="124.7" cy="68" rx="1.1" ry="1.6" fill="#f6e3a0"/>
     <path d="M117.2 52 L116.2 71 M132.2 52 L133.2 71 M124.7 52 L124.7 61"
           stroke="#2b2f36" stroke-width="1.6"/>
     <rect x="114.7" y="70" width="20" height="4.5" rx="1.2" fill="#3a3f47"/></g>

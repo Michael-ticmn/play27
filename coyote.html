@@ -15,7 +15,10 @@
 <!-- ── SETUP SCREEN ── -->
 <div id="setupScreen">
   <div class="setup-logo"><a href="index.html"><img src="assets/logo-dark.svg?v=0.15.24" alt="play27"></a></div>
-  <img class="setup-hero" src="assets/coyote/hero.svg?v=0.15.24-p7" alt="A lantern going out over the sheep pen at night, with coyote eyes in the grass">
+  <picture class="setup-hero">
+    <source srcset="assets/coyote/hero-still.svg?v=0.15.24-p8" media="(prefers-reduced-motion: reduce)">
+    <img src="assets/coyote/hero.svg?v=0.15.24-p8" alt="A lantern going out over the sheep pen at night, with coyote eyes in the grass">
+  </picture>
   <div class="setup-title">Lanterns Out</div>
   <div class="setup-sub">hidden roles on the farm, dusk to dawn</div>
   <div class="setup-form">
@@ -122,7 +125,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div class="version-tag">v0.15.24 · Lanterns Out preview 7</div>
+<div class="version-tag">v0.15.24 · Lanterns Out preview 8</div>
 <script type="module" src="js/coyote.js?v=0.15.24-p7"></script>
 </body>
 </html>
