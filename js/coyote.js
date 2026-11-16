@@ -3,10 +3,10 @@
 // Rules engine: coyote-engine.js. AI: coyote-ai.js. Spec: COYOTE.md.
 // ============================================================
 
-import { initTheme } from './theme.js?v=0.15.26';
-import { CoyoteGame, CARD_TYPES, CHARACTERS, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.26';
-import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.26';
-import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.26';
+import { initTheme } from './theme.js?v=0.15.27';
+import { CoyoteGame, CARD_TYPES, CHARACTERS, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.27';
+import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.27';
+import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.27';
 
 const HUMAN = 0;
 // Helper levels: coach tips + reads, reads only, or off (just the facts).
@@ -43,7 +43,7 @@ const ICON_SVG = {
 };
 
 const ART = 'assets/coyote/';
-const ART_V = '?v=0.15.26';
+const ART_V = '?v=0.15.27';
 const charImg = (p, cls = 'pt') => `<img class="${cls}" src="${ART}char-${p.character.id}.svg${ART_V}" alt="${p.character.name}">`;
 const roleImg = (role, cls = 'pt-role') => `<img class="${cls}" src="${ART}role-${role}.svg${ART_V}" alt="${ROLE_INFO[role].name}">`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -503,6 +503,7 @@ function coachOnEvent(g, ev, clue) {
 
 // ── Modal ──
 let lastModal = '';
+let lastView = '';
 function renderModal() {
   let html = '';
   let cls = 'panel';
@@ -515,7 +516,12 @@ function renderModal() {
   $('modalBox').className = cls;
   // Only rewrite when something changed, so an open sheet keeps its scroll.
   if (html && html !== lastModal) $('modalBox').innerHTML = html;
+  // A newly opened view (How to play, a player, Who's who) starts at the
+  // top; the box otherwise keeps the last view's scroll position.
+  const view = ui.rulesOpen ? 'rules' : ui.sheet != null && game ? `sheet:${ui.sheet}` : html ? 'other' : '';
+  if (html && view !== lastView) $('modalBox').scrollTop = 0;
   lastModal = html;
+  lastView = view;
 }
 
 function sideLines(g) {
