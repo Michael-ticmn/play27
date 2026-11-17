@@ -440,6 +440,13 @@ export class CoyoteGame {
 
     this.removeFromHand(p, card.id);
     const name = CARD_TYPES[card.type].name;
+    // Public: who played which card on whom, before its effects. Lets the
+    // page show each move as one unit (and covers plays with no effect).
+    const on = mendTargets ?? (target ? [target] : []);
+    await this.emit('play', {
+      by: p.seat, cardType: card.type, target: target?.seat ?? null, targets: on.map(q => q.seat),
+      text: `${p.name} plays ${name}${on.length ? ` on ${on.map(q => (q === p ? 'themselves' : q.name)).join(' and ')}` : ''}.`,
+    });
 
     if (CARD_TYPES[card.type].kit) {
       p.kits.push(card);

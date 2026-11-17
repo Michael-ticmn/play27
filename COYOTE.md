@@ -282,6 +282,18 @@ but not what it means. The helper fixes that from your own seat's point of view.
   every player's read. The game pauses while a sheet or the rules are open.
 - **Feed tags.** Lines that matter get a "coyote move" or "flock move" tag, and
   attacks on the Shepherd name the Shepherd.
+- **Last move panel** (added 2026-11-16, after "I don't understand moves made and
+  what playing a card does"). The engine emits a public `play` event (who, which
+  card, on whom) before a card's effects. The yard shows the latest one: "Duke
+  played Spook on Mabel", the card's rule, and what came of it (dodged, lost a
+  life, Thicket gone), with the coyote or flock move tag. It stays until the next
+  card is played, so a computer turn can still be read after the feed moves on.
+  On a crowded small screen it goes compact (the card's short meaning in the head,
+  only the latest result). Computer card plays get a 1.1 second beat at Normal speed.
+- **Card faces say what they do.** On phones each hand card shows a short line
+  ("Hit someone in range", "Blocks a Snap! at you") instead of its group name.
+  Face-up cards in the Dark pile show their icon word (moon, lantern, blank), not
+  the card name, since only the icon counts there.
 - **Coach.** First-game tips at the moments they matter: your plan after the
   intro, your first day, first Dark card, first reveal, first knockout, the first
   coyote-like or flock-like move by someone else, a Shepherd down to 2 lives, the

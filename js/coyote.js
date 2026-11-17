@@ -3,10 +3,10 @@
 // Rules engine: coyote-engine.js. AI: coyote-ai.js. Spec: COYOTE.md.
 // ============================================================
 
-import { initTheme } from './theme.js?v=0.15.27';
-import { CoyoteGame, CARD_TYPES, CHARACTERS, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.27';
-import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.27';
-import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.27';
+import { initTheme } from './theme.js?v=0.15.28';
+import { CoyoteGame, CARD_TYPES, CHARACTERS, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.28';
+import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.28';
+import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.28';
 
 const HUMAN = 0;
 // Helper levels: coach tips + reads, reads only, or off (just the facts).
@@ -29,6 +29,23 @@ const TIER_HINTS = {
 };
 const GROUP_CLASS = { Fighting: 'g-fight', Care: 'g-care', Tricks: 'g-tricks', Finding: 'g-find', Kit: 'g-kit' };
 const TYPE_ORDER = Object.keys(CARD_TYPES);
+// What each card does, short enough for a phone-size card face.
+const CARD_SHORT = {
+  snap: 'Hit someone in range', dodge: 'Blocks a Snap! at you', bristle: 'Block a Snap! and hurt back',
+  packhowl: 'Everyone may Snap! one player', frenzy: '2 more Snap!s this turn',
+  mend: 'Heal 1 life: you or a neighbor', roundup: 'Bring a sheep home from the den',
+  forage: 'Draw 3, then 1 into the dark', swipe: 'Steal a card from someone in range',
+  spook: 'Make someone discard a card', bell: 'Their next Dark card goes face up',
+  sniff: 'Peek at 2 of their cards', headcount: "Count tonight's Dark pile",
+  hayloft: '+1 range, but no Dodge!', thicket: 'Blocks the next hit on you', lantern: 'Adds a lantern every night',
+};
+// Events that carry no news inside a move (its own effect line repeats the head).
+const MOVE_ECHO = {
+  snap: 'snap', packhowl: 'howl', frenzy: 'frenzy', forage: 'forage', swipe: 'swipe', bell: 'bell',
+  sniff: 'sniff', headcount: 'headcount', hayloft: 'kit', thicket: 'kit', lantern: 'kit',
+};
+// Events that end a move: the next part of the turn has started.
+const MOVE_END = new Set(['turn', 'dark', 'dark-skip', 'rest', 'night', 'reveal', 'over', 'crow-drop', 'crow-pass']);
 const MODAL_KINDS = new Set(['snap', 'howl', 'crow', 'charge', 'woolly']);
 const FEED_CLASS = {
   turn: 'f-turn', snap: 'f-fight', hurt: 'f-fight', bristle: 'f-fight', howl: 'f-fight', charge: 'f-fight',
@@ -43,7 +60,7 @@ const ICON_SVG = {
 };
 
 const ART = 'assets/coyote/';
-const ART_V = '?v=0.15.27';
+const ART_V = '?v=0.15.28';
 const charImg = (p, cls = 'pt') => `<img class="${cls}" src="${ART}char-${p.character.id}.svg${ART_V}" alt="${p.character.name}">`;
 const roleImg = (role, cls = 'pt-role') => `<img class="${cls}" src="${ART}role-${role}.svg${ART_V}" alt="${ROLE_INFO[role].name}">`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -64,7 +81,7 @@ let gateWaiters = [];
 function freshUI(keep = {}) {
   return {
     pending: null, selected: [], mendPicks: [], kitChoice: null, overlay: null, rulesOpen: false,
-    logOpen: !!keep.logOpen, sheet: null, coach: [], tipsShown: new Set(),
+    logOpen: !!keep.logOpen, sheet: null, coach: [], tipsShown: new Set(), move: null,
   };
 }
 
@@ -142,11 +159,48 @@ function overlay(kind, data) {
 }
 
 // ── Engine events ──
+// The last card played, with what came of it, stays in the yard until the
+// next card is played, so a computer player's move can still be read after
+// the feed has moved on.
+function trackMove(g, ev, clue) {
+  if (ev.type === 'night') { ui.move = null; return; }
+  if (ev.type === 'play') {
+    ui.move = { by: ev.by, cardType: ev.cardType, targets: ev.targets || [], out: [], tag: null, echo: false, open: true };
+    return;
+  }
+  const m = ui.move;
+  if (!m || !m.open) return;
+  if (MOVE_END.has(ev.type)) { m.open = false; return; }
+  if (!m.tag && clue && ev.by === m.by) m.tag = leanTag(clue.lean);
+  if (!m.echo && ev.by === m.by && MOVE_ECHO[m.cardType] === ev.type) { m.echo = true; return; }
+  if (ev.text) m.out.push({ text: feedText(g, ev), cls: ev.visibleTo ? 'f-private' : (FEED_CLASS[ev.type] || '') });
+}
+
+function moveHTML(g) {
+  const m = ui.move;
+  if (!m) return '';
+  const def = CARD_TYPES[m.cardType];
+  const nm = s => `<b>${esc(g.players[s].name)}</b>${s === g.shepherdSeat ? ' (Shepherd)' : ''}`;
+  const actor = m.by === HUMAN ? '<b>You</b>' : nm(m.by);
+  const on = m.targets.length
+    ? ` on ${m.targets.map(s => (s === m.by ? (s === HUMAN ? 'yourself' : 'themselves') : s === HUMAN ? '<b>you</b>' : nm(s))).join(' and ')}`
+    : '';
+  const tag = m.tag && help !== 'off' ? ` <span class="f-tag ${m.tag.cls}">${m.tag.text}</span>` : '';
+  const out = m.out.slice(-3);
+  const more = m.out.length - out.length;
+  return `<div class="move ${GROUP_CLASS[def.group]}${m.open ? '' : ' done'}" title="Tap for the full log">
+    <div class="mv-head">${actor} played <span class="mv-card">${esc(def.name)}</span><span class="mv-short"> (${esc((CARD_SHORT[m.cardType] || '').toLowerCase())})</span>${on}.${tag}</div>
+    <div class="mv-rule">${esc(def.text)}</div>
+    ${more ? `<div class="mv-more">+${more} more in the log</div>` : ''}${out.map(o => `<div class="mv-out ${o.cls}">${esc(o.text)}</div>`).join('')}
+  </div>`;
+}
+
 async function handleEvent(g, ev) {
   if (g !== game) return new Promise(() => {}); // abandoned game: freeze it
   if (ev.visibleTo && !ev.visibleTo.includes(HUMAN)) return;
   const clue = clues.observe(ev);
-  if (!(ev.type === 'draw' && ev.by === HUMAN) && ev.type !== 'start') {
+  trackMove(g, ev, clue);
+  if (!(ev.type === 'draw' && ev.by === HUMAN) && ev.type !== 'start' && ev.type !== 'play') {
     feed.push({ text: feedText(g, ev), cls: ev.visibleTo ? 'f-private' : (FEED_CLASS[ev.type] || ''), tag: clue && leanTag(clue.lean) });
     if (feed.length > 400) feed.shift();
   }
@@ -154,12 +208,14 @@ async function handleEvent(g, ev) {
   render();
   await pauseWhileReading();
   if (g !== game) return new Promise(() => {});
+  // While a move is open, the last-move panel already shows these.
+  const inMove = !!ui.move?.open;
   switch (ev.type) {
     case 'night': toast(`Night ${ev.night} of ${g.opt.nights}`, 'night'); break;
-    case 'snap': if (ev.target === HUMAN) toast(`${g.players[ev.by].name} snaps at you!`, 'warn'); break;
-    case 'knockout': toast(ev.text, 'warn'); break;
-    case 'longshot': toast(ev.text, 'warn'); break;
-    case 'bounty': toast(ev.text); break;
+    case 'snap': if (ev.target === HUMAN && !inMove) toast(`${g.players[ev.by].name} snaps at you!`, 'warn'); break;
+    case 'knockout': if (!inMove) toast(ev.text, 'warn'); break;
+    case 'longshot': if (!inMove) toast(ev.text, 'warn'); break;
+    case 'bounty': if (!inMove) toast(ev.text); break;
     case 'reveal': await overlay('reveal', ev); return;
     case 'over': await delay(500); await overlay('over', ev); return;
   }
@@ -178,7 +234,7 @@ function feedText(g, ev) {
 }
 
 function pace(ev) {
-  const base = { night: 900, turn: 350, snap: 750, knockout: 1300, howl: 800, 'howl-hold': 450, dark: 380, hurt: 450, dodge: 500, duke: 900 }[ev.type] ?? 420;
+  const base = { night: 900, turn: 350, play: 1100, snap: 750, knockout: 1300, howl: 800, 'howl-hold': 450, dark: 380, hurt: 450, dodge: 500, duke: 900 }[ev.type] ?? 420;
   const mine = ev.by === HUMAN && ev.type !== 'night';
   return (mine ? Math.min(base, 180) : base) * SPEEDS[speed];
 }
@@ -199,7 +255,18 @@ function render() {
   renderCoach();
   renderPrompt();
   renderHand();
+  fitMove();
   renderModal();
+}
+
+// On a crowded small screen the last-move panel goes compact (the card's
+// short meaning in the head, only the latest result) so the seats keep room.
+function fitMove() {
+  const el = document.querySelector('#yard .move');
+  if (!el) return;
+  el.classList.remove('compact');
+  const seats = $('seats');
+  if (seats.clientHeight < Math.min(seats.scrollHeight, 150)) el.classList.add('compact');
 }
 
 function livesHTML(p) {
@@ -218,10 +285,10 @@ function renderYard() {
   const down = g.dark.filter(d => !d.faceUp).length;
   const backs = Array.from({ length: Math.min(down, 10) }, () => `<img class="back" src="${ART}card-back.svg${ART_V}" alt="">`).join('');
   const ups = g.dark.filter(d => d.faceUp).map(d =>
-    `<span class="faceup" title="Put in face up by ${esc(g.players[d.by].name)}"><span class="fu-icon">${ICON_SVG[d.card.icon]}</span><span class="fu-name">${esc(cardName(d.card))}</span><span class="fu-by">${esc(g.players[d.by].name)}</span></span>`).join('');
+    `<span class="faceup" title="${esc(g.players[d.by].name)} put ${esc(cardName(d.card))} in face up. In the Dark pile only the icon counts."><span class="fu-icon">${ICON_SVG[d.card.icon]}</span><span class="fu-name">${d.card.icon}</span><span class="fu-by">${esc(g.players[d.by].name)}</span></span>`).join('');
   const flash = ui.flash ? `<div class="yard-flash ${ui.flash.cls}">${esc(ui.flash.text)}</div>` : '<div class="yard-flash"></div>';
-  $('yard').innerHTML = `${flash}
-    <div class="yard-block"><div class="yard-label">Night ${Math.max(1, g.night)} of ${g.opt.nights}</div><div class="moons">${nights}</div></div>
+  $('yard').innerHTML = `${flash}${moveHTML(g)}
+    <div class="yard-block y-night"><div class="yard-label">Night ${Math.max(1, g.night)} of ${g.opt.nights}</div><div class="moons">${nights}</div></div>
     <div class="yard-block"><div class="yard-label">Den ${g.den} of ${g.denTarget}</div><div class="den">${sheep}</div></div>
     <div class="yard-block"><div class="yard-label">Dark pile ${g.dark.length ? `(${g.dark.length})` : ''}</div>
       <div class="dark-pile">${backs || (ups ? '' : '<span class="dark-empty">empty</span>')}${ups}</div></div>`;
@@ -397,6 +464,7 @@ function renderHand() {
     return `<div class="${cls.join(' ')}" data-card="${c.id}" title="${esc(def.text)}">
       <div class="cname">${esc(def.name)}</div>
       <div class="cgroup">${esc(def.group)}</div>
+      <div class="cshort">${esc(CARD_SHORT[c.type] || '')}</div>
       <div class="ctext">${esc(def.text)}</div>
       <div class="cicon">${ICON_SVG[c.icon]}</div>
     </div>`;
@@ -475,6 +543,9 @@ function coachOnEvent(g, ev, clue) {
     }
   }
   switch (ev.type) {
+    case 'play':
+      if (ev.by !== HUMAN) tip('move', 'The box in the middle shows the last card anyone played: what the card does and what happened. It stays until the next card is played. Tap it for the full log. Too fast? Tap the play27 logo for Settings, then Speed: Slow.');
+      break;
     case 'reveal': {
       tip('reveal', `The reveal: each moon takes a sheep unless ${game.opt.lanternsPerMoon} lanterns cancel it. Moons nobody showed came from face-down cards, so everyone who went face down tonight takes a share of the suspicion.`);
       if (g.den === g.denTarget - 1 && !g.over) {
@@ -1030,7 +1101,8 @@ function toast(msg, cls = '') {
   if (game) {
     ui.flash = { text: msg, cls };
     renderYard();
-    toastTimer = setTimeout(() => { ui.flash = null; if (game) renderYard(); }, 2600);
+    fitMove();
+    toastTimer = setTimeout(() => { ui.flash = null; if (game) { renderYard(); fitMove(); } }, 2600);
     return;
   }
   const t = $('toast');
@@ -1086,7 +1158,7 @@ document.addEventListener('click', e => {
   if (card) return onCard(Number(card.dataset.card));
   const seat = e.target.closest('[data-seat]');
   if (seat) return onSeat(Number(seat.dataset.seat));
-  if (e.target.closest('#feed')) {
+  if (e.target.closest('#feed') || e.target.closest('.move')) {
     ui.logOpen = !ui.logOpen;
     renderFeed();
   }
