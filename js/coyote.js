@@ -3,10 +3,10 @@
 // Rules engine: coyote-engine.js. AI: coyote-ai.js. Spec: COYOTE.md.
 // ============================================================
 
-import { initTheme } from './theme.js?v=0.15.28';
-import { CoyoteGame, CARD_TYPES, CHARACTERS, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.28';
-import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.28';
-import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.28';
+import { initTheme } from './theme.js?v=0.15.29';
+import { CoyoteGame, CARD_TYPES, CHARACTERS, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.29';
+import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.29';
+import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.29';
 
 const HUMAN = 0;
 // Helper levels: coach tips + reads, reads only, or off (just the facts).
@@ -20,6 +20,9 @@ const READ_HELP = {
 };
 const $ = id => document.getElementById(id);
 const SPEEDS = { fast: 0.35, normal: 1, slow: 1.8 };
+// Reading pace for on-screen text at Normal speed: about 250 words a minute.
+const MS_PER_WORD = 240;
+const wordCount = s => (String(s).match(/\S+/g) || []).length;
 const ROLE_CLASS = { shepherd: 'r-shepherd', sheepdog: 'r-sheepdog', hunter: 'r-hunter', coyote: 'r-coyote', fox: 'r-fox' };
 const TIER_HINTS = {
   easy: 'Easy: computer players make mistakes and read the night poorly.',
@@ -60,7 +63,7 @@ const ICON_SVG = {
 };
 
 const ART = 'assets/coyote/';
-const ART_V = '?v=0.15.28';
+const ART_V = '?v=0.15.29';
 const charImg = (p, cls = 'pt') => `<img class="${cls}" src="${ART}char-${p.character.id}.svg${ART_V}" alt="${p.character.name}">`;
 const roleImg = (role, cls = 'pt-role') => `<img class="${cls}" src="${ART}role-${role}.svg${ART_V}" alt="${ROLE_INFO[role].name}">`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -78,10 +81,10 @@ let help = loadHelp();
 let ui = freshUI();
 let gateWaiters = [];
 
-function freshUI(keep = {}) {
+function freshUI() {
   return {
     pending: null, selected: [], mendPicks: [], kitChoice: null, overlay: null, rulesOpen: false,
-    logOpen: !!keep.logOpen, sheet: null, coach: [], tipsShown: new Set(), move: null,
+    logOpen: false, sheet: null, coach: [], tipsShown: new Set(), move: null,
   };
 }
 
@@ -96,7 +99,7 @@ function loadHelp() {
 }
 
 // The game waits while you read the rules or a player sheet.
-const reading = () => ui.sheet != null || ui.rulesOpen;
+const reading = () => ui.sheet != null || ui.rulesOpen || ui.logOpen;
 async function pauseWhileReading() {
   while (reading()) await new Promise(r => gateWaiters.push(r));
 }
@@ -162,10 +165,13 @@ function overlay(kind, data) {
 // The last card played, with what came of it, stays in the yard until the
 // next card is played, so a computer player's move can still be read after
 // the feed has moved on.
+const ruleSeen = {}; // card type -> times its rule has been on screen this session
 function trackMove(g, ev, clue) {
   if (ev.type === 'night') { ui.move = null; return; }
   if (ev.type === 'play') {
-    ui.move = { by: ev.by, cardType: ev.cardType, targets: ev.targets || [], out: [], tag: null, echo: false, open: true };
+    const familiar = (ruleSeen[ev.cardType] || 0) >= 2;
+    ruleSeen[ev.cardType] = (ruleSeen[ev.cardType] || 0) + 1;
+    ui.move = { by: ev.by, cardType: ev.cardType, targets: ev.targets || [], out: [], tag: null, echo: false, open: true, familiar, t0: performance.now() };
     return;
   }
   const m = ui.move;
@@ -174,6 +180,21 @@ function trackMove(g, ev, clue) {
   if (!m.tag && clue && ev.by === m.by) m.tag = leanTag(clue.lean);
   if (!m.echo && ev.by === m.by && MOVE_ECHO[m.cardType] === ev.type) { m.echo = true; return; }
   if (ev.text) m.out.push({ text: feedText(g, ev), cls: ev.visibleTo ? 'f-private' : (FEED_CLASS[ev.type] || '') });
+}
+
+// Before a new card play replaces a computer player's move, keep that move
+// on screen long enough to read: the words showing, at MS_PER_WORD each. A
+// card's rule stops counting once you've seen it twice. Speed scales it.
+async function holdMoveForReading() {
+  const m = ui.move;
+  const el = document.querySelector('#yard .move');
+  if (!m || !el || m.by === HUMAN) return;
+  let words = wordCount(el.innerText);
+  const rule = el.querySelector('.mv-rule');
+  if (m.familiar && rule && rule.getClientRects().length) words -= wordCount(rule.innerText);
+  const need = Math.min(6000, 600 + words * MS_PER_WORD) * SPEEDS[speed];
+  const wait = need - (performance.now() - m.t0);
+  if (wait > 0) await delay(wait);
 }
 
 function moveHTML(g) {
@@ -198,6 +219,14 @@ function moveHTML(g) {
 async function handleEvent(g, ev) {
   if (g !== game) return new Promise(() => {}); // abandoned game: freeze it
   if (ev.visibleTo && !ev.visibleTo.includes(HUMAN)) return;
+  // While you're reading (log, a sheet, the rules), nothing new appears.
+  await pauseWhileReading();
+  if (g !== game) return new Promise(() => {});
+  if (ev.type === 'play') {
+    await holdMoveForReading();
+    await pauseWhileReading();
+    if (g !== game) return new Promise(() => {});
+  }
   const clue = clues.observe(ev);
   trackMove(g, ev, clue);
   if (!(ev.type === 'draw' && ev.by === HUMAN) && ev.type !== 'start' && ev.type !== 'play') {
@@ -351,7 +380,8 @@ function renderSeats() {
 function renderFeed() {
   const el = $('feed');
   const items = ui.logOpen ? feed : feed.slice(-3);
-  el.innerHTML = items.map(f => `<div class="${f.cls}">${esc(f.text)}${f.tag && help !== 'off' ? ` <span class="f-tag ${f.tag.cls}">${f.tag.text}</span>` : ''}</div>`).join('') || '<div>The sun is setting…</div>';
+  const paused = ui.logOpen && game && !game.over ? '<div class="f-paused">Game paused while the log is open. Tap anywhere to close.</div>' : '';
+  el.innerHTML = paused + (items.map(f => `<div class="${f.cls}">${esc(f.text)}${f.tag && help !== 'off' ? ` <span class="f-tag ${f.tag.cls}">${f.tag.text}</span>` : ''}</div>`).join('') || '<div>The sun is setting…</div>');
   el.classList.toggle('open', ui.logOpen);
   if (ui.logOpen) el.scrollTop = el.scrollHeight;
 }
@@ -1060,7 +1090,7 @@ async function startGame() {
   clues = new ClueTracker(g, HUMAN);
   feed = [];
   gateWaiters = []; // a paused old game stays frozen
-  ui = freshUI(ui);
+  ui = freshUI();
   $('setupScreen').style.display = 'none';
   $('gameBoard').style.display = 'flex';
   render();
@@ -1087,7 +1117,7 @@ function backToSetup() {
   ui.overlay?.resolve();
   game = null;
   gateWaiters = [];
-  ui = freshUI(ui);
+  ui = freshUI();
   $('gameBoard').style.display = 'none';
   $('setupScreen').style.display = 'flex';
   renderModal();
@@ -1098,17 +1128,19 @@ let toastTimer = null;
 // On the setup screen they use the floating toast.
 function toast(msg, cls = '') {
   clearTimeout(toastTimer);
+  // Long enough to read: 2.6 to 6 seconds by length, longer on Slow.
+  const ms = Math.min(6000, Math.max(2600, 600 + wordCount(msg) * MS_PER_WORD)) * Math.max(1, SPEEDS[speed]);
   if (game) {
     ui.flash = { text: msg, cls };
     renderYard();
     fitMove();
-    toastTimer = setTimeout(() => { ui.flash = null; if (game) { renderYard(); fitMove(); } }, 2600);
+    toastTimer = setTimeout(() => { ui.flash = null; if (game) { renderYard(); fitMove(); } }, ms);
     return;
   }
   const t = $('toast');
   t.textContent = msg;
   t.className = `toast show ${cls}`;
-  toastTimer = setTimeout(() => { t.className = 'toast'; }, 2600);
+  toastTimer = setTimeout(() => { t.className = 'toast'; }, ms);
 }
 
 function closeDropdown() { $('settingsDropdown').classList.remove('open'); }
@@ -1149,6 +1181,13 @@ document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click
 }));
 document.addEventListener('click', e => {
   if (!e.target.closest('#logoWrap')) closeDropdown();
+  // The open log pauses the game, and it isn't a dialog, so any tap
+  // outside it closes it first: your own moves never stall behind it.
+  if (ui.logOpen && !e.target.closest('#feed') && !e.target.closest('.move')) {
+    ui.logOpen = false;
+    renderFeed();
+    releaseGate();
+  }
   const actEl = e.target.closest('[data-act]');
   if (actEl) {
     if (!actEl.disabled) onAct(actEl.dataset.act);
@@ -1159,7 +1198,9 @@ document.addEventListener('click', e => {
   const seat = e.target.closest('[data-seat]');
   if (seat) return onSeat(Number(seat.dataset.seat));
   if (e.target.closest('#feed') || e.target.closest('.move')) {
+    // An open log pauses the game; closing it lets play continue.
     ui.logOpen = !ui.logOpen;
     renderFeed();
+    if (!ui.logOpen) releaseGate();
   }
 });

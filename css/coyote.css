@@ -249,6 +249,10 @@ html, body { height:100%; overflow:hidden; }
 .feed .f-night { color:var(--moon); font-weight:700; }
 .feed .f-reveal { color:var(--amber); font-weight:700; }
 .feed .f-private { color:var(--teal); }
+.feed .f-paused {
+  position:sticky; top:-5px; margin:-5px -12px 4px; padding:4px 12px; background:var(--bg2);
+  border-bottom:1px solid var(--border); color:var(--amber); font-weight:700;
+}
 .feed .f-tag {
   font-family:'Courier New', Courier, monospace; font-size:0.85em; font-weight:700;
   text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap;

@@ -290,6 +290,17 @@ but not what it means. The helper fixes that from your own seat's point of view.
   card is played, so a computer turn can still be read after the feed moves on.
   On a crowded small screen it goes compact (the card's short meaning in the head,
   only the latest result). Computer card plays get a 1.1 second beat at Normal speed.
+- **Time on screen.** Measured at Normal speed in a 7-player game, a computer
+  move stayed up a median 2.6 seconds holding about 21 words, so 30 of 31 were
+  replaced before they could be read. Now a new card play waits until the
+  previous computer move has been up for its reading time: 600 ms plus 240 ms a
+  word showing (about 250 words a minute), capped at 6 seconds and scaled by
+  Speed. A card's rule line stops counting once you've seen it twice this
+  session. Result: median 4.7 seconds on screen, 35 of 38 moves met their
+  reading time (the rest were cleared by nightfall), and a 7-player game's
+  computer time went from about 2 to about 3.5 minutes. Banners last 2.6 to 6
+  seconds by length. Opening the log (tap the feed or the last move) pauses
+  the game; any tap outside it closes it and play resumes.
 - **Card faces say what they do.** On phones each hand card shows a short line
   ("Hit someone in range", "Blocks a Snap! at you") instead of its group name.
   Face-up cards in the Dark pile show their icon word (moon, lantern, blank), not
