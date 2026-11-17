@@ -3,10 +3,11 @@
 // Rules engine: coyote-engine.js. AI: coyote-ai.js. Spec: COYOTE.md.
 // ============================================================
 
-import { initTheme } from './theme.js?v=0.15.29';
-import { CoyoteGame, CARD_TYPES, CHARACTERS, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.29';
-import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.29';
-import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.29';
+import { initTheme } from './theme.js?v=0.15.30';
+import { CoyoteGame, CARD_TYPES, CHARACTERS, ROLE_INFO, ROLE_TABLE, DEFAULTS, cardName } from './coyote-engine.js?v=0.15.30';
+import { CoyoteAI, TIERS } from './coyote-ai.js?v=0.15.30';
+import { ClueTracker, leanTag, leanClass } from './coyote-clues.js?v=0.15.30';
+import { dealtPair, statusLine, statusChip } from './coyote-cards.js?v=0.15.30';
 
 const HUMAN = 0;
 // Helper levels: coach tips + reads, reads only, or off (just the facts).
@@ -63,7 +64,7 @@ const ICON_SVG = {
 };
 
 const ART = 'assets/coyote/';
-const ART_V = '?v=0.15.29';
+const ART_V = '?v=0.15.30';
 const charImg = (p, cls = 'pt') => `<img class="${cls}" src="${ART}char-${p.character.id}.svg${ART_V}" alt="${p.character.name}">`;
 const roleImg = (role, cls = 'pt-role') => `<img class="${cls}" src="${ART}role-${role}.svg${ART_V}" alt="${ROLE_INFO[role].name}">`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -337,6 +338,22 @@ function currentTargets() {
   return [];
 }
 
+// Status cards in front of a player: kits (the Crook too), Bell, Woken, Crow.
+function statusKinds(g, p) {
+  const list = p.kits.map(k => k.type);
+  if (p.bell) list.push('bell');
+  if (g.dukeTarget === p.seat) list.push('woken');
+  if (p.crow) list.push('crow');
+  return list;
+}
+
+// A seat's role card (desktop): face down unless you know the role.
+function roleMini(known) {
+  if (!known) return '<span class="role-mini" title="Role card, face down"></span>';
+  return `<span class="role-mini known ${ROLE_CLASS[known]}" style="--band:var(--${ROLE_BAND[known]})" title="${ROLE_INFO[known].name}"><img src="${ART}role-${known}.svg${ART_V}" alt=""></span>`;
+}
+const ROLE_BAND = { shepherd: 'amber', sheepdog: 'teal', hunter: 'green', coyote: 'red', fox: 'purple' };
+
 function renderSeats() {
   const g = game;
   const me = g.players[HUMAN];
@@ -360,13 +377,15 @@ function renderSeats() {
     if (targets.includes(s) && ui.pending?.kind === 'day' && !me.crow && !g.inRange(me, p) && me.hand.find(c => c.id === ui.selected[0])?.type === 'snap') {
       tags.push('<span class="tag long" title="Uses your long gun and reveals you as the Hunter">long shot</span>');
     }
-    for (const k of p.kits) tags.push(`<span class="tag kit" title="${esc(k.type === 'crook' ? 'Shepherd\'s Crook: +1 range' : CARD_TYPES[k.type].text)}">${esc(cardName(k))}</span>`);
-    if (p.bell) tags.push('<span class="tag bell" title="Their next Dark card goes in face up">Bell</span>');
-    if (g.dukeTarget === s) tags.push('<span class="tag woken" title="Their Dark cards tonight go in face up">Woken</span>');
+    for (const k of p.kits) tags.push(`<span class="tag kit st-tag" title="${esc(k.type === 'crook' ? 'Shepherd\'s Crook: +1 range' : CARD_TYPES[k.type].text)}">${esc(cardName(k))}</span>`);
+    if (p.bell) tags.push('<span class="tag bell st-tag" title="Their next Dark card goes in face up">Bell</span>');
+    if (g.dukeTarget === s) tags.push('<span class="tag woken st-tag" title="Their Dark cards tonight go in face up">Woken</span>');
+    for (const k of statusKinds(g, p)) tags.push(statusChip(k, { art: ART, v: ART_V }));
     if (!p.crow) tags.push(`<span class="tag">${plural(p.hand.length, 'card')}</span>`);
     return `<div class="${cls.join(' ')}" data-seat="${s}">
       <div class="seat-head">
         <span class="pt-wrap">${charImg(p)}${known ? roleImg(known) : ''}</span>
+        ${roleMini(known)}
         <div class="seat-id">
           <div class="seat-top"><span class="seat-name">${esc(p.name)}</span>${p.crow ? '<span class="tag">Crow</span>' : livesHTML(p)}</div>
           <div class="seat-sub" title="${esc(p.character.text)}">${esc(p.character.animal)} · ${esc(p.character.ability)}</div>
@@ -394,16 +413,18 @@ function renderYou() {
     ? g.players.filter(p => p !== me && p.role === 'coyote').map(p => esc(p.name)).join(', ')
     : '';
   const tags = [];
-  for (const k of me.kits) tags.push(`<span class="tag kit">${esc(cardName(k))}</span>`);
+  for (const k of me.kits) tags.push(`<span class="tag kit st-tag">${esc(cardName(k))}</span>`);
   if (!me.crow) tags.push(`<span class="tag">range ${g.range(me)}</span>`);
-  if (me.bell) tags.push('<span class="tag bell">Bell</span>');
-  if (g.dukeTarget === HUMAN) tags.push('<span class="tag woken">Woken</span>');
+  if (me.bell) tags.push('<span class="tag bell st-tag">Bell</span>');
+  if (g.dukeTarget === HUMAN) tags.push('<span class="tag woken st-tag">Woken</span>');
+  const cards = statusKinds(g, me).map(k => statusLine(k, { art: ART, v: ART_V })).join('');
   $('youPanel').className = `you${g.turnSeat === HUMAN ? ' active' : ''}${me.crow ? ' crow' : ''}`;
   $('youPanel').innerHTML = `
     <span class="pt-wrap">${charImg(me)}${roleImg(me.role)}</span>
     <span class="you-role ${ROLE_CLASS[me.role]}" title="${esc(info.goal)}"><span class="you-k">Role</span>${info.name}</span>
     <span class="you-char"><span class="you-k">Character</span><b>${esc(me.character.name)}</b> the ${esc(me.character.animal)} · ${esc(me.character.ability)}: ${esc(me.character.text)}${pack ? ` · Pack: <b>${pack}</b>` : ''}</span>
     <span class="spacer"></span>
+    ${cards ? `<span class="you-status">${cards}</span>` : ''}
     ${tags.join('')}
     ${me.crow ? '<span class="tag">Crow</span>' : livesHTML(me)}`;
 }
@@ -842,12 +863,13 @@ function introBody(g) {
       : `To everyone else, even the other coyotes, you're just ${who}: a coyote in disguise.`,
     fox: `To everyone else you're just ${who}. Nobody knows you're the Fox.`,
   }[me.role];
-  return `<div class="intro-art"><span class="pt-wrap">${charImg(me, 'intro-pt')}${roleImg(me.role, 'intro-badge')}</span></div>
+  return `${dealtPair(me.character.id, me.role, { art: ART, v: ART_V })}
+    <div class="intro-text"><div class="intro-art"><span class="pt-wrap">${charImg(me, 'intro-pt')}${roleImg(me.role, 'intro-badge')}</span></div>
     <div class="intro-kicker">Your secret role</div>
     <h3 class="${ROLE_CLASS[me.role]}">${info.name}</h3>
     <p>${esc(info.goal)}</p>
     <div class="intro-kicker">Your character</div>
-    <p><b>${who}.</b> <b>${esc(me.character.ability)}:</b> ${esc(me.character.text)}</p>
+    <p><b>${who}.</b> <b>${esc(me.character.ability)}:</b> ${esc(me.character.text)}</p></div>
     ${CHAR_TIPS[me.character.id] ? `<p class="intro-tip">${esc(CHAR_TIPS[me.character.id])}</p>` : ''}
     <p class="intro-note">Your role is your secret side; your character is just the animal you play, and any animal can have any role. ${disguise}</p>
     <div class="intro-kicker">Around the table</div>
@@ -897,7 +919,7 @@ function rulesHTML() {
   const lpm = game?.opt.lanternsPerMoon ?? DEFAULTS.lanternsPerMoon;
   return `<h3>How to play Lanterns Out</h3>
     <h4>Role and character</h4>
-    <p>Everyone gets two things. A <b>role</b> is your side: it's secret (except the Shepherd's) and decides how you win. A <b>character</b> is the farm animal you play, with one special ability. Any animal can have any role: Mabel the goose might be a Sheepdog in one game and a Coyote in the next. So anyone whose role you don't know is either part of the flock, or a coyote (or the Fox) in disguise.</p>
+    <p>Everyone is dealt two cards. Your <b>character</b> card goes face up: the farm animal you play, with one special ability. Your <b>role</b> card stays face down: your secret side, which decides how you win (only the Shepherd's is shown). Any animal can have any role: Mabel the goose might be a Sheepdog in one game and a Coyote in the next. So anyone whose role you don't know is either part of the flock, or a coyote (or the Fox) in disguise.</p>
     <p><button class="btn-link rules-jump" data-act="rules-chars">Jump to the characters</button></p>
     <h4>The roles</h4>
     <ul>

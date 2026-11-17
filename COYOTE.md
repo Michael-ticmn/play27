@@ -224,6 +224,44 @@ healing, and Snap!.
 
 The Shepherd is dealt a character like everyone else.
 
+## Player cards (physical game and desktop)
+
+Asked for 2026-11-16: player cards handed out with the character face up and
+the role face down, plus status cards for effects like "your Dark card goes in
+face up". Mini card size (1.75 x 2.5 in, 44.45 x 63.5 mm, half a poker card),
+separate from the 60-card deck.
+
+| Card | Count | Dealt | Says |
+|---|---|---|---|
+| Character | 8 | Shuffle, deal 1 to each player face up | Name, animal, portrait, ability, lives |
+| Role | 7 (1 Shepherd, 1 Sheepdog, 1 Hunter, 3 Coyote, 1 Fox) | Take the roles for the player count, shuffle, deal 1 face down; the Shepherd shows theirs | Role, team, goal, when to show it |
+| Woken | 1 | Duke hands it to the player he picks at nightfall; back at dawn | Your Dark cards tonight go in face up |
+| Crook | 1 | In front of the Shepherd from the start | +1 range; can't be spooked away |
+| Crow | 5 | Taken by a player when knocked out (role card flips face up) | What a crow does each night |
+
+The Bell needs no status card: the Bell card itself sits in front of the player
+until their next Dark card. Kits (Hayloft, Thicket, Lantern) are deck cards that
+stay in play. All player cards share one back, so a dealt role gives nothing away.
+
+**One source.** `js/coyote-cards.js` builds every card in HTML from the engine's
+own text (character abilities, role goals), styled by `css/coyote-cards.css`
+where every size scales from the card width. The desktop page and the print sheet
+use the same code, so a rules change reaches both.
+
+**Desktop** (601 px and wider): the intro deals your character card face up and
+your role card face down, which then flips for you (no animation with reduced
+motion). Each seat shows a small face-down role card (or the role, once known),
+and status shows as small cards: chips on the seats, cards with their text in
+your panel. Phones keep the compact tags.
+
+**Print sheet** (local only, because the repo is public): `print/cards.html`
+(in `.gitignore`) lays the cards out 16 to a Letter page with a full page of
+backs after each, for duplex printing (flip on the long edge). Serve the repo
+locally and print at 100%, no margins, background graphics on. The rendered
+PDF is `print/lanterns-out-player-cards.pdf`. Still to design for a physical
+copy: the 60-card deck faces, life and sheep tokens, the night track, a player
+aid card.
+
 ## Timing and edge rules
 
 - Check for a win immediately after any life is lost and after each reveal.
